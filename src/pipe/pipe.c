@@ -7,9 +7,7 @@
 /*	\fBpipe\fR [generic Postfix daemon options] command_attributes...
 /* DESCRIPTION
 /*	The \fBpipe\fR daemon processes requests from the Postfix queue
-/*	manager to deliver messages to external commands. Each delivery
-/*	request specifies a queue file, a sender address, a domain or host
-/*	to deliver to, and one or more recipients.
+/*	manager to deliver messages to external commands.
 /*	This program expects to be run from the \fBmaster\fR(8) process
 /*	manager.
 /*
@@ -17,6 +15,22 @@
 /*	as finished, or it informs the queue manager that delivery should
 /*	be tried again at a later time. Delivery problem reports are sent
 /*	to the \fBbounce\fR(8) or \fBdefer\fR(8) daemon as appropriate.
+/* SINGLE-RECIPIENT DELIVERY
+/* .ad
+/* .fi
+/*	Some external commands cannot handle more than one recipient
+/*	per delivery request. Examples of such transports are pagers,
+/*	fax machines, and so on.
+/*
+/*	To prevent Postfix from sending multiple recipients per delivery
+/*	request, specify 
+/*
+/* .ti +4
+/*	\fItransport\fB_destination_recipient_limit = 1\fR 
+/*
+/*	in the Postfix \fBmain.cf\fR file, where \fItransport\fR
+/*	is the name in the first column of the Postfix \fBmaster.cf\fR
+/*	entry for the pipe-based delivery transport.
 /* COMMAND ATTRIBUTE SYNTAX
 /* .ad
 /* .fi
@@ -74,18 +88,21 @@
 /*	This macro expands to the extension part of a recipient address.
 /*	For example, with an address \fIuser+foo@domain\fR the extension is
 /*	\fIfoo\fR.
+/* .sp
 /*	A command-line argument that contains \fB${\fBextension\fR}\fR expands
 /*	into as many command-line arguments as there are recipients.
 /* .IP \fB${\fBmailbox\fR}\fR
 /*	This macro expands to the complete local part of a recipient address.
 /*	For example, with an address \fIuser+foo@domain\fR the mailbox is
 /*	\fIuser+foo\fR.
+/* .sp
 /*	A command-line argument that contains \fB${\fBmailbox\fR}\fR
 /*	expands into as many command-line arguments as there are recipients.
 /* .IP \fB${\fBnexthop\fR}\fR
 /*	This macro expands to the next-hop hostname.
 /* .IP \fB${\fBrecipient\fR}\fR
 /*	This macro expands to the complete recipient address.
+/* .sp
 /*	A command-line argument that contains \fB${\fBrecipient\fR}\fR
 /*	expands into as many command-line arguments as there are recipients.
 /* .IP \fB${\fBsender\fR}\fR
@@ -97,6 +114,7 @@
 /*	This macro expands to the username part of a recipient address.
 /*	For example, with an address \fIuser+foo@domain\fR the username
 /*	part is \fIuser\fR.
+/* .sp
 /*	A command-line argument that contains \fB${\fBuser\fR}\fR expands
 /*	into as many command-line arguments as there are recipients.
 /* .RE
@@ -291,8 +309,6 @@ static int parse_callback(int type, VSTRING *buf, char *context)
 	    *expand_flag |= PIPE_FLAG_EXTENSION;
 	else if (strcmp(vstring_str(buf), PIPE_DICT_MAILBOX) == 0)
 	    *expand_flag |= PIPE_FLAG_MAILBOX;
-	else if (strcmp(vstring_str(buf), PIPE_DICT_SIZE) == 0)
-	    *expand_flag |= PIPE_FLAG_SIZE;
     }
     return (0);
 }
@@ -395,14 +411,6 @@ static ARGV *expand_argv(char **argv, RECIPIENT_LIST *rcpt_list, long data_size)
 				 rcpt_list->info[i].address);
 		    lowercase(STR(buf));
 		    dict_update(PIPE_DICT_TABLE, PIPE_DICT_MAILBOX, STR(buf));
-		}
-
-		/*
-		 * This argument contains $size.
-		 */
-		if (expand_flag & PIPE_FLAG_SIZE) {
-		    vstring_sprintf(buf, "%ld", data_size);
-		    dict_update(PIPE_DICT_TABLE, PIPE_DICT_SIZE, STR(buf));
 		}
 
 		/*
@@ -698,6 +706,10 @@ static int deliver_message(DELIVER_REQUEST *request, char *service, char **argv)
 
     dict_update(PIPE_DICT_TABLE, PIPE_DICT_SENDER, request->sender);
     dict_update(PIPE_DICT_TABLE, PIPE_DICT_NEXTHOP, request->nexthop);
+    buf = vstring_alloc(10);
+    vstring_sprintf(buf, "%ld", (long) request->data_size);
+    dict_update(PIPE_DICT_TABLE, PIPE_DICT_SIZE, STR(buf));
+    vstring_free(buf);
     expanded_argv = expand_argv(attr.command, rcpt_list, request->data_size);
     export_env = argv_split(var_export_environ, ", \t\r\n");
 

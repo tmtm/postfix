@@ -329,10 +329,12 @@ extern int opterr;
 #define USE_STATVFS
 #define STATVFS_IN_SYS_STATVFS_H
 #define STRCASECMP_IN_STRINGS_H
+#if 0
 extern time_t time(time_t *);
 extern int seteuid(uid_t);
 extern int setegid(gid_t);
 extern int initgroups(const char *, int);
+#endif
 
 #endif
 
@@ -399,6 +401,10 @@ extern int initgroups(const char *, int);
 
 #if defined(IRIX5)
 #define MISSING_USLEEP
+#endif
+
+#if defined(IRIX6)
+#define HAS_POSIX_REGEXP
 #endif
 
  /*
@@ -853,6 +859,7 @@ typedef int pid_t;
 #define S_ISSOCK(mode)	(((mode) & (_S_IFMT)) == (_S_IFSOCK))
 #define S_ISFIFO(mode)	(((mode) & (_S_IFMT)) == (_S_IFIFO))
 #define S_ISREG(mode)	(((mode) & (_S_IFMT)) == (_S_IFREG))
+#define S_ISLNK(mode)	(((mode) & (_S_IFMT)) == (_S_IFLNK))
 #endif
 
 #ifdef MISSING_POSIX_S_MODES
