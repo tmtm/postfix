@@ -170,6 +170,19 @@ static NORETURN single_server_exit(void)
     exit(0);
 }
 
+/* single_server_watchdog - something got stuck */
+
+static NORETURN single_server_watchdog(int unused_sig)
+{
+
+    /*
+     * This runs as a signal handler. We should not do anything that could
+     * involve memory managent, but exiting without explanation would be
+     * worse.
+     */
+    msg_fatal("watchdog timer");
+}
+
 /* single_server_abort - terminate after abnormal master exit */
 
 static void single_server_abort(int unused_event, char *unused_context)
@@ -202,6 +215,12 @@ static void single_server_accept(int unused_event, char *context)
 	&& myflock(vstream_fileno(single_server_lock), MYFLOCK_NONE) < 0)
 	msg_fatal("select unlock: %m");
 #endif
+
+    /*
+     * Some buggy systems cause Postfix to lock up.
+     */
+    signal(SIGALRM, single_server_watchdog);
+    alarm(var_daemon_timeout);
 
     /*
      * Be prepared for accept() to fail because some other process already

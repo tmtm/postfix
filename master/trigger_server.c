@@ -281,6 +281,7 @@ static void trigger_server_accept_socket(int unused_event, char *context)
     /*
      * Some buggy systems cause Postfix to lock up.
      */
+    signal(SIGALRM, trigger_server_watchdog);
     alarm(1000);
 
     /*

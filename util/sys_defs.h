@@ -261,6 +261,10 @@ extern int initgroups(const char *, int);
 #define STATVFS_IN_SYS_STATVFS_H
 #endif
 
+#if defined(IRIX5)
+#define usleep	doze
+#endif
+
 #ifdef LINUX2
 #define SUPPORTED
 #include <sys/types.h>
