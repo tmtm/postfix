@@ -74,6 +74,17 @@ smtp_never_send_ehlo = no
 # 
 #smtp_line_length_limit = 990
 
+# The smtp_helo_name parameter specifies the hostname to send along
+# in the EHLO or HELO command. 
+# 
+# The default value is the machine hostname.  Specify a hostname or
+# [ip.address].  This can be used in the main.cf file, or in the
+# master.cf file, for example:
+# 
+# 	smtp ... smtp -o smtp_helo_name=foo.bar.com
+# 
+#smtp_helo_name = $myhostname
+
 # The smtp_skip_4xx_greeting parameter controls what happens when
 # an SMTP server greets us with a 4XX status code (go away, try
 # again later).
@@ -157,13 +168,14 @@ smtp_destination_recipient_limit = $default_destination_recipient_limit
 #
 # When no connection can be made within the deadline, the SMTP client
 # tries the next address on the mail exchanger list. Specify 0 to
-# disable the timeout.
+# disable the timeout (i.e. use whatever timeout is implemented by
+# the operating system).
 #
 # Time units: s (seconds), m (minutes), h (hours), d (days), w (weeks).
 # The default time unit is s (seconds).
 #
-#smtp_connect_timeout = 30s
-smtp_connect_timeout = 0s
+#smtp_connect_timeout = 0s
+smtp_connect_timeout = 30s
 
 # The smtp_helo_timeout parameter specifies the SMTP client timeout
 # for receiving the SMTP greeting banner.

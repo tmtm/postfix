@@ -24,7 +24,7 @@ ignore_mx_lookup_error = no
 # The smtp_always_send_ehlo parameter specifies that the SMTP client
 # should always send EHLO at the start of an SMTP session.
 # 
-# If you specify "no", Postfix sends EHLO only when the word "ESMTP"
+# If you specify "no", Postfix sends EHLO only when the word "ESMTP" 
 # appears in the server greeting banner (example: 220 spike.porcupine.org
 # ESMTP Postfix).
 #
