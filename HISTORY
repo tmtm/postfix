@@ -2381,7 +2381,30 @@ Apologies for any names omitted.
 
 19990326
 
+	Compatibility: Postfix now puts to spaces after the sender
+	in a "From sender date..." header. Found by John A. Martin,
+	fixed by Lamont Jones, Hewlett-Packard.
+
 	Bugfix: when a recipient appeared multiple times in a local
 	alias or include expansion, the delivery status could be
 	left uninitialized, causing the mail to be deferred and
 	delivered again. File: local/recipient.c.
+
+19990330
+
+	Bug fix: match_list membership dictionary lookups were case
+	sensitive when they should not. Patch by Lutz Jaenicke,
+	BTU Cottbus, Germany.
+
+19990404
+
+	Bugfix: after receiving mail, the SMTP server didn't reset
+	the cleanup error flag, so that multiple deliveries over
+	the same SMTP session could fail due to errors with previous
+	deliveries. Found by Lamont Jones, Hewlett-Packard.
+
+19990409
+
+	Bugfix: ignore temp queue files that aren't old enough.
+	Problem reported by Vivek Khera, Khera Communications, Inc.
+

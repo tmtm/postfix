@@ -441,6 +441,7 @@ static int mail_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	    return (-1);
 	}
     }
+    state->time = time((time_t *) 0);
     if (SMTPD_STAND_ALONE(state) == 0
 	&& (err = smtpd_check_mail(state, argv[3].strval)) != 0) {
 	smtpd_chat_reply(state, "%s", err);
@@ -482,6 +483,7 @@ static void mail_reset(SMTPD_STATE *state)
 	mail_stream_cleanup(state->dest);
 	state->dest = 0;
 	state->cleanup = 0;
+	state->err = 0;
     }
     if (state->queue_id != 0) {
 	myfree(state->queue_id);
