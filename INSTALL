@@ -31,7 +31,7 @@ should be executed as an unprivileged user.
 =================
 
 Documentation is available as HTML web pages (point your browser
-to html/index.html) and as UNIX-style manpages (point your MANPATH
+to html/index.html) and as UNIX-style man pages (point your MANPATH
 environment variable to the `man' subdirectory; be sure to use an
 absolute path).
 
@@ -55,6 +55,7 @@ If your system is supported, it is one of
     FreeBSD 2.x
     FreeBSD 3.x
     FreeBSD 4.x
+    FreeBSD 5.x
     HP-UX  9.x
     HP-UX 10.x
     HP-UX 11.x
@@ -81,10 +82,18 @@ If your system is supported, it is one of
     Reliant UNIX 5.x
     Rhapsody 5.x
     SunOS 4.1.x
-    SunOS 5.4..5.7 (Solaris 2.4..7)
+    SunOS 5.4..5.8 (Solaris 2.4..8)
     Ultrix 4.x
 
 or something closely resemblant.
+
+On Solaris, the "make" command and other utilities for software
+development are in /usr/ccs/bin, so you MUST have /usr/ccs/bin in
+your command search path.
+
+If you need to build Postfix for multiple architectures, use the
+lndir command to build a shadow tree with symbolic links to the
+source files. lndir is part of X11R6.
 
 If at any time in the build process you get messages like: "make:
 don't know how to ..." you should be able to recover by running
@@ -399,22 +408,31 @@ forward mail to a real person.
 11 - To chroot or not to chroot
 ==============================
 
-Most Postfix daemons can run in a chroot jail, that is, in a chroot
-environment at fixed low privilege. This provides a significant
-barrier against intrusion. The barrier is not impenetrable, but
-every little bit helps.
+Postfix can run most daemon processes in a chroot jail, that is,
+the processes run at a fixed low privilege and with access only to
+the Postfix queue directories (/var/spool/postfix).  This provides
+a significant barrier against intrusion. The barrier is not
+impenetrable, but every little bit helps.
 
-The file /etc/postfix/master.cf by default runs no Postfix daemons
-in a chroot jail. However, with the exception of the `local' and
-`pipe' daemons, every Postfix daemon can run chrooted.
+With the exception of the Postfix local delivery and `pipe' daemons,
+every Postfix daemon can run chrooted.
 
-The examples/chroot-setup directory has a collection of scripts
-for setting up chroot environments for Postfix systems.
+By default, no Postfix daemon runs chrooted.  In order to enable
+chroot operation, edit the file /etc/postfix/master.cf.  It is
+highly recommended to chroot the daemons that talk to the network:
+the smtp and smtpd processes.
+
+Note that a chrooted daemon resolves all filenames relative to the
+Postfix queue directory (/var/spool/postfix). For successful use
+of a chroot jail,  most UNIX systems require you to bring in some
+files or device nodes.  The examples/chroot-setup directory has a
+collection of scripts that help you set up chroot environments for
+Postfix systems.
 
 12 - Security: writable versus protected maildrop directory
 ===========================================================
 
-Postfix offers a choice of submission mechanims.
+Postfix offers a choice of submission mechanisms.
 
 1 - Postfix can use a world-writable, sticky, mode 1733 maildrop
     directory where local users can submit mail. This approach
