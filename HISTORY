@@ -2371,31 +2371,17 @@ Apologies for any names omitted.
 	Bugfix: \username was broken. Frank Dziuba was the first
 	to notice.
 
-Future:
+19990323
 
-	Planned: must be able to list the same hash table in
-	virtual_maps and mydestination.
+	Bugfix: too much forwarding when users list their own name
+	in their .forward file (e.g. mail to user@localhost would
+	go through .forward, would be forwarded to user@$myorigin,
+	and would go through .forward again). Problem reported by
+	Roman Dolejsi, Prague University of Economics.
 
-	Planned: delivered-to cache instead of table.
+19990326
 
-	Planned: hide internal loop info so that delivered-to is
-	no longer required.
-
-	Planned: DNS lookups for address canonicalization.
-
-	Planned: no more slow-down when qmgr reaches the end of
-	the in-memory recipient list while there's still more
-	recipients in the queue file.
-
-	Planned: pop pre-authentication by Joerg Henne.
-
-	Planned: ident lookup by Jon Ribbens.
-
-	Planned: $logname, $home, $shell, $user, $sender expansions
-	in shell commands, mailbox_command, forward_path.
-
-	Planned: forward_path, for example $home/.forward (default)
-	or /var/forward/$logname (for mail servers).
-
-	Planned: control From_, Return-Path, Delivered-To and other
-	features with local delivery to mailbox or command.
+	Bugfix: when a recipient appeared multiple times in a local
+	alias or include expansion, the delivery status could be
+	left uninitialized, causing the mail to be deferred and
+	delivered again. File: local/recipient.c.
