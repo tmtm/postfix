@@ -142,8 +142,8 @@
 /*	Restrict what domain names can be used in \fBETRN\fR commands,
 /*	and what clients may issue \fBETRN\fR commands.
 /* .IP \fBallow_untrusted_routing\fR
-/*	Allow untrusted clients to specify addresses with sender-specified 
-/*	routing.  Enabling this opens up nasty relay loopholes involving 
+/*	Allow untrusted clients to specify addresses with sender-specified
+/*	routing.  Enabling this opens up nasty relay loopholes involving
 /*	trusted backup MX hosts.
 /* .IP \fBrestriction_classes\fR
 /*	Declares the name of zero or more parameters that contain a
@@ -860,9 +860,6 @@ static int data_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *unused_argv)
     } else if ((state->err & CLEANUP_STAT_BAD) != 0) {
 	state->error_mask |= MAIL_ERROR_SOFTWARE;
 	smtpd_chat_reply(state, "451 Error: internal error %d", state->err);
-    } else if ((state->err & CLEANUP_STAT_RCPT) != 0) {
-	state->error_mask |= MAIL_ERROR_SOFTWARE;
-	smtpd_chat_reply(state, "451 Error: internal error %d", state->err);
     } else if ((state->err & CLEANUP_STAT_SIZE) != 0) {
 	state->error_mask |= MAIL_ERROR_BOUNCE;
 	smtpd_chat_reply(state, "552 Error: message too large");
@@ -875,6 +872,9 @@ static int data_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *unused_argv)
     } else if ((state->err & CLEANUP_STAT_WRITE) != 0) {
 	state->error_mask |= MAIL_ERROR_RESOURCE;
 	smtpd_chat_reply(state, "451 Error: queue file write error");
+    } else if ((state->err & CLEANUP_STAT_RCPT) != 0) {
+	state->error_mask |= MAIL_ERROR_SOFTWARE;
+	smtpd_chat_reply(state, "451 Error: internal error %d", state->err);
     } else {
 	msg_panic("data_cmd: unknown status %d", state->err);
     }
