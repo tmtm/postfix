@@ -215,6 +215,7 @@ static const char *dict_ldap_lookup(DICT *dict, const char *name)
 			 myname, dict_ldap->ldapsource);
 	}
     }
+
     /*
      * Prepare the query.
      */
@@ -223,20 +224,39 @@ static const char *dict_ldap_lookup(DICT *dict, const char *name)
     escaped_name = vstring_alloc(20);
     filter_buf = vstring_alloc(30);
 
-    /* Any wildcards and escapes in the supplied address should be escaped. */
-    if (strchr(name, '*') || strchr(name, '\\')) {
+    /*
+     * If any characters in the supplied address should be escaped per RFC
+     * 2254, do so.
+     */
+
+    end = (char *) name + strlen((char *) name);
+    sub = (char *) strpbrk((char *) name, "*()\\\0");
+    if (sub && sub != end) {
 	if (msg_verbose)
-	    msg_info("%s: found wildcard in %s", myname, name);
-	for (sub = (char *) name; *sub != '\0'; sub++) {
-	    if (*sub == '*' || *sub == '\\') {
-		vstring_strncat(escaped_name, "\\", 1);
-		vstring_strncat(escaped_name, sub, 1);
-	    } else {
+	    msg_info("%s: found character(s) in %s that must be escaped", myname, name);
+	for (sub = (char *) name; sub != end; sub++) {
+	    switch (*sub) {
+	    case '*':
+		vstring_strcat(escaped_name, "\\2a");
+		break;
+	    case '(':
+		vstring_strcat(escaped_name, "\\28");
+		break;
+	    case ')':
+		vstring_strcat(escaped_name, "\\29");
+		break;
+	    case '\\':
+		vstring_strcat(escaped_name, "\\5c");
+		break;
+	    case '\0':
+		vstring_strcat(escaped_name, "\\00");
+		break;
+	    default:
 		vstring_strncat(escaped_name, sub, 1);
 	    }
 	}
 	if (msg_verbose)
-	    msg_info("%s: with wildcards escaped, it's %s", myname, vstring_str(escaped_name));
+	    msg_info("%s: after escaping, it's %s", myname, vstring_str(escaped_name));
     } else
 	vstring_strcpy(escaped_name, (char *) name);
 
@@ -277,6 +297,7 @@ static const char *dict_ldap_lookup(DICT *dict, const char *name)
 			     LDAP_SCOPE_SUBTREE,
 			     vstring_str(filter_buf),
 			     0, 0, &tv, &res)) == LDAP_SUCCESS) {
+
 	/*
 	 * Search worked; extract the requested result_attribute.
 	 */
@@ -294,6 +315,7 @@ static const char *dict_ldap_lookup(DICT *dict, const char *name)
 		msg_warn("%s: entry doesn't have any values for %s", myname, dict_ldap->result_attribute);
 		continue;
 	    }
+
 	    /*
 	     * Append each returned address to the result list.
 	     */
@@ -488,6 +510,7 @@ DICT   *dict_ldap_open(const char *ldapsource, int dummy, int dict_flags)
 
 	if (msg_verbose)
 	    msg_info("%s: after ldap_open", myname);
+
 	/*
 	 * If this server requires a bind, do so.
 	 */
