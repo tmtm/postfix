@@ -3046,3 +3046,6 @@ Apologies for any names omitted.
 	if a sender address was given and could dump core. This
 	must have been broken ever since the UCE tests were moved
 	to the RCPT TO stage in 19990510.
+
+	Bugfix: check_sender_access was recognized as a valid
+	restriction name only if a sender had been specified.
