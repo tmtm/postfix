@@ -9,8 +9,8 @@ Postfix configuration utility
 .na
 .nf
 .fi
-\fBpostconf\fR [\fB-d\fR] [\fB-h\fR] [\fB-n\fR] [\fB-v\fR]
-[\fIparameter ...\fR]
+\fBpostconf\fR [\fB-c \fIconfig_dir\fR] [\fB-d\fR] [\fB-h\fR]
+[\fB-n\fR] [\fB-v\fR] [\fIparameter ...\fR]
 .SH DESCRIPTION
 .ad
 .fi
@@ -19,15 +19,17 @@ The \fBpostconf\fR command prints the actual value of
 parameter per line.
 
 Options:
+.IP "\fB-c \fIconfig_dir\fR"
+The \fBmain.cf\fR configuration file is in the named directory.
 .IP \fB-d\fR
 Print default parameter settings instead of actual settings.
 .IP \fB-h\fR
-Show parameter values only, not the \fIname =\fR information
+Show parameter values only, not the ``name = '' label
 that normally precedes the value.
 .IP \fB-n\fR
 Print non-default parameter settings only.
 .IP \fB-v\fR
-Enable verbose mode for debugging purposes. Multiple \fB-v\fR
+Enable verbose logging for debugging purposes. Multiple \fB-v\fR
 options make the software increasingly verbose.
 .SH DIAGNOSTICS
 .ad

@@ -40,6 +40,10 @@
 /*	\fB$recipient_delimiter.\fR The forms \fI${name?value}\fR and
 /*	\fI${name:value}\fR expand conditionally to \fIvalue\fR when
 /*	\fI$name\fR is (is not) defined.
+/*	Characters that may have special meaning to the shell or file system
+/*	are replaced by underscores.  The list of acceptable characters
+/*	is specified with the \fBforward_expansion_filter\fR configuration
+/*	parameter.
 /*
 /*	An alias or ~/.\fBforward\fR file may list any combination of external
 /*	commands, destination file names, \fB:include:\fR directives, or
@@ -69,7 +73,8 @@
 /*	a new message, so that each recipient has a separate on-file
 /*	delivery status record.
 /*
-/*	In order to stop mail forwarding loops early, the software adds a
+/*	In order to stop mail forwarding loops early, the software adds an
+/*	optional
 /*	\fBDelivered-To:\fR header with the envelope recipient address. If
 /*	mail arrives for a recipient that is already listed in a
 /*	\fBDelivered-To:\fR header, the message is bounced.
@@ -102,7 +107,8 @@
 /*
 /*	In the case of UNIX-style mailbox delivery,
 /*	the \fBlocal\fR daemon prepends a "\fBFrom \fIsender time_stamp\fR"
-/*	envelope header to each message, prepends a \fBDelivered-To:\fR header
+/*	envelope header to each message, prepends an
+/*	optional \fBDelivered-To:\fR header
 /*	with the envelope recipient address, prepends a \fBReturn-Path:\fR
 /*	header with the envelope sender address, prepends a \fB>\fR character
 /*	to lines beginning with "\fBFrom \fR", and appends an empty line.
@@ -111,7 +117,8 @@
 /*	mailbox to its original length.
 /*
 /*	In the case of \fBmaildir\fR delivery, the local daemon prepends
-/*	a \fBDelivered-To:\fR header with the envelope recipient address
+/*	an optional
+/*	\fBDelivered-To:\fR header with the envelope recipient address
 /*	and prepends a \fBReturn-Path:\fR header with the envelope sender
 /*	address.
 /* EXTERNAL COMMAND DELIVERY
@@ -162,7 +169,8 @@
 /*	The current working directory is the mail queue directory.
 /*
 /*	The \fBlocal\fR daemon prepends a "\fBFrom \fIsender time_stamp\fR"
-/*	envelope header to each message, prepends a \fBDelivered-To:\fR
+/*	envelope header to each message, prepends an
+/*	optional \fBDelivered-To:\fR
 /*	header with the recipient envelope address, prepends a
 /*	\fBReturn-Path:\fR header with the sender envelope address,
 /*	and appends an empty line.
@@ -176,7 +184,8 @@
 /*	\fBmaildir\fR delivery.
 /*
 /*	The \fBlocal\fR daemon prepends a "\fBFrom \fIsender time_stamp\fR"
-/*	envelope header to each message, prepends a \fBDelivered-To:\fR
+/*	envelope header to each message, prepends an
+/*	optional \fBDelivered-To:\fR
 /*	header with the recipient envelope address, prepends a \fB>\fR
 /*	character to lines beginning with "\fBFrom \fR", and appends an
 /*	empty line.
@@ -187,7 +196,8 @@
 /*	is made to truncate a regular file to its original length.
 /*
 /*	In the case of \fBmaildir\fR delivery, the local daemon prepends
-/*	a \fBDelivered-To:\fR header with the envelope recipient address.
+/*	an optional
+/*	\fBDelivered-To:\fR header with the envelope recipient address.
 /*	The envelope sender address is available in the \fBReturn-Path:\fR
 /*	header.
 /* ADDRESS EXTENSION
@@ -204,7 +214,7 @@
 /*	to the mailbox owned by the user \fIname\fR, or it is sent back as
 /*	undeliverable.
 /*
-/*	In all cases the \fBlocal\fR daemon prepends a
+/*	In all cases the \fBlocal\fR daemon prepends an opional
 /*	`\fBDelivered-To:\fR \fIname\fR+\fIfoo\fR' header line.
 /* DELIVERY RIGHTS
 /* .ad
@@ -246,6 +256,10 @@
 /* .fi
 /* .IP \fBalias_maps\fR
 /*	List of alias databases.
+/* .IP \fBexpand_owner_alias\fR
+/*	When delivering to an alias that has an owner- companion alias,
+/*	set the envelope sender address to the right-hand side of the
+/*	owner alias, instead using of the left-hand side address.
 /* .IP \fBforward_path\fR
 /*	Search list for .forward files.  The names are subject to \fI$name\fR
 /*	expansion.
@@ -257,6 +271,11 @@
 /* .IP \fBowner_request_special\fR
 /*	Give special treatment to \fBowner-\fIxxx\fR and \fIxxx\fB-request\fR
 /*	addresses.
+/* .IP \fBprepend_delivered_header\fR
+/*	Prepend an optional \fBDelivered-To:\fR header upon external
+/*	forwarding, delivery to command or file. Specify zero or more of:
+/*	\fBcommand, file, forward\fR. Turning off \fBDelivered-To:\fR when
+/*	forwarding mail is not recommended.
 /* .IP \fBrecipient_delimiter\fR
 /*	Separator between username and address extension.
 /* .SH Mailbox delivery
@@ -326,6 +345,9 @@
 /*	mailbox_command. Illegal characters are replaced by underscores.
 /* .IP \fBdefault_privs\fR
 /*	Default rights for delivery to external file or command.
+/* .IP \fBforward_expansion_filter\fR
+/*	What characters are allowed to appear in $name expansions of
+/*	forward_path. Illegal characters are replaced by underscores.
 /* HISTORY
 /* .ad
 /* .fi
@@ -376,7 +398,6 @@
 
 /* Global library. */
 
-#include <mail_queue.h>
 #include <recipient_list.h>
 #include <deliver_request.h>
 #include <deliver_completed.h>
@@ -414,11 +435,15 @@ char   *var_mailbox_transport;
 char   *var_fallback_transport;
 char   *var_forward_path;
 char   *var_cmd_exp_filter;
+char   *var_fwd_exp_filter;
 char   *var_prop_extension;
+int     var_exp_own_alias;
+char   *var_deliver_hdr;
 
 int     local_cmd_deliver_mask;
 int     local_file_deliver_mask;
 int     local_ext_prop_mask;
+int     local_deliver_hdr_mask;
 
 /* local_deliver - deliver message with extreme prejudice */
 
@@ -453,11 +478,7 @@ static int local_deliver(DELIVER_REQUEST *rqst, char *service)
     deliver_attr_init(&state.msg_attr);
     state.msg_attr.queue_name = rqst->queue_name;
     state.msg_attr.queue_id = rqst->queue_id;
-    state.msg_attr.fp =
-	mail_queue_open(rqst->queue_name, rqst->queue_id, O_RDWR, 0);
-    if (state.msg_attr.fp == 0)
-	msg_fatal("open file %s %s: %m", rqst->queue_name, rqst->queue_id);
-    close_on_exec(vstream_fileno(state.msg_attr.fp), CLOSE_ON_EXEC);
+    state.msg_attr.fp = rqst->fp;
     state.msg_attr.offset = rqst->data_offset;
     state.msg_attr.sender = rqst->sender;
     state.msg_attr.relay = service;
@@ -489,7 +510,6 @@ static int local_deliver(DELIVER_REQUEST *rqst, char *service)
      * Clean up.
      */
     delivered_free(state.loop_info);
-    vstream_fclose(state.msg_attr.fp);
 
     return (msg_stat);
 }
@@ -536,10 +556,17 @@ static void local_mask_init(void)
 	"include", EXPAND_TYPE_INCL,
 	0,
     };
+    static NAME_MASK deliver_mask[] = {
+	"command", DELIVER_HDR_CMD,
+	"file", DELIVER_HDR_FILE,
+	"forward", DELIVER_HDR_FWD,
+	0,
+    };
 
     local_file_deliver_mask = name_mask(file_mask, var_allow_files);
     local_cmd_deliver_mask = name_mask(command_mask, var_allow_commands);
     local_ext_prop_mask = ext_prop_mask(var_prop_extension);
+    local_deliver_hdr_mask = name_mask(deliver_mask, var_deliver_hdr);
 }
 
 /* pre_accept - see if tables have changed */
@@ -578,17 +605,19 @@ int     main(int argc, char **argv)
 	VAR_HOME_MAILBOX, DEF_HOME_MAILBOX, &var_home_mailbox, 0, 0,
 	VAR_ALLOW_COMMANDS, DEF_ALLOW_COMMANDS, &var_allow_commands, 0, 0,
 	VAR_ALLOW_FILES, DEF_ALLOW_FILES, &var_allow_files, 0, 0,
-	VAR_RCPT_FDELIM, DEF_RCPT_FDELIM, &var_rcpt_fdelim, 0, 0,
 	VAR_LOCAL_CMD_SHELL, DEF_LOCAL_CMD_SHELL, &var_local_cmd_shell, 0, 0,
 	VAR_MAIL_SPOOL_DIR, DEF_MAIL_SPOOL_DIR, &var_mail_spool_dir, 0, 0,
 	VAR_MAILBOX_TRANSP, DEF_MAILBOX_TRANSP, &var_mailbox_transport, 0, 0,
 	VAR_FALLBACK_TRANSP, DEF_FALLBACK_TRANSP, &var_fallback_transport, 0, 0,
 	VAR_CMD_EXP_FILTER, DEF_CMD_EXP_FILTER, &var_cmd_exp_filter, 1, 0,
+	VAR_FWD_EXP_FILTER, DEF_FWD_EXP_FILTER, &var_fwd_exp_filter, 1, 0,
 	VAR_PROP_EXTENSION, DEF_PROP_EXTENSION, &var_prop_extension, 0, 0,
+	VAR_DELIVER_HDR, DEF_DELIVER_HDR, &var_deliver_hdr, 0, 0,
 	0,
     };
     static CONFIG_BOOL_TABLE bool_table[] = {
 	VAR_BIFF, DEF_BIFF, &var_biff,
+	VAR_EXP_OWN_ALIAS, DEF_EXP_OWN_ALIAS, &var_exp_own_alias,
 	0,
     };
 

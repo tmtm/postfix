@@ -10,7 +10,7 @@ Postfix lookup table management
 .nf
 .fi
 \fBpostmap\fR [\fB-c \fIconfig_dir\fR] [\fB-i\fR] [\fB-v\fR]
-[\fIfile_type\fR:]\fIfile_name\fR
+[\fB-w\fR] [\fIfile_type\fR:]\fIfile_name\fR
 .SH DESCRIPTION
 .ad
 .fi
@@ -88,7 +88,7 @@ skipped and are flagged with a warning.
 .ad
 .fi
 .IP \fBMAIL_CONFIG\fR
-Mail configuration database
+Directory with Postfix configuration files.
 .IP \fBMAIL_VERBOSE\fR
 Enable verbose logging for debugging purposes.
 .SH CONFIGURATION PARAMETERS

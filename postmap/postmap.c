@@ -6,7 +6,7 @@
 /* SYNOPSIS
 /* .fi
 /*	\fBpostmap\fR [\fB-c \fIconfig_dir\fR] [\fB-i\fR] [\fB-v\fR]
-/*		[\fIfile_type\fR:]\fIfile_name\fR
+/*		[\fB-w\fR] [\fIfile_type\fR:]\fIfile_name\fR
 /* DESCRIPTION
 /*	The \fBpostmap\fR command creates a new Postfix lookup table,
 /*	or updates an existing one. The input and output formats are
@@ -78,7 +78,7 @@
 /* .ad
 /* .fi
 /* .IP \fBMAIL_CONFIG\fR
-/*	Mail configuration database
+/*	Directory with Postfix configuration files.
 /* .IP \fBMAIL_VERBOSE\fR
 /*	Enable verbose logging for debugging purposes.
 /* CONFIGURATION PARAMETERS
@@ -230,7 +230,7 @@ static void postmap(char *map_type, char *path_name,
 
 static NORETURN usage(char *myname)
 {
-    msg_fatal("usage: %s [-c config_directory] [-i] [-v] [-w] [output_type:]file...",
+    msg_fatal("usage: %s [-c config_dir] [-i] [-v] [-w] [output_type:]file...",
 	      myname);
 }
 

@@ -90,7 +90,8 @@ void    cleanup_extracted(void)
 	} else if (type == REC_TYPE_END) {
 	    break;
 	} else {
-	    msg_warn("unexpected record type %d in extracted segment", type);
+	    msg_warn("%s: unexpected record type %d in extracted segment",
+		     cleanup_queue_id, type);
 	    cleanup_errs |= CLEANUP_STAT_BAD;
 	    if (type >= 0)
 		cleanup_skip();
@@ -117,9 +118,24 @@ void    cleanup_extracted(void)
 
     /*
      * Optionally account for missing recipient envelope records.
+     * 
+     * XXX Code duplication from cleanup_envelope.c. This should be in one
+     * place.
      */
     if (cleanup_recip == 0) {
 	rcpt = (cleanup_resent[0] ? cleanup_resent_recip : cleanup_recipients);
+	if (*var_always_bcc && rcpt->argv[0]) {
+	    clean_addr = vstring_alloc(100);
+	    cleanup_rewrite_internal(clean_addr, var_always_bcc);
+	    if (cleanup_rcpt_canon_maps)
+		cleanup_map11_internal(clean_addr, cleanup_rcpt_canon_maps,
+				cleanup_ext_prop_mask & EXT_PROP_CANONICAL);
+	    if (cleanup_comm_canon_maps)
+		cleanup_map11_internal(clean_addr, cleanup_comm_canon_maps,
+				cleanup_ext_prop_mask & EXT_PROP_CANONICAL);
+	    argv_add(rcpt, STR(clean_addr), (char *) 0);
+	    vstring_free(clean_addr);
+	}
 	argv_terminate(rcpt);
 	for (cpp = rcpt->argv; CLEANUP_OUT_OK() && *cpp; cpp++)
 	    cleanup_out_recipient(*cpp);

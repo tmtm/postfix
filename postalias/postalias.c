@@ -6,7 +6,7 @@
 /* SYNOPSIS
 /* .fi
 /*	\fBpostalias\fR [\fB-c \fIconfig_dir\fR] [\fB-i\fR] [\fB-v\fR]
-/*		[\fIfile_type\fR:]\fIfile_name\fR ...
+/*		[\fB-w\fR] [\fIfile_type\fR:]\fIfile_name\fR ...
 /* DESCRIPTION
 /*	The \fBpostalias\fR command creates a new Postfix alias database,
 /*	or updates an existing one. The input and output file formats
@@ -28,7 +28,7 @@
 /* .IP \fB-v\fR
 /*	Enable verbose logging for debugging purposes. Multiple \fB-v\fR
 /*	options make the software increasingly verbose.
-/* .IP \f\B-w\fR
+/* .IP \fB-w\fR
 /*	Do not warn about duplicate entries; silently ignore them.
 /* .PP
 /*	Arguments:
@@ -60,7 +60,7 @@
 /* .ad
 /* .fi
 /* .IP \fBMAIL_CONFIG\fR
-/*	Mail configuration database.
+/*	Directory with Postfix configuration files.
 /* .IP \fBMAIL_VERBOSE\fR
 /*	Enable verbose logging for debugging purposes.
 /* CONFIGURATION PARAMETERS
@@ -276,7 +276,7 @@ static void postalias(char *map_type, char *path_name,
 
 static NORETURN usage(char *myname)
 {
-    msg_fatal("usage: %s [-c config_directory] [-i] [-v] [-w] [output_type:]file...",
+    msg_fatal("usage: %s [-c config_dir] [-i] [-v] [-w] [output_type:]file...",
 	      myname);
 }
 

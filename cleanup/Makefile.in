@@ -25,7 +25,7 @@ $(PROG):	$(OBJS) $(LIBS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LIBS) $(SYSLIBS)
 
 Makefile: Makefile.in
-	(set -e; echo "# DO NOT EDIT"; $(OPTS) sh ../makedefs; cat $?) >$@
+	(set -e; echo "# DO NOT EDIT"; $(OPTS) $(SHELL) ../makedefs; cat $?) >$@
 
 test:	$(TESTPROG)
 
@@ -117,6 +117,8 @@ cleanup_extracted.o: ../include/mymalloc.h
 cleanup_extracted.o: ../include/cleanup_user.h
 cleanup_extracted.o: ../include/record.h
 cleanup_extracted.o: ../include/rec_type.h
+cleanup_extracted.o: ../include/mail_params.h
+cleanup_extracted.o: ../include/ext_prop.h
 cleanup_extracted.o: cleanup.h
 cleanup_extracted.o: ../include/maps.h
 cleanup_extracted.o: ../include/dict.h
@@ -259,6 +261,7 @@ cleanup_skip.o: ../include/sys_defs.h
 cleanup_skip.o: ../include/msg.h
 cleanup_skip.o: ../include/vstream.h
 cleanup_skip.o: ../include/vbuf.h
+cleanup_skip.o: ../include/cleanup_user.h
 cleanup_skip.o: ../include/record.h
 cleanup_skip.o: ../include/vstring.h
 cleanup_skip.o: ../include/rec_type.h

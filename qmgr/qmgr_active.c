@@ -125,6 +125,33 @@ static void qmgr_active_corrupt(const char *queue_id)
     }
 }
 
+/* qmgr_active_defer - defer queue file */
+
+static void qmgr_active_defer(const char *queue_name, const char *queue_id,
+			              int delay)
+{
+    char   *myname = "qmgr_active_defer";
+    const char *path;
+    struct utimbuf tbuf;
+
+    if (msg_verbose)
+	msg_info("wakeup %s after %ld secs", queue_id, (long) delay);
+
+    tbuf.actime = tbuf.modtime = event_time() + delay;
+    path = mail_queue_path((VSTRING *) 0, queue_name, queue_id);
+    if (utime(path, &tbuf) < 0)
+	msg_fatal("%s: update %s time stamps: %m", myname, path);
+    if (mail_queue_rename(queue_id, queue_name, MAIL_QUEUE_DEFERRED)) {
+	if (errno != ENOENT)
+	    msg_fatal("%s: rename %s from %s to %s: %m", myname,
+		      queue_id, queue_name, MAIL_QUEUE_DEFERRED);
+	msg_warn("%s: rename %s from %s to %s: %m", myname,
+		 queue_id, queue_name, MAIL_QUEUE_DEFERRED);
+    } else if (msg_verbose) {
+	msg_info("%s: defer %s", myname, queue_id);
+    }
+}
+
 /* qmgr_active_feed - feed one message into active queue */
 
 void    qmgr_active_feed(QMGR_SCAN *scan_info, const char *queue_id)
@@ -173,14 +200,6 @@ void    qmgr_active_feed(QMGR_SCAN *scan_info, const char *queue_id)
     }
 
     /*
-     * Reset the defer log. Leave the bounce log alone; if it is still
-     * around, something did not send it previously.
-     */
-    if (mail_queue_remove(MAIL_QUEUE_DEFER, queue_id) && errno != ENOENT)
-	msg_fatal("%s: %s: remove %s %s: %m", myname,
-		  queue_id, MAIL_QUEUE_DEFER, queue_id);
-
-    /*
      * Extract envelope information: sender and recipients. At this point,
      * mail addresses have been processed by the cleanup service so they
      * should be in canonical form. Generate requests to deliver this
@@ -189,11 +208,30 @@ void    qmgr_active_feed(QMGR_SCAN *scan_info, const char *queue_id)
      * Throwing away queue files seems bad, especially when they made it this
      * far into the mail system. Therefore we save bad files to a separate
      * directory for further inspection.
+     * 
+     * After queue manager restart it is possible that a queue file is still
+     * being delivered. In that case (the file is locked), defer delivery by
+     * a minimal amount of time.
      */
     if ((message = qmgr_message_alloc(MAIL_QUEUE_ACTIVE, queue_id,
 				      scan_info->flags)) == 0) {
 	qmgr_active_corrupt(queue_id);
+    } else if (message == QMGR_MESSAGE_LOCKED) {
+	qmgr_active_defer(MAIL_QUEUE_ACTIVE, queue_id, var_min_backoff_time);
     } else {
+
+	/*
+	 * Reset the defer log. Leave the bounce log alone; if it is still
+	 * around, something did not send it previously.
+	 */
+	if (mail_queue_remove(MAIL_QUEUE_DEFER, queue_id) && errno != ENOENT)
+	    msg_fatal("%s: %s: remove %s %s: %m", myname,
+		      queue_id, MAIL_QUEUE_DEFER, queue_id);
+
+	/*
+	 * Special case if all recipients were already delivered. Send any
+	 * bounces and clean up.
+	 */
 	if (message->refcount == 0)
 	    qmgr_active_done(message);
     }
@@ -206,8 +244,7 @@ void    qmgr_active_done(QMGR_MESSAGE *message)
     char   *myname = "qmgr_active_done";
     struct stat st;
     const char *path;
-    struct utimbuf tbuf;
-    time_t  delay;
+    int     delay;
 
     if (msg_verbose)
 	msg_info("%s: %s", myname, message->queue_id);
@@ -292,9 +329,9 @@ void    qmgr_active_done(QMGR_MESSAGE *message)
 	    if (msg_verbose)
 		msg_info("%s: sending defer warning for %s", myname, message->queue_id);
 	    if (defer_warn(BOUNCE_FLAG_KEEP,
-			    message->queue_name,
-			    message->queue_id,
-			    message->errors_to) == 0) {
+			   message->queue_name,
+			   message->queue_id,
+			   message->errors_to) == 0) {
 		qmgr_message_update_warn(message);
 	    }
 	}
@@ -321,23 +358,7 @@ void    qmgr_active_done(QMGR_MESSAGE *message)
 	} else {
 	    delay = var_min_backoff_time;
 	}
-	if (msg_verbose)
-	    msg_info("wakeup %s after %ld secs", message->queue_id, delay);
-	tbuf.actime = tbuf.modtime = event_time() + delay;
-	path = mail_queue_path((VSTRING *) 0, message->queue_name,
-			       message->queue_id);
-	if (utime(path, &tbuf) < 0)
-	    msg_fatal("%s: update %s time stamps: %m", myname, path);
-	if (mail_queue_rename(message->queue_id, message->queue_name,
-			      MAIL_QUEUE_DEFERRED)) {
-	    if (errno != ENOENT)
-		msg_fatal("%s: rename %s from %s to %s: %m", myname,
-		message->queue_id, message->queue_name, MAIL_QUEUE_DEFERRED);
-	    msg_warn("%s: rename %s from %s to %s: %m", myname,
-	       message->queue_id, message->queue_name, MAIL_QUEUE_DEFERRED);
-	} else if (msg_verbose) {
-	    msg_info("%s: defer %s", myname, message->queue_id);
-	}
+	qmgr_active_defer(message->queue_name, message->queue_id, delay);
     }
 
     /*

@@ -48,7 +48,7 @@ umask 022
 # LINUX by default does not synchronously update directories -
 # that's dangerous for mail.
 #
-if [ -x /usr/bin/chattr ]
+if [ -f /usr/bin/chattr ]
 then
 	CHATTR="/usr/bin/chattr +S"
 else
@@ -64,6 +64,10 @@ cd $command_directory || {
 }
 cd $daemon_directory || {
 	$FATAL no Postfix daemon directory $daemon_directory!
+	exit 1
+}
+test -f master || {
+	$FATAL no Postfix master program $daemon_directory/master!
 	exit 1
 }
 cd $config_directory || {

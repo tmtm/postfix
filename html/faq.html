@@ -30,6 +30,10 @@
 
 <li><a href="#local">Delivering some users locally while sending mail as user@domain</a>
 
+<li><a href="#masquerade">Address masquerading with exceptions</a>
+
+<li><a href="#scanning">Support for virus scanning</a>
+
 <li><a href="#maildir">Support for maildir-style mailboxes</a>
 
 <li><a href="#procmail">Using Procmail for local delivery</a>
@@ -323,9 +327,10 @@ that are disconnected most of the time)
 
 <p>
 
-<i> When you disable DNS lookups, you must specify a</i> <b>relayhost</b>
-<i> as either a numeric IP address, or as a hostname that appears
-in</i> <b>/etc/hosts</b>.
+<i> When you disable DNS lookups, you must specify the</i>
+<b>relayhost</b> <i> as either a numeric IP address, or as a hostname
+that resolves to one or more IP addresses (with DNS lookup disabled,
+Postfix does no</i> <b>MX</b> lookup).
 
 <p>
 
@@ -418,6 +423,138 @@ effective.
 
 <hr>
 
+<a name="masquerade"><h2>Address masquerading with exceptions</h2></a>
+
+For people outside your organization it can be desirable to only
+see addresses of the form <i>user@company.com</i> rather than
+addresses with individual internal host names.  This can be achieved
+with address masquerading.
+
+<p>
+
+Address masquerading is intended for use only on mail gateways.
+
+<ul>
+
+<li>In order to have all mail through the gateway host appear as
+coming from <i>user@my.domain</i>, edit <b>/etc/postfix/main.cf</b>
+and specify:
+
+<p>
+
+<dl>
+
+<dd><b>masquerade_domains = </b><i>$mydomain</i>
+
+</dl>
+
+<p>
+
+Note that the gateway should have <b>append_dot_domain</b> and
+<b>append_myorigin</b> turned on (which is the default setting) so
+that all addresses are fully qualified before they are subjected
+to address masquerading.
+
+</ul>
+
+<p>
+
+In some cases, you may wish to have certain users or hosts exempted
+from masquerading.
+
+<ul>
+
+<li>To exempt certain <i>users</i> from masquerading,
+such as <b>root</b>, add:
+
+<p>
+
+<dl>
+
+<dd><b>masquerade_exceptions = </b><i>root</i>
+
+</dl>
+
+<p>
+
+<li>To exempt certain <i>hosts</i> from masquerading, write
+<b>masquerade_domains</b> as:
+
+<p>
+
+<dl>
+
+<dd><b>masquerade_domains = </b><i>somehost.my.domain otherhost.my.domain
+$mydomain</i>
+
+</dl>
+
+<p>
+
+Note that the order above is crucial: exemptions such as
+<i>somehost.my.domain</i> must precede <i>$mydomain</i> in the
+statement.
+
+<p>
+
+It should go without saying that if a particular host you wish to
+exempt this way is originating mail as <i>user@my.domain</i> in
+the first place, you can hardly exempt it.
+
+<p>
+
+</ul>
+
+As usual, execute the command <b>postfix reload</b> to make the changes
+effective.
+
+<p>
+
+<hr>
+
+<a name="scanning"><h2>Support for virus scanning</h2> </a>
+
+Would not it be great if operating systems and applications actually
+worked the way they are supposed to, instead of being as fragile
+as today's products? Well, we can solve only one problem at a time.
+
+<p>
+
+Currently, Postfix has no hooks to let other programs inspect every
+message, so the scanning has to be done before mail enters Postfix
+or while mail leaves Postfix, for example at mailbox delivery time.
+
+<p>
+
+<dl>
+
+<dt>Examples:
+
+<dl>
+
+<dt><b>mailbox_command = </b><i>/some/program ...</i>
+
+<dd>specifies a command that runs whenever mail is delivered to
+mailbox.  See the sample <b>main.cf</b> file for examples. In
+<b>/etc/aliases</i>, you must specify an alias for <b>root</b> that
+directs mail to a real person, otherwise funny things happen with
+mail sent to <b>root</b>.
+
+<p>
+
+<dt><b> mailbox_transport = </b><i>foo</i>
+
+<dd>delegates local mailbox delivery to the transport <i>foo</i> as
+configured in <b>/etc/postfix/master.cf</b>. If you follow this
+route you will build something around the pipe mailer. See examples
+in <b>master.cf</b>.
+
+</dl>
+
+</dl>
+
+<hr>
+
 <a name="maildir"><h2>Support for maildir-style mailboxes</h2> </a>
 
 <b>Maildir</b> is a specific one-file-per-message organization that
@@ -485,7 +622,7 @@ shell are replaced by underscores.
 
 <dt><b>EXTENSION</b> <dd> Optional address extension part.
 
-<dt><b>HOME</b> <dd> The recpient's home directory.
+<dt><b>HOME</b> <dd> The recipient's home directory.
 
 <dt><b>LOCAL</b> <dd> The text to the left-hand side of the <b>@</b>
 in the recipient address, for example, <b>$USER+$EXTENSION</b>.
@@ -531,18 +668,31 @@ making Postfix more secure than ordinary mailers.
 
 <a name="delivered"><h2>Getting rid of Delivered-To:</h2> </a>
 
-Some people will complain about the ugly <b>Delivered-To:</b> 
-message header that Postfix prepends to their mail.
+Some people will complain about the ugly <b>Delivered-To:</b>
+message header that Postfix prepends to their mail.  By default,
+Postfix prepends this header when forwarding mail, and when delivering
+to file (mailbox) or command. The purpose is to stop mail forwarding
+loops as early as possible, that is, before they have a chance to
+happen.  But the header is ugly, no question about it.
 
 <p>
 
-With the Postfix architecture, <b>Delivered-To:</b> is required to
-prevent mail forwarding loops.  Fortunately, many mail user agents
-have per-user or even system-wide configuration files that can be
-set up to suppress specific message headers (for example <b>~/.mailrc</b>
-and <b>/usr/lib/Mail.rc</b>).
+Solutions, ranging from fighting symptoms to turning off the
+<b>Delivered-To:</b> header:
 
 <p>
+
+<ul>
+
+<li>
+
+Fortunately, many mail user agents have per-user or even system-wide
+configuration files that can be set up to suppress specific message
+headers (for example <b>~/.mailrc</b> and <b>/usr/lib/Mail.rc</b>).
+
+<p>
+
+<li>
 
 With mailing lists, <b>Delivered-To:</b> can get in the way when
 the list exploder uses a "secret" alias that should not be shown
@@ -557,9 +707,9 @@ expression-based filter at the SMTP port:
 
 <dl>
 
-<dt><tt>smtpd_recipients = ... regexp:/etc/postfix/access_regexp ...</tt>
+<dt><tt>smtpd_recipient_restrictions = ... regexp:/etc/postfix/access_regexp ...</tt>
 
-<dt><tt>smtpd_recipients = ... pcre:/etc/postfix/access_regexp ...</tt>
+<dt><tt>smtpd_recipient_restrictions = ... pcre:/etc/postfix/access_regexp ...</tt>
 
 </dl>
 
@@ -581,6 +731,17 @@ POSIX regular expression support (regexp) is enabled by default on
 modern UNIX systems. Perl-compatible regular expression support
 (pcre) is optional; see the PCRE_README file in the top-level
 Postfix source directory.
+
+<p>
+
+<li>
+
+The <b>prepend_delivered_header</b> configuration parameter controls
+when <b>Delivered-To:</b> is prepended. The default setting is
+<b>command, file, forward</b>.  <i>Turning off <b>Delivered-To:</b>
+when forwarding mail is not recommended</i>.
+
+</ul>
 
 <p>
 
@@ -905,8 +1066,8 @@ version</a> which has a db-1.85 compatible interface.
 <p>
 
 Use the following commands in the Postfix top-level directory.
-The LD_LIBRARY_PATH unsets may be required to avoid linking in the
-wrong libraries.
+The LD_LIBRARY_PATH unset commands may be required to avoid linking
+in the wrong libraries.
 
 <dl>
 

@@ -1977,7 +1977,8 @@ Apologies for any names omitted.
 19990121
 
 	Feature: pickup (again) logs uid and sender address.
-	On repeated request by Scott Cotton, Internet, IC Group, Inc.
+	On repeated request by Scott Cotton, Internet Consultants
+	Group, Inc.
 
 	Portability: doze() function for systems without usleep().
 
@@ -2796,8 +2797,245 @@ Apologies for any names omitted.
 	user@[ip_address] regardless of destination. Eric Cholet
 	had the honor of suffering from this one.
 
-1990601
+19990527
+
+	More SMTP client logging for easier debugging: the smtp
+	client now logs hostname[ip.addr], and logs every failed
+	attempt to reach an MX host, not just the last one.
+
+19990601
 
 	Bugfix: emit a blank line before a MIME boundary; the line
 	is part of the boundary. File: bounce/bounce_notify_service.c.
 	Wolfgang Segmuller, IBM Research.
+
+19990610
+
+	Bugfix: the "is this the loopback interface" test was
+	broken.  Reported by Claus Fischer @microworld.com.
+	File: smtp/smtp_connect.c.
+
+	Usability: added helpful warnings about restrictions that
+	are being ignored after check_relay_domains, etc.
+
+	Portability: Reliant Unix support by Gert-Jan Looy, Siemens,
+	the Netherlands.
+
+19990611
+
+	Robustness: the postfix-script start-up procedure now
+	detects a missing master program, avoiding misleading
+	warnings that the mail system is already running.  Fix
+	suggested by David E. Smith @technopagan.org.
+
+	Portability: Mac OS X Server Port by Mark Miller @swoon.net.
+
+	Feature: on systems that use dotlock files for mailbox
+	locking, the local delivery agent now will attempt to use
+	dotlock files when delivering to user-specified files.
+	Dotlock files for user-specified destinations are created
+	with the privileges of the user. For backwards compatibility,
+	Postfix will attempt to create dotlocks for user-specified
+	destinations only when the user has parent directory write
+	permission.
+
+	Feature: specify "expand_owner_alias = yes" in order to
+	use the right-hand side of an owner- alias, instead of
+	using the left-hand side address. Needed by Juergen Georgi.
+
+19990622
+
+	Bugfix: the local delivery agent did not set user attributes
+	when delivering to root, so that forward_path did not expand
+	properly. Found by Jozsef Kadlecsik, KFKI Research Institute
+	for Particle and Nuclear Physics, Hungary.  File:
+	local/dotforward.c.
+
+	Bugfix: the unix:passwd.byname mechanism is not suitable
+	for smtpd access control - the user name would have to end
+	in @, or the access control software would have to be
+	changed. Removed the example from the RELEASE_NOTES file.
+
+19990623
+
+	Bugfix: the smtp server did not reset the error flag after
+	".". Found by James Ponder, Oaktree Internet Solutions Ltd.
+	File: smtpd/smtpd.c.
+
+	Bugfix: fencepost error in the doze() routine (an usleep()
+	replacement for systems without one). Found by Simon J Mudd.
+	File: util/doze.c.
+
+19990624
+
+	Portability: support for AIX 3.2.5 (!) by Florian Lohoff
+	@rfc822.org.
+
+	Portability: Ultrix 4.3 support by Christian von Roques
+	@pond.sub.org.
+
+	Feature: mysql support by Scott Cotton and Joshua Marcus,
+	Internet Consultants Group, Inc. Files: util/dict_myqsl.*.
+
+19990627
+
+	Bugfix: Postfix is now distributed under the new IBM Public
+	License (version 1, dated June 14, 1999).
+
+	Feature: the Delivered-To: header can be turned off for
+	delivery to command or file/mailbox. The default setting
+	is:  "prepend_delivered_header = command, file, forward".
+	Turning off the Delivered-To: header when forwarding mail
+	is not recommended.
+
+19990628
+
+	Feature: the postlock command now returns EX_TEMPFAIL
+	when the destination file is locked by another process.
+
+19990705
+
+	Workaround: in the SMTP client, move the "mail loops back
+	to myself test" from the 220 greeting to the HELO response.
+	This change does not weaken the test, and makes Postfix
+	more robust against broken software that greets with the
+	client hostname.
+
+19990706
+
+	Workaround: in the INSTALL file, use `&&' instead of `;'
+	in (cd path; tar ...) pipelines because some UNIX re-invented
+	shells don't bail out when cd fails. Matthias Andree
+	@dosis.uni-dortmund.de.
+
+19990709
+
+	Bugfix: $user was not set when delivering to a non-user.
+	Found by Vladimir Ulogov @ rohan.control.att.com when
+	configuring a luser_relay that contained $user.
+
+19990714
+
+	Robustness: add PATH statement to Solaris2 chroot setup
+	script to avoid running the ucb commands. Problem found
+	by Panagiotis Astithas @ ece.ntua.gr.
+
+19990721
+
+	Bugfix: don't claim a "mail loops to myself" error when
+	the best MX host was not found in the DNS. Found by Andrew
+	McNamara, connect.com.au Pty Ltd. File: smtp/smtp_addr.c.
+
+19990810
+
+	Feature: added "-c config_dir" support to the postconf
+	command. This probably means that "-f file" will never be
+	implemented.
+
+19990812
+
+	Bugfix: showq didn't print properly when listing a maildrop
+	file.  Fix by: Andrew McNamara, connect.com.au Pty Ltd.
+	File: showq/showq.c.
+
+	Feature: added SENDER to the list of parameters exported
+	to external commands. File: local/command.c. Code by: Lars
+	Hecking, National Microelectronics Research Centre, Ireland.
+
+19990813
+
+	Bugfix: sendmail -t (extract recipients from headers) did not
+	work when the always_bcc feature was turned on. Reported
+	by: Denis Shaposhnikov @ neva.vlink.ru.
+
+19990813
+	Bugfix: "sendmail -bd" returns a bogus exit status (the child
+	process ID). Fix by Lamont Jones of Hewlett-Packard. File:
+	sendmail/sendmail.c.
+
+19990824
+
+	Bugfix: null pointer dereference while rejecting VRFY before
+	MAIL FROM. Found by Laurent Wacrenier @ fr.clara.net.
+
+19990826
+
+	Portability: more MacOS X Server patches; some NEXTSTEP/OPENSTEP
+	code that had been removed for the first public beta release;
+	NEXTSTEP/OPENSTEP now defaults to netinfo for the aliases
+	database.  Submitted by Gerben Wierda.
+
+	Portability: workaround for a FreeBSD 3.x active network
+	interface without IP address by Pierre Beyssac @ enst.fr.
+	File:  inet_addr_local.c.
+
+19990831
+
+	Workaround: sendmail now prints a warning when installed
+	set-uid or when run by a set-uid command. Reportedly, the
+	linuxconf software turns on the set-uid bit, which could
+	open up a security loophole. File: sendmail/sendmail.c.
+
+	Bugfix: Postfix daemons now temporarily lock DB/DBM files
+	while opening them, in order to avoid "invalid argument"
+	errors because some other process is changing the file.
+	Files: util/dict_db.c, util/dict_dbm.c.
+
+	Robustness: Postfix locks queue files during delivery, to
+	prevent duplicate delivery when "postfix reload" is
+	immediately followed by "sendmail -q". This involves a
+	change of the deliver_request interface:  delivery agents
+	no longer need to open and close queue files explicitly.
+	Files:  global/deliver_request.c, pipe/pipe.c, smtp/smtp.c,
+	local/local.c, qmgr/qmgr_active.c, qmgr/qmgr_message.c.
+
+	Feature: reject_unauth_destination SMTP recipient restriction
+	that rejects destinations not in $relay_domains.  By Lamont
+	Jones of Hewlett-Packard.  File: smtpd/smtpd_check.c.
+
+	Security: do not allow weird characters in the expansion
+	of $names that appear in $forward_path. Just like with
+	shell commands, replace bad characters in expansions by
+	underscores.  Configuration parameter:  forward_expansion_filter.
+
+19990902
+
+	Documentation: added a sample postfix alias to the examples
+	in the INSTALL document and in the conf/aliases file.
+	Reminded by Simon J.  Mudd @ alltrading.com.
+
+19990903
+
+	Bugfix: in case of some error conditions the pickup daemon
+	could leak small amounts of memory.
+
+19990905
+
+	Bugfix: no more "skipping further client input" warnings
+	when a message header is rejected.
+
+	Feature: reject_unauth_pipelining SMTP restriction that
+	rejects mail from clients that improperly use SMTP command
+	pipelining.
+
+	Robustness: the LDAP client by default no longer looks up
+	names containing "*". See the lookup_wildcards feature in
+	LDAP_README. Update by John Hensley.
+
+	Documentation: address masquerading with exceptions FAQ by
+	Jim Seymour @ jimsun.LinxNet.com.
+
+	Bugfix: mysql reconnect after disconnect by Scott Cotton
+	Internet Consultants Group, Inc. File: util/dict_myqsl.c.
+
+	Portability: the Postfix to PCRE interface now expects
+	version 2.08.  Postfix is no longer compatible with PCRE
+	versions before 2.6.
+
+19990906
+
+	Feature: INSTALL.sh script that makes Postfix installation
+	a bit less painful. This script can be used for installing
+	and for upgrading Postfix. It replaces files instead of
+	overwriting them, and leaves existing configuration and
+	queue files intact.

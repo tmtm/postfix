@@ -21,7 +21,7 @@ $(PROG):	$(OBJS) $(LIBS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LIBS) $(SYSLIBS)
 
 Makefile: Makefile.in
-	(set -e; echo "# DO NOT EDIT"; $(OPTS) sh ../makedefs; cat $?) >$@
+	(set -e; echo "# DO NOT EDIT"; $(OPTS) $(SHELL) ../makedefs; cat $?) >$@
 
 test:	$(TESTPROG)
 
@@ -78,7 +78,6 @@ smtp.o: ../include/name_mask.h
 smtp.o: ../include/deliver_request.h
 smtp.o: ../include/vstring.h
 smtp.o: ../include/recipient_list.h
-smtp.o: ../include/mail_queue.h
 smtp.o: ../include/mail_params.h
 smtp.o: ../include/mail_conf.h
 smtp.o: ../include/debug_peer.h
@@ -173,6 +172,7 @@ smtp_session.o: ../include/sys_defs.h
 smtp_session.o: ../include/mymalloc.h
 smtp_session.o: ../include/vstream.h
 smtp_session.o: ../include/vbuf.h
+smtp_session.o: ../include/stringops.h
 smtp_session.o: smtp.h
 smtp_session.o: ../include/vstring.h
 smtp_session.o: ../include/argv.h

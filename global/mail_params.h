@@ -342,9 +342,19 @@ abcdefghijklmnopqrstuvwxyz\
 ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 extern char *var_cmd_exp_filter;
 
-#define VAR_RCPT_FDELIM		"recipient_feature_delimiter"
-#define DEF_RCPT_FDELIM		""
-extern char *var_rcpt_fdelim;
+#define VAR_FWD_EXP_FILTER	"forward_expansion_filter"
+#define DEF_FWD_EXP_FILTER	"1234567890!@%-_=+:,./\
+abcdefghijklmnopqrstuvwxyz\
+ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+extern char *var_fwd_exp_filter;
+
+#define VAR_DELIVER_HDR		"prepend_delivered_header"
+#define DEF_DELIVER_HDR		"command, file, forward"
+extern char *var_deliver_hdr;
+
+#define VAR_EXP_OWN_ALIAS		"expand_owner_alias"
+#define DEF_EXP_OWN_ALIAS		0
+extern bool var_exp_own_alias;
 
  /*
   * Queue manager: maximal size of the duplicate expansion filter. By
@@ -752,6 +762,7 @@ extern int var_non_fqdn_code;
 #define DEF_UNK_ADDR_CODE	450
 extern int var_unk_addr_code;
 
+#define REJECT_UNAUTH_DEST	"reject_unauth_destination"
 #define CHECK_RELAY_DOMAINS	"check_relay_domains"
 #define VAR_RELAY_CODE		"relay_domains_reject_code"
 #define DEF_RELAY_CODE		554
@@ -781,6 +792,8 @@ extern char *var_maps_rbl_domains;
 #define VAR_SMTPD_DELAY_REJECT	"smtpd_delay_reject"
 #define DEF_SMTPD_DELAY_REJECT	1
 extern int var_smtpd_delay_reject;
+
+#define REJECT_UNAUTH_PIPE	"reject_unauth_pipelining"
 
  /*
   * Other.

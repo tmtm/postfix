@@ -103,9 +103,14 @@ is allowed in message headers.
 
 <dt>Syntax:
 
-<dd>Specify a list of zero or more lookup tables. Whenever a
-header matches a table, a REJECT result means reject the
-message; an OK result means pass.
+<dd>Specify a list of zero or more lookup tables. Whenever a header
+matches a table, a REJECT result means reject the message. 
+
+<p>
+
+<i>A rule ending in OK affects only the header being matched. The
+next header may still result in a REJECT match, causing the mail
+still to be rejected.</i>
 
 </dl>
 
@@ -205,6 +210,8 @@ rejected requests (default: <b>554</b>).
 <dt> <b><a href="#permit">permit</a></b>
 
 <dt> <b><a href="#reject">reject</a></b>
+
+<dt> <b><a href="#reject_unauth_pipelining">reject_unauth_pipelining</a></b>
 
 <dd> See generic restrictions.
 
@@ -337,6 +344,8 @@ code for <b>REJECT</b> results (default:  <b>554</b>).
 
 <p>
 
+<dt> <b><a href="#reject_maps_rbl">reject_maps_rbl</a></b>
+
 <dt> <b><a href="#reject_unknown_client">reject_unknown_client</a></b>
 
 <dt> <b><a href="#permit_mynetworks">permit_mynetworks</a></b>
@@ -350,6 +359,8 @@ code for <b>REJECT</b> results (default:  <b>554</b>).
 <dt> <b><a href="#permit">permit</a></b>
 
 <dt> <b><a href="#reject">reject</a></b>
+
+<dt> <b><a href="#reject_unauth_pipelining">reject_unauth_pipelining</a></b>
 
 <dd> See generic restrictions.
 
@@ -447,6 +458,8 @@ response code to rejected requests (default:  <b>504</b>).
 
 <p>
 
+<dt> <b><a href="#reject_maps_rbl">reject_maps_rbl</a></b>
+
 <dt> <b><a href="#reject_unknown_client">reject_unknown_client</a></b>
 
 <dt> <b><a href="#permit_mynetworks">permit_mynetworks</a></b>
@@ -460,6 +473,8 @@ response code to rejected requests (default:  <b>504</b>).
 <dt> <b><a href="#permit">permit</a></b>
 
 <dt> <b><a href="#reject">reject</a></b>
+
+<dt> <b><a href="#reject_unauth_pipelining">reject_unauth_pipelining</a></b>
 
 <dd> See generic restrictions.
 
@@ -506,6 +521,9 @@ on the client hostname or network address.
 <dd> <b>smtpd_recipient_restrictions = permit_mynetworks,
 check_relay_domains</b>
 
+<dd> <b>smtpd_recipient_restrictions = permit_mynetworks,
+reject_unauth_destination</b>
+
 <p>
 
 <dt> Restrictions:
@@ -520,6 +538,16 @@ or when the resolved destination address matches <a href="#relay_domains">
 $relay_domains</a>, otherwise reject.  The <b>relay_domains_reject_code</b>
 parameter specifies the response code for rejected requests (default:
 <b>554</b>).
+
+<p>
+
+<a name="reject_unauth_destination">
+
+<dt> <b>reject_unauth_destination</b> <dd> Ignore the client
+hostname.  Reject the request when the resolved destination address
+does not match <a href="#relay_domains"> $relay_domains</a>.  The
+<b>relay_domains_reject_code</b> parameter specifies the response
+code for rejected requests (default:  <b>554</b>).
 
 <p>
 
@@ -589,6 +617,8 @@ response code to rejected requests (default:  <b>504</b>).
 
 <p>
 
+<dt> <b><a href="#reject_maps_rbl">reject_maps_rbl</a></b>
+
 <dt> <b><a href="#reject_unknown_client">reject_unknown_client</a></b>
 
 <dt> <b><a href="#permit_mynetworks">permit_mynetworks</a></b>
@@ -602,6 +632,8 @@ response code to rejected requests (default:  <b>504</b>).
 <dt> <b><a href="#permit">permit</a></b>
 
 <dt> <b><a href="#reject">reject</a></b>
+
+<dt> <b><a href="#reject_unauth_pipelining">reject_unauth_pipelining</a></b>
 
 <dd> See generic restrictions.
 
@@ -677,6 +709,8 @@ the request if the result is anything else.  The <b>access_map_reject_code
 
 <p>
 
+<dt> <b><a href="#reject_maps_rbl">reject_maps_rbl</a></b>
+
 <dt> <b><a href="#reject_unknown_client">reject_unknown_client</a></b>
 
 <dt> <b><a href="#permit_mynetworks">permit_mynetworks</a></b>
@@ -690,6 +724,8 @@ the request if the result is anything else.  The <b>access_map_reject_code
 <dt> <b><a href="#permit">permit</a></b>
 
 <dt> <b><a href="#reject">reject</a></b>
+
+<dt> <b><a href="#reject_unauth_pipelining">reject_unauth_pipelining</a></b>
 
 <dd> See generic restrictions.
 
@@ -728,6 +764,16 @@ is useful at the end of a restriction list, to make the default
 policy explicit. The <b>reject_code</b> configuration parameter
 specifies the response code to rejected requests (default:
 <b>554</b>).
+
+<p>
+
+<a name="reject_unauth_pipelining">
+
+<dt> <b>reject_unauth_pipelining</b> <dd> Reject the request when
+the client sends SMTP commands ahead of time without knowing that
+Postfix actually supports SMTP command pipelining.  This stops mail
+from bulk mail software that improperly uses SMTP command pipelining
+to speed up deliveries.
 
 </dl>
 
@@ -776,8 +822,10 @@ subdomain under any of the domains listed in <b>$maps_rbl_domains.</b>
 <dt> <b>relay_domains</b>
 
 <dd> This parameter controls the behavior of the <a
-href="#check_relay_domains"> check_relay_domains</a> restriction
-that can appear as part of a recipient address restriction list.
+href="#check_relay_domains"> check_relay_domains</a> and <a
+href="#reject_unauth_destination"> reject_unauth_destination</a>
+restrictions that can appear as part of a recipient address
+restriction list.
 
 <p>
 

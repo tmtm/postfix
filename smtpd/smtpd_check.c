@@ -124,6 +124,13 @@
 /*	parameter.  Reject the request otherwise.
 /*	The \fIrelay_domains_reject_code\fR configuration parameter specifies
 /*	the reject status code (default: 554).
+/* .IP reject_unauth_destination
+/*	Reject the request when the resolved recipient domain does not match
+/*	the \fIrelay_domains\fR configuration parameter.  Same error code as
+/*	check_relay_domains.
+/* .IP reject_unauth_pipelining
+/*	Reject the request when the client has already sent the next request
+/*	without being told that the server implements SMTP command pipelining.
 /* .IP permit_mx_backup
 /*	Allow the request when the local mail system is mail exchanger
 /*	for the recipient domain (this includes the case where the local
@@ -218,6 +225,7 @@
 #include <netdb.h>
 #include <setjmp.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #ifdef STRCASECMP_IN_STRINGS_H
 #include <strings.h>
@@ -400,11 +408,22 @@ static int smtpd_check_reject(SMTPD_STATE *state, int error_class,
      * postmaster notices, this may be the only trace left that service was
      * rejected. Print the request, client name/address, and response.
      */
-    msg_info(state->recipient ? "reject: %s from %s: %s; from=<%s> to=<%s>"
-	     : state->sender ? "reject: %s from %s: %s; from=<%s>"
-	     : "reject: %s from %s: %s",
-	     state->where, state->namaddr, STR(error_text),
-	     state->sender, state->recipient);
+    if (state->recipient && state->sender) {
+	msg_info("reject: %s from %s: %s; from=<%s> to=<%s>",
+		 state->where, state->namaddr, STR(error_text),
+		 state->sender, state->recipient);
+    } else if (state->recipient) {
+	msg_info("reject: %s from %s: %s; to=<%s>",
+		 state->where, state->namaddr, STR(error_text),
+		 state->recipient);
+    } else if (state->sender) {
+	msg_info("reject: %s from %s: %s; from=<%s>",
+		 state->where, state->namaddr, STR(error_text),
+		 state->sender);
+    } else {
+	msg_info("reject: %s from %s: %s",
+		 state->where, state->namaddr, STR(error_text));
+    }
     return (SMTPD_CHECK_REJECT);
 }
 
@@ -654,6 +673,64 @@ static int check_relay_domains(SMTPD_STATE *state, char *recipient,
     return (smtpd_check_reject(state, MAIL_ERROR_POLICY,
 			       "%d <%s>: %s rejected: Relay access denied",
 			       var_relay_code, reply_name, reply_class));
+}
+
+/* reject_unauth_destination - FAIL for message relaying */
+
+static int reject_unauth_destination(SMTPD_STATE *state, char *recipient)
+{
+    char   *myname = "reject_unauth_destination";
+    char   *domain;
+
+    if (msg_verbose)
+	msg_info("%s: %s", myname, recipient);
+
+    /*
+     * Resolve the address.
+     */
+    canon_addr_internal(query, recipient);
+    resolve_clnt_query(STR(query), &reply);
+
+    /*
+     * Pass if destination is local. XXX This must be generalized for
+     * per-domain user tables and for non-UNIX local delivery agents.
+     */
+    if (STR(reply.nexthop)[0] == 0
+	|| (domain = strrchr(STR(reply.recipient), '@')) == 0)
+	return (SMTPD_CHECK_DUNNO);
+    domain += 1;
+
+    /*
+     * Pass if the destination matches the relay_domains list.
+     */
+    if (domain_list_match(relay_domains, domain))
+	return (SMTPD_CHECK_DUNNO);
+
+    /*
+     * Reject relaying to sites that are not listed in relay_domains.
+     */
+    return (smtpd_check_reject(state, MAIL_ERROR_POLICY,
+			       "%d <%s>: Relay access denied",
+			       var_relay_code, recipient));
+}
+
+/* reject_unauth_pipelining - reject improper use of SMTP command pipelining */
+
+static int reject_unauth_pipelining(SMTPD_STATE *state)
+{
+    char   *myname = "reject_unauth_pipelining";
+
+    if (msg_verbose)
+	msg_info("%s: %s", myname, state->where);
+
+    if (state->client != 0
+	&& SMTPD_STAND_ALONE(state) == 0
+	&& vstream_peek(state->client) > 0
+	&& strcasecmp(state->protocol, "ESMTP") != 0) {
+	return (smtpd_check_reject(state, MAIL_ERROR_PROTOCOL,
+			    "503 Improper use of SMTP command pipelining"));
+    }
+    return (SMTPD_CHECK_DUNNO);
 }
 
 /* has_my_addr - see if this host name lists one of my network addresses */
@@ -1200,12 +1277,22 @@ static int generic_checks(SMTPD_STATE *state, char *name,
      */
     if (strcasecmp(name, PERMIT_ALL) == 0) {
 	*status = SMTPD_CHECK_OK;
+	if ((*cpp)[1] != 0)
+	    msg_warn("restriction `%s' after `%s' is ignored",
+		     (*cpp)[1], PERMIT_ALL);
 	return (1);
     }
     if (strcasecmp(name, REJECT_ALL) == 0) {
 	*status = smtpd_check_reject(state, MAIL_ERROR_POLICY,
 				     "%d <%s>: %s rejected: Access denied",
 				  var_reject_code, reply_name, reply_class);
+	if ((*cpp)[1] != 0)
+	    msg_warn("restriction `%s' after `%s' is ignored",
+		     (*cpp)[1], REJECT_ALL);
+	return (1);
+    }
+    if (strcasecmp(name, REJECT_UNAUTH_PIPE) == 0) {
+	*status = reject_unauth_pipelining(state);
 	return (1);
     }
 
@@ -1483,9 +1570,14 @@ char   *smtpd_check_rcpt(SMTPD_STATE *state, char *recipient)
 				       recipient, SMTPD_NAME_RECIPIENT);
 	} else if (strcasecmp(name, PERMIT_MX_BACKUP) == 0) {
 	    status = permit_mx_backup(state, recipient);
+	} else if (strcasecmp(name, REJECT_UNAUTH_DEST) == 0) {
+	    status = reject_unauth_destination(state, recipient);
 	} else if (strcasecmp(name, CHECK_RELAY_DOMAINS) == 0) {
 	    status = check_relay_domains(state, recipient,
 					 recipient, SMTPD_NAME_RECIPIENT);
+	    if (cpp[1] != 0)
+		msg_warn("restriction `%s' after `%s' is ignored",
+			 cpp[1], CHECK_RELAY_DOMAINS);
 	} else if (strcasecmp(name, REJECT_UNKNOWN_RCPTDOM) == 0) {
 	    status = reject_unknown_address(state, recipient,
 					    recipient, SMTPD_NAME_RECIPIENT);
@@ -1594,7 +1686,6 @@ char   *smtpd_check_size(SMTPD_STATE *state, off_t size)
   * rewrite/resolve service. This is just for testing code, not for debugging
   * configuration files.
   */
-#include <unistd.h>
 #include <stdlib.h>
 
 #include <msg_vstream.h>

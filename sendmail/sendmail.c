@@ -144,7 +144,7 @@
 /* .IP \fBMAIL_CONFIG\fR
 /*	Directory with Postfix configuration files.
 /* .IP \fBMAIL_VERBOSE\fR
-/*	Enable verbose logging
+/*	Enable verbose logging for debugging purposes.
 /* .IP \fBMAIL_DEBUG\fR
 /*	Enable debugging with an external command, as specified with the
 /*	\fBdebugger_command\fR configuration parameter.
@@ -245,6 +245,7 @@
 #include <safe.h>
 #include <iostuff.h>
 #include <stringops.h>
+#include <set_ugid.h>
 
 /* Global library. */
 
@@ -595,6 +596,19 @@ int     main(int argc, char **argv)
     msg_syslog_init(mail_task("sendmail"), LOG_PID, LOG_FACILITY);
     set_mail_conf_str(VAR_PROCNAME, var_procname = mystrdup(argv[0]));
 
+    /*
+     * Some sites mistakenly install Postfix sendmail as set-uid root. Drop
+     * set-uid privileges only when root, otherwise some systems will not
+     * reset the saved set-userid, which would be a security vulnerability.
+     */
+    if (geteuid() == 0 && getuid() != 0) {
+	msg_warn("sendmail is set-uid root, or is run from a set-uid root process");
+	set_ugid(getuid(), getgid());
+    }
+
+    /*
+     * Further initialization...
+     */
     mail_conf_read();
     if (chdir(var_queue_dir))
 	msg_fatal("chdir %s: %m", var_queue_dir);
@@ -773,7 +787,7 @@ int     main(int argc, char **argv)
 	    argv_add(ext_argv, "-v", (char *) 0);
 	argv_add(ext_argv, "start", (char *) 0);
 	argv_terminate(ext_argv);
-	err = mail_run_background(var_command_dir, ext_argv->argv);
+	err = (mail_run_background(var_command_dir, ext_argv->argv) < 0);
 	argv_free(ext_argv);
 	exit(err);
 	break;
