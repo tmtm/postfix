@@ -58,24 +58,32 @@
 /*	global Postfix configuration file. Tables are loaded in the
 /*	order as specified, and multiple instances of the same type
 /*	are allowed.
-/* .IP "MAIL_SERVER_PRE_INIT (void *(void))"
+/* .IP "MAIL_SERVER_RAW_TABLE (CONFIG_STR_TABLE *)"
+/*	A table with configurable parameters, to be loaded from the
+/*	global Postfix configuration file. Tables are loaded in the
+/*	order as specified, and multiple instances of the same type
+/*	are allowed. Raw parameters are not subjected to $name
+/*	evaluation.
+/* .IP "MAIL_SERVER_PRE_INIT (void *(char *service_name, char **argv))"
 /*	A pointer to a function that is called once
 /*	by the skeleton after it has read the global configuration file
 /*	and after it has processed command-line arguments, but before
 /*	the skeleton has optionally relinquished the process privileges.
-/* .IP "MAIL_SERVER_POST_INIT (void *(void))"
+/* .IP "MAIL_SERVER_POST_INIT (void *(char *service_name, char **argv))"
 /*	A pointer to a function that is called once
 /*	by the skeleton after it has optionally relinquished the process
 /*	privileges, but before servicing client connection requests.
-/* .IP "MAIL_SERVER_LOOP (int *(void))"
+/* .IP "MAIL_SERVER_LOOP (int *(char *service_name, char **argv))"
 /*	A pointer to function that is executed from
 /*	within the event loop, whenever an I/O or timer event has happened,
 /*	or whenever nothing has happened for a specified amount of time.
 /*	The result value of the function specifies how long to wait until
 /*	the next event. Specify -1 to wait for "as long as it takes".
-/* .IP "MAIL_SERVER_EXIT (void *(void))"
+/* .IP "MAIL_SERVER_EXIT (void *(char *service_name, char **argv))"
 /*	A pointer to function that is executed immediately before normal
 /*	process termination.
+/* .IP "MAIL_SERVER_PRE_ACCEPT (void *(char *service_name, char **argv))"
+/*	Function to be executed prior to accepting a new request.
 /* .PP
 /*	The var_use_limit variable limits the number of clients that
 /*	a server can service before it commits suicide.
@@ -132,17 +140,16 @@
 #include <iostuff.h>
 #include <stringops.h>
 #include <sane_accept.h>
-#ifndef NO_SELECT_COLLISION
 #include <myflock.h>
 #include <safe_open.h>
-#endif
+#include <listen.h>
 
 /* Global library. */
 
 #include <mail_params.h>
 #include <mail_task.h>
 #include <debug_process.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <resolve_local.h>
 
 /* Process manager. */
@@ -162,19 +169,16 @@ static TRIGGER_SERVER_FN trigger_server_service;
 static char *trigger_server_name;
 static char **trigger_server_argv;
 static void (*trigger_server_accept) (int, char *);
-static void (*trigger_server_onexit) (void);
-
-#ifndef NO_SELECT_COLLISION
+static void (*trigger_server_onexit) (char *, char **);
+static void (*trigger_server_pre_accept) (char *, char **);
 static VSTREAM *trigger_server_lock;
-
-#endif
 
 /* trigger_server_exit - normal termination */
 
 static NORETURN trigger_server_exit(void)
 {
     if (trigger_server_onexit)
-	trigger_server_onexit();
+	trigger_server_onexit(trigger_server_name, trigger_server_argv);
     exit(0);
 }
 
@@ -231,18 +235,16 @@ static void trigger_server_wakeup(int fd)
     use_count++;
 }
 
-/* trigger_server_accept_fifo - accept socket client request */
+/* trigger_server_accept_fifo - accept fifo client request */
 
 static void trigger_server_accept_fifo(int unused_event, char *context)
 {
     char   *myname = "trigger_server_accept_fifo";
     int     listen_fd = (int) context;
 
-#ifndef NO_SELECT_COLLISION
     if (trigger_server_lock != 0
 	&& myflock(vstream_fileno(trigger_server_lock), MYFLOCK_NONE) < 0)
 	msg_fatal("select unlock: %m");
-#endif
 
     if (msg_verbose)
 	msg_info("%s: trigger arrived", myname);
@@ -257,23 +259,20 @@ static void trigger_server_accept_fifo(int unused_event, char *context)
      * Read whatever the other side wrote into the FIFO. The FIFO read end is
      * non-blocking so we won't get stuck when multiple processes wake up.
      */
+    if (trigger_server_pre_accept)
+	trigger_server_pre_accept(trigger_server_name, trigger_server_argv);
     trigger_server_wakeup(listen_fd);
 }
 
-/* trigger_server_accept_socket - accept socket client request */
+/* trigger_server_accept_local - accept socket client request */
 
-static void trigger_server_accept_socket(int unused_event, char *context)
+static void trigger_server_accept_local(int unused_event, char *context)
 {
-    char   *myname = "trigger_server_accept_socket";
+    char   *myname = "trigger_server_accept_local";
     int     listen_fd = (int) context;
     int     time_left = 0;
     int     fd;
 
-#ifndef NO_SELECT_COLLISION
-    if (trigger_server_lock != 0
-	&& myflock(vstream_fileno(trigger_server_lock), MYFLOCK_NONE) < 0)
-	msg_fatal("select unlock: %m");
-#endif
 
     if (msg_verbose)
 	msg_info("%s: trigger arrived", myname);
@@ -293,7 +292,14 @@ static void trigger_server_accept_socket(int unused_event, char *context)
      */
     if (var_idle_limit > 0)
 	time_left = event_cancel_timer(trigger_server_timeout, (char *) 0);
-    if ((fd = sane_accept(listen_fd, (struct sockaddr *) 0, (SOCKADDR_SIZE *) 0)) < 0) {
+
+    if (trigger_server_pre_accept)
+	trigger_server_pre_accept(trigger_server_name, trigger_server_argv);
+    fd = LOCAL_ACCEPT(listen_fd);
+    if (trigger_server_lock != 0
+	&& myflock(vstream_fileno(trigger_server_lock), MYFLOCK_NONE) < 0)
+	msg_fatal("select unlock: %m");
+    if (fd < 0) {
 	if (errno != EAGAIN)
 	    msg_fatal("accept connection: %m");
 	if (time_left >= 0)
@@ -330,12 +336,8 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
     char    buf[TRIGGER_BUF_SIZE];
     int     len;
     char   *transport = 0;
-
-#ifndef NO_SELECT_COLLISION
     char   *lock_path;
     VSTRING *why;
-
-#endif
     int     alone = 0;
 
     /*
@@ -355,7 +357,7 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
      * May need this every now and then.
      */
     var_procname = mystrdup(basename(argv[0]));
-    set_config_str(VAR_PROCNAME, var_procname);
+    set_mail_conf_str(VAR_PROCNAME, var_procname);
 
     /*
      * Initialize logging and exit handler. Do the syslog first, so that its
@@ -369,18 +371,21 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
      * Initialize from the configuration file. Allow command-line options to
      * override compiled-in defaults or configured parameter values.
      */
-    read_config();
+    mail_conf_read();
     va_start(ap, service);
     while ((key = va_arg(ap, int)) != 0) {
 	switch (key) {
 	case MAIL_SERVER_INT_TABLE:
-	    get_config_int_table(va_arg(ap, CONFIG_INT_TABLE *));
+	    get_mail_conf_int_table(va_arg(ap, CONFIG_INT_TABLE *));
 	    break;
 	case MAIL_SERVER_STR_TABLE:
-	    get_config_str_table(va_arg(ap, CONFIG_STR_TABLE *));
+	    get_mail_conf_str_table(va_arg(ap, CONFIG_STR_TABLE *));
 	    break;
 	case MAIL_SERVER_BOOL_TABLE:
-	    get_config_bool_table(va_arg(ap, CONFIG_BOOL_TABLE *));
+	    get_mail_conf_bool_table(va_arg(ap, CONFIG_BOOL_TABLE *));
+	    break;
+	case MAIL_SERVER_RAW_TABLE:
+	    get_mail_conf_raw_table(va_arg(ap, CONFIG_STR_TABLE *));
 	    break;
 	case MAIL_SERVER_PRE_INIT:
 	    pre_init = va_arg(ap, MAIL_SERVER_INIT_FN);
@@ -393,6 +398,9 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
 	    break;
 	case MAIL_SERVER_EXIT:
 	    trigger_server_onexit = va_arg(ap, MAIL_SERVER_EXIT_FN);
+	    break;
+	case MAIL_SERVER_PRE_ACCEPT:
+	    trigger_server_pre_accept = va_arg(ap, MAIL_SERVER_ACCEPT_FN);
 	    break;
 	default:
 	    msg_panic("%s: unknown argument type: %d", myname, key);
@@ -470,14 +478,15 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
      * problems, witness the workarounds in the fifo_listen() routine.
      * Therefore we support both FIFOs and UNIX-domain sockets, so that the
      * user can choose whatever works best.
+     * 
+     * Well, I give up. Solaris UNIX-domain sockets still don't work properly,
+     * so it will have to limp along with a streams-specific alternative.
      */
     if (stream == 0) {
 	if (transport == 0)
 	    msg_fatal("no transport type specified");
-	if (strcasecmp(transport, MASTER_XPORT_NAME_INET) == 0)
-	    trigger_server_accept = trigger_server_accept_socket;
 	if (strcasecmp(transport, MASTER_XPORT_NAME_UNIX) == 0)
-	    trigger_server_accept = trigger_server_accept_socket;
+	    trigger_server_accept = trigger_server_accept_local;
 	else if (strcasecmp(transport, MASTER_XPORT_NAME_FIFO) == 0)
 	    trigger_server_accept = trigger_server_accept_fifo;
 	else
@@ -496,7 +505,6 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
      * Illustrated volume 2 page 532. We avoid select() collisions with an
      * external lock file.
      */
-#ifndef NO_SELECT_COLLISION
     if (stream == 0 && !alone) {
 	lock_path = concatenate(DEF_PID_DIR, "/", transport,
 				".", service_name, (char *) 0);
@@ -508,13 +516,12 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
 	myfree(lock_path);
 	vstring_free(why);
     }
-#endif
 
     /*
      * Run pre-jail initialization.
      */
     if (pre_init)
-	pre_init();
+	pre_init(trigger_server_name, trigger_server_argv);
 
     /*
      * Optionally, restrict the damage that this process can do.
@@ -528,7 +535,7 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
      * Run post-jail initialization.
      */
     if (post_init)
-	post_init();
+	post_init(trigger_server_name, trigger_server_argv);
 
     /*
      * Are we running as a one-shot server with the client connection on
@@ -560,12 +567,10 @@ NORETURN trigger_server_main(int argc, char **argv, TRIGGER_SERVER_FN service,..
     event_enable_read(MASTER_STATUS_FD, trigger_server_abort, (char *) 0);
     close_on_exec(MASTER_STATUS_FD, CLOSE_ON_EXEC);
     while (var_use_limit == 0 || use_count < var_use_limit) {
-	delay = loop ? loop() : -1;
-#ifndef NO_SELECT_COLLISION
+	delay = loop ? loop(trigger_server_name, trigger_server_argv) : -1;
 	if (trigger_server_lock != 0
 	    && myflock(vstream_fileno(trigger_server_lock), MYFLOCK_EXCLUSIVE) < 0)
 	    msg_fatal("select lock: %m");
-#endif
 	event_loop(delay);
     }
     trigger_server_exit();

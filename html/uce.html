@@ -44,6 +44,10 @@ command.
 
 <ul>
 
+<li> <a href="#header_checks">Header filtering</a>
+
+<p>
+
 <li> <a href="#smtpd_client_restrictions">Client name/address
 restrictions</a>
 
@@ -79,6 +83,41 @@ restrictions</a>
 <li> <a href="#additional">Additional UCE control parameters</a>
 
 </ul>
+
+<a name="header_checks">
+
+<h2> Header filtering</h2>
+
+The <b>header_checks</b> parameter restricts what
+is allowed in message headers.
+
+<p>
+
+<dl>
+
+<dt>Default:
+
+<dd>Allow anything in message headers.
+
+<p>
+
+<dt>Syntax:
+
+<dd>Specify a list of zero or more lookup tables. Whenever a
+header matches a table, a REJECT result means reject the
+message; an OK result means pass.
+
+</dl>
+
+<p>
+
+<dt>Examples:
+
+<dd> <b>header_checks = regexp:/etc/postfix/header_checks</b>
+
+<dd> <b>header_checks = pcre:/etc/postfix/header_checks</b>
+
+<p>
 
 <a name="smtpd_client_restrictions">
 
@@ -149,7 +188,7 @@ significant octets.  Reject the request if the result is <b>REJECT</b>
 or "[<b>45</b>]<i>XX text</i>". Permit the request if the result
 is anything else.  The <b>access_map_reject_code</b> parameter
 specifies the response code for <b>REJECT</b> results (default:
-<b>550</b>).
+<b>554</b>).
 
 <p>
 
@@ -159,7 +198,7 @@ specifies the response code for <b>REJECT</b> results (default:
 network address is listed under any of the domains listed in <a
 href="#maps_rbl_domains">$maps_rbl_domains</a>. The <b>
 maps_rbl_reject_code</b> parameter specifies the response code for
-rejected requests (default: <b>550</b>).
+rejected requests (default: <b>554</b>).
 
 <p>
 
@@ -294,7 +333,7 @@ or parent domains in the specified table.  Reject the request if
 the result is <b>REJECT</b> or "[<b>45</b>]<i>XX text</i>". Permit
 the request when the result is anything else.  The
 <b>access_map_reject_code </b> parameter specifies the response
-code for <b>REJECT</b> results (default:  <b>550</b>).
+code for <b>REJECT</b> results (default:  <b>554</b>).
 
 <p>
 
@@ -353,7 +392,7 @@ network address.
 
 <dt> Example:
 
-<dd> <b>smtpd_sender_restrictions = reject_unknown_address</b>
+<dd> <b>smtpd_sender_restrictions = reject_unknown_sender_domain</b>
 
 <p>
 
@@ -361,12 +400,13 @@ network address.
 
 <dl compact>
 
-<a name="reject_unknown_address">
+<a name="reject_unknown_sender_domain">
 
-<dt> <b>reject_unknown_address</b> <dd> Reject the request when
-the sender mail address has no DNS A or MX record. The
+<dt> <b>reject_unknown_sender_domain</b> <dd> Reject the request
+when the sender mail address has no DNS A or MX record. The
 <b>unknown_address_reject_code </b> parameter specifies the response
-code for rejected requests (default:  <b>450</b>).
+code for rejected requests (default:  <b>450</b>).  The response
+is always <b>450</b> in case of a temporary DNS error.
 
 <p>
 
@@ -380,7 +420,7 @@ parent domain, or <i>localpart</i>@. Reject the request if the
 result is <b>REJECT</b> or "[<b>45</b>]<i>XX text</i>". Permit the
 request if the result is anything else.  The <b>access_map_reject_code
 </b> parameter specifies the result code for rejected requests
-(default: <b>550</b>).
+(default: <b>554</b>).
 
 <p>
 
@@ -479,7 +519,7 @@ client hostname matches <a href="#relay_domains">$relay_domains</a>,
 or when the resolved destination address matches <a href="#relay_domains">
 $relay_domains</a>, otherwise reject.  The <b>relay_domains_reject_code</b>
 parameter specifies the response code for rejected requests (default:
-<b>550</b>).
+<b>554</b>).
 
 <p>
 
@@ -502,7 +542,17 @@ address, parent domain, or <i>localpart</i>@. Reject the request
 if the result is <b>REJECT</b> or "[<b>45</b>]<i>XX text</i>".
 Permit the request if the result is anything else.  The
 <b>access_map_reject_code </b> parameter specifies the result code
-for rejected requests (default: <b>550</b>).
+for rejected requests (default: <b>554</b>).
+
+<p>
+
+<a name="reject_unknown_recipient_domain">
+
+<dt> <b>reject_unknown_recipient_domain</b> <dd> Reject the request
+when the recipient mail address has no DNS A or MX record. The
+<b>unknown_address_reject_code </b> parameter specifies the response
+code for rejected requests (default:  <b>450</b>).  The response
+is always <b>450</b> in case of a temporary DNS error.
 
 <p>
 
@@ -515,7 +565,7 @@ response code to rejected requests (default:  <b>504</b>).
 
 <p>
 
-<dt> <b><a href="#reject_unknown_address">reject_unknown_address</a></b>
+<dt> <b><a href="#reject_unknown_sender_domain">reject_unknown_sender_domain</a></b>
 
 <dt> <b><a href="#reject_non_fqdn_sender">reject_non_fqdn_sender</a></b>
 
@@ -611,7 +661,7 @@ in the ETRN command, or its parent domains. Reject the request if
 the result is <b>REJECT</b> or "[<b>45</b>]<i>XX text</i>".  Permit
 the request if the result is anything else.  The <b>access_map_reject_code
 </b> parameter specifies the result code for rejected requests
-(default: <b>550</b>).
+(default: <b>554</b>).
 
 <p>
 
@@ -677,7 +727,7 @@ policy explicit.
 is useful at the end of a restriction list, to make the default
 policy explicit. The <b>reject_code</b> configuration parameter
 specifies the response code to rejected requests (default:
-<b>550</b>).
+<b>554</b>).
 
 </dl>
 

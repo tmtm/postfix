@@ -35,6 +35,20 @@ Mail for \fIname\fR is delivered to the alias \fIname\fR, to
 destinations in ~\fIname\fR/.\fBforward\fR, to the mailbox owned
 by the user \fIname\fR, or it is sent back as undeliverable.
 
+The system administrator can specify a comma/space separated list
+of ~\fR/.\fBforward\fR like files through the \fBforward_path\fR
+configuration parameter. Upon delivery, the local delivery agent
+tries each pathname in the list until a file is found.
+The \fBforward_path\fR parameter is subject to interpolation of
+\fB$user\fR (recipient username), \fB$home\fR (recipient home
+directory), \fB$shell\fR (recipient shell), \fB$recipient\fR
+(complete recipient address), \fB$extension\fR (recipient address
+extension), \fB$domain\fR (recipient domain), \fBlocal\fR
+(entire recipient address localpart) and
+\fB$recipient_delimiter.\fR The forms \fI${name?value}\fR and
+\fI${name:value}\fR expand conditionally to \fIvalue\fR when
+\fI$name\fR is (is not) defined.
+
 An alias or ~/.\fBforward\fR file may list any combination of external
 commands, destination file names, \fB:include:\fR directives, or
 mail addresses.
@@ -88,7 +102,7 @@ Mailbox delivery can be delegated to an external command specified
 with the \fBmailbox_command\fR configuration parameter. The command
 executes with the privileges of the recipient user (exception: in
 case of delivery as root, the command executes with the privileges
-of \fBdefault_user\fR).
+of \fBdefault_privs\fR).
 
 Mailbox delivery can be delegated to alternative message transports
 specified in the \fBmaster.cf\fR file.
@@ -132,9 +146,29 @@ A command is forcibly terminated if it does not complete within
 \fBcommand_time_limit\fR seconds.  Command exit status codes are
 expected to follow the conventions defined in <\fBsysexits.h\fR>.
 
-When mail is delivered on behalf of a user, the \fBHOME\fR,
-\fBLOGNAME\fR, and \fBSHELL\fR environment variables are set
-accordingly.
+A limited amount of message context is exported via environment
+variables. Characters that may have special meaning to the shell
+are replaced by underscores.  The list of acceptable characters
+is specified with the \fBcommand_expansion_filter\fR configuration
+parameter.
+.IP \fBSHELL\fR
+The recipient user's login shell.
+.IP \fBHOME\fR
+The recipient user's home directory.
+.IP \fBUSER\fR
+The bare recipient name.
+.IP \fBEXTENSION\fR
+The optional recipient address extension.
+.IP \fBDOMAIN\fR
+The recipient address domain part.
+.IP \fBLOGNAME\fR
+The bare recipient name.
+.IP \fBLOCAL\fR
+The entire recipient address localpart (text to the left of the
+rightmost @ character).
+.IP \fBRECIPIENT\fR
+The entire recipient address.
+.PP
 The \fBPATH\fR environment variable is always reset to a
 system-dependent default path, and the \fBTZ\fR (time zone)
 environment variable is always passed on without change.
@@ -240,6 +274,9 @@ a configuration change.
 .fi
 .IP \fBalias_maps\fR
 List of alias databases.
+.IP \fBforward_path\fR
+Search list for .forward files.  The names are subject to \fI$name\fR
+expansion.
 .IP \fBlocal_command_shell\fR
 Shell to use for external command execution (for example,
 /some/where/smrsh -c).
@@ -262,14 +299,14 @@ Pathname of a mailbox relative to a user's home directory.
 Specify a path ending in \fB/\fR for maildir-style delivery.
 .IP \fBluser_relay\fR
 Destination (\fI@domain\fR or \fIaddress\fR) for non-existent users.
-The \fIaddress\fR can be any destination that is valid in an alias
-file.
+The \fIaddress\fR is subjected to \fI$name\fR expansion.
 .IP \fBmail_spool_directory\fR
 Directory with UNIX-style mailboxes. The default pathname is system
 dependent.
 .IP \fBmailbox_command\fR
 External command to use for mailbox delivery. The command executes
-with the recipient privileges (exception: root).
+with the recipient privileges (exception: root). The string is subject
+to $name expansions.
 .IP \fBmailbox_transport\fR
 Message transport to use for mailbox delivery to all local
 recipients, whether or not they are found in the UNIX passwd database.
@@ -312,6 +349,9 @@ The default limit is taken from the
 Restrict the usage of mail delivery to external command.
 .IP \fBallow_mail_to_files\fR
 Restrict the usage of mail delivery to external file.
+.IP \fBcommand_expansion_filter\fR
+What characters are allowed to appear in $name expansions of
+mailbox_command. Illegal characters are replaced by underscores.
 .IP \fBdefault_privs\fR
 Default rights for delivery to external file or command.
 .SH HISTORY

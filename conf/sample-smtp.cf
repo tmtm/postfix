@@ -5,6 +5,15 @@
 # MISCELLANEOUS CONTROLS
 #
 
+# The best_mx_transport parameter controls what happens when the
+# local system is listed as the best MX host for a destination. By
+# default, Postfix reports a "mail loops back to myself" error and
+# bounces the message. Specify "best_mx_transport = local" to pass
+# the mail to the local delivery agent. You can specify any transport
+# that is defined in the master.cf file.
+#
+# best_mx_transport =
+
 # The fallback_relay parameter specifies zero or more hosts or domains
 # to hand off mail to if a message destination is not found, or if a
 # destination is unreachable.
@@ -59,7 +68,8 @@ smtp_destination_recipient_limit = $default_destination_recipient_limit
 # TIMEOUT CONTROLS
 #
 # Note: if you set SMTP timeouts to large values you must update the
-# global ipc_timeout parameter as well. See sample-misc.cf for details.
+# global ipc_timeout and daemon_timeout parameters as well. See
+# sample-misc.cf for details.
 #
 
 # The smtp_connect_timeout parameter specifies the SMTP client

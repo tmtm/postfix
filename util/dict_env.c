@@ -6,13 +6,14 @@
 /* SYNOPSIS
 /*	#include <dict_env.h>
 /*
-/*	DICT	*dict_env_open(name, flags)
+/*	DICT	*dict_env_open(name, dummy, dict_flags)
 /*	const char *name;
-/*	int	flags;
+/*	int	dummy;
+/*	int	dict_flags;
 /* DESCRIPTION
 /*	dict_env_open() opens the environment variable array and
 /*	makes it accessible via the generic operations documented
-/*	in dict_open(3). The \fIname\fR and \fIflags\fR arguments
+/*	in dict_open(3). The \fIname\fR and \fIdummy\fR arguments
 /*	are ignored.
 /* SEE ALSO
 /*	dict(3) generic dictionary manager
@@ -56,6 +57,8 @@ static void dict_env_update(DICT *unused_dict, const char *name, const char *val
 
 static const char *dict_env_lookup(DICT *unused_dict, const char *name)
 {
+    dict_errno = 0;
+
     return (safe_getenv(name));
 }
 
@@ -68,7 +71,7 @@ static void dict_env_close(DICT *dict)
 
 /* dict_env_open - make association with environment array */
 
-DICT   *dict_env_open(const char *unused_name, int unused_flags)
+DICT   *dict_env_open(const char *unused_name, int unused_flags, int dict_flags)
 {
     DICT   *dict;
 
@@ -76,6 +79,7 @@ DICT   *dict_env_open(const char *unused_name, int unused_flags)
     dict->lookup = dict_env_lookup;
     dict->update = dict_env_update;
     dict->close = dict_env_close;
+    dict->flags = dict_flags | DICT_FLAG_FIXED;
     dict->fd = -1;
     return (dict);
 }

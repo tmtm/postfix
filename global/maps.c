@@ -6,13 +6,15 @@
 /* SYNOPSIS
 /*	#include <maps.h>
 /*
-/*	MAPS	*maps_create(title, map_names)
+/*	MAPS	*maps_create(title, map_names, flags)
 /*	const char *title;
 /*	const char *map_names;
+/*	int	flags;
 /*
-/*	const char *maps_find(maps, key)
+/*	const char *maps_find(maps, key, flags)
 /*	MAPS	*maps;
 /*	const char *key;
+/*	int	flags;
 /*
 /*	void	maps_free(maps)
 /*	MAPS	*maps;
@@ -26,10 +28,14 @@
 /*	named dictionaries.
 /*	The result is a handle that must be specified along with all
 /*	other maps_xxx() operations.
+/*	See dict_open(3) for a description of flags.
 /*
 /*	maps_find() searches the specified list of dictionaries
 /*	in the specified order for the named key. The result is in
 /*	memory that is overwritten upon each call.
+/*	The flags argument is either 0 or specifies a filter:
+/*	for example, DICT_FLAG_FIXED | DICT_FLAG_PATTERN selects
+/*	dictionaries that have fixed keys or pattern keys.
 /*
 /*	maps_free() releases storage claimed by maps_create()
 /*	and conveniently returns a null pointer.
@@ -91,12 +97,12 @@
 
 /* Global library. */
 
-#include "config.h"
+#include "mail_conf.h"
 #include "maps.h"
 
 /* maps_create - initialize */
 
-MAPS   *maps_create(const char *title, const char *map_names)
+MAPS   *maps_create(const char *title, const char *map_names, int flags)
 {
     char   *myname = "maps_create";
     char   *temp = mystrdup(map_names);
@@ -121,7 +127,10 @@ MAPS   *maps_create(const char *title, const char *map_names)
 	if (msg_verbose)
 	    msg_info("%s: %s", myname, map_type_name);
 	if ((dict = dict_handle(map_type_name)) == 0)
-	    dict = dict_open(map_type_name, O_RDONLY);
+	    dict = dict_open(map_type_name, O_RDONLY, flags);
+	else if ((dict->flags & flags) != flags)
+	    msg_warn("%s: map %s has flags 0%o, want flags 0%o",
+		     myname, map_type_name, dict->flags, flags);
 	dict_register(map_type_name, dict);
 	argv_add(maps->argv, map_type_name, ARGV_END);
     }
@@ -132,14 +141,19 @@ MAPS   *maps_create(const char *title, const char *map_names)
 
 /* maps_find - search a list of dictionaries */
 
-const char *maps_find(MAPS *maps, const char *name)
+const char *maps_find(MAPS *maps, const char *name, int flags)
 {
     char   *myname = "maps_find";
     char  **map_name;
     const char *expansion;
+    DICT   *dict;
 
     for (map_name = maps->argv->argv; *map_name; map_name++) {
-	if ((expansion = dict_lookup(*map_name, name)) != 0) {
+	if ((dict = dict_handle(*map_name)) == 0)
+	    msg_panic("%s: dictionary not found: %s", myname, *map_name);
+	if (flags != 0 && (dict->flags & flags) == 0)
+	    continue;
+	if ((expansion = dict_get(dict, name)) != 0) {
 	    if (msg_verbose)
 		msg_info("%s: %s: %s = %s", myname, *map_name, name, expansion);
 	    return (expansion);
@@ -185,10 +199,10 @@ main(int argc, char **argv)
     if (argc != 2)
 	msg_fatal("usage: %s maps", argv[0]);
     msg_verbose = 2;
-    maps = maps_create("whatever", argv[1]);
+    maps = maps_create("whatever", argv[1], DICT_FLAG_LOCK);
 
     while (vstring_fgets_nonl(buf, VSTREAM_IN)) {
-	if ((result = maps_find(maps, vstring_str(buf))) != 0) {
+	if ((result = maps_find(maps, vstring_str(buf), 0)) != 0) {
 	    vstream_printf("%s\n", result);
 	} else if (dict_errno != 0) {
 	    msg_fatal("lookup error: %m");

@@ -183,7 +183,7 @@
 #include <deliver_request.h>
 #include <mail_queue.h>
 #include <mail_params.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <bounce.h>
 #include <defer.h>
 #include <deliver_completed.h>
@@ -251,7 +251,7 @@ typedef struct {
 
 /* parse_callback - callback for mac_parse() */
 
-static void parse_callback(int type, VSTRING *buf, char *context)
+static int parse_callback(int type, VSTRING *buf, char *context)
 {
     int    *expand_flag = (int *) context;
 
@@ -268,6 +268,7 @@ static void parse_callback(int type, VSTRING *buf, char *context)
 	else if (strcmp(vstring_str(buf), PIPE_DICT_MAILBOX) == 0)
 	    *expand_flag |= PIPE_FLAG_MAILBOX;
     }
+    return (0);
 }
 
 /* expand_argv - expand macros in the argument vector */
@@ -388,7 +389,7 @@ static void get_service_params(PIPE_PARAMS *config, char *service)
      * Figure out the command time limit for this transport.
      */
     config->time_limit =
-	get_config_int2(service, "_time_limit", var_command_maxtime, 1, 0);
+	get_mail_conf_int2(service, "_time_limit", var_command_maxtime, 1, 0);
 
     /*
      * Give the poor tester a clue of what is going on.
@@ -675,9 +676,19 @@ static void pipe_service(VSTREAM *client_stream, char *service, char **argv)
     }
 }
 
+/* pre_accept - see if tables have changed */
+
+static void pre_accept(char *unused_name, char **unused_argv)
+{
+    if (dict_changed()) {
+	msg_info("table has changed -- exiting");
+	exit(0);
+    }
+}
+
 /* drop_privileges - drop privileges most of the time */
 
-static void drop_privileges(void)
+static void drop_privileges(char *unused_name, char **unused_argv)
 {
     set_eugid(var_owner_uid, var_owner_gid);
 }
@@ -694,5 +705,6 @@ int     main(int argc, char **argv)
     single_server_main(argc, argv, pipe_service,
 		       MAIL_SERVER_INT_TABLE, int_table,
 		       MAIL_SERVER_POST_INIT, drop_privileges,
+		       MAIL_SERVER_PRE_ACCEPT, pre_accept,
 		       0);
 }

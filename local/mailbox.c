@@ -50,6 +50,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 /* Utility library. */
 
@@ -74,7 +75,11 @@
 #include <mypwd.h>
 #include <been_here.h>
 #include <mail_params.h>
-#include <mail_proto.h>
+#include <deliver_pass.h>
+
+#ifndef EDQUOT
+#define EDQUOT EFBIG
+#endif
 
 /* Application-specific. */
 
@@ -124,7 +129,7 @@ static int deliver_mailbox_file(LOCAL_STATE state, USER_ATTR usr_attr)
 	mailbox = concatenate(usr_attr.home, "/", var_home_mailbox, (char *) 0);
     } else {
 	spool_dir = var_mail_spool_dir;
-	mailbox = concatenate(spool_dir, "/", state.msg_attr.local, (char *) 0);
+	mailbox = concatenate(spool_dir, "/", state.msg_attr.user, (char *) 0);
     }
 
     /*
@@ -205,8 +210,9 @@ static int deliver_mailbox_file(LOCAL_STATE state, USER_ATTR usr_attr)
     set_eugid(var_owner_uid, var_owner_gid);
 
     if (status)
-	defer_append(BOUNCE_FLAG_KEEP, BOUNCE_ATTR(state.msg_attr),
-		 "cannot append to file %s: %s", mailbox, vstring_str(why));
+	status = (errno == EDQUOT ? bounce_append : defer_append)
+	    (BOUNCE_FLAG_KEEP, BOUNCE_ATTR(state.msg_attr),
+	     "cannot append to file %s: %s", mailbox, vstring_str(why));
     else
 	sent(SENT_ATTR(state.msg_attr), "mailbox");
     myfree(mailbox);
@@ -235,7 +241,7 @@ int     deliver_mailbox(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
      * 
      * Don't come here more than once, whether or not the recipient exists.
      */
-    if (been_here(state.dup_filter, "mailbox %s", state.msg_attr.local))
+    if (been_here(state.dup_filter, "mailbox %s", state.msg_attr.user))
 	return (YES);
 
     /*
@@ -250,7 +256,7 @@ int     deliver_mailbox(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
     /*
      * Skip delivery when this recipient does not exist.
      */
-    if ((mbox_pwd = mypwnam(state.msg_attr.local)) == 0)
+    if ((mbox_pwd = mypwnam(state.msg_attr.user)) == 0)
 	return (NO);
 
     /*

@@ -474,6 +474,8 @@ static int vstream_fflush_some(VSTREAM *stream, int to_flush)
 	msg_panic("%s: to_flush < left_over", myname);
     if (to_flush == 0)
 	return ((bp->flags & VSTREAM_FLAG_ERR) ? VSTREAM_EOF : 0);
+    if (bp->flags & VSTREAM_FLAG_ERR)
+	return (VSTREAM_EOF);
 
     /*
      * When flushing a buffer, allow for partial writes. These can happen
@@ -593,6 +595,12 @@ static int vstream_buf_get_ready(VBUF *bp)
 	&& stream->write_buf.len > stream->write_buf.cnt)
 	if (vstream_fflush_delayed(stream))
 	    return (VSTREAM_EOF);
+
+    /*
+     * Did we receive an EOF indication?
+     */
+    if (bp->flags & VSTREAM_FLAG_EOF)
+	return (VSTREAM_EOF);
 
     /*
      * Fill the buffer with as much data as we can handle, or with as much
@@ -766,6 +774,7 @@ long    vstream_fseek(VSTREAM *stream, long offset, int whence)
     } else {
 	bp->flags |= VSTREAM_FLAG_SEEK;
     }
+    bp->flags &= ~VSTREAM_FLAG_EOF;
     return (stream->offset);
 }
 

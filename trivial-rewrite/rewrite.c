@@ -71,7 +71,7 @@
 #include <mail_proto.h>
 #include <resolve_local.h>
 #include <tok822.h>
-#include <config.h>
+#include <mail_conf.h>
 
 /* Application-specific. */
 
@@ -103,6 +103,16 @@ void    rewrite_tree(char *unused_ruleset, TOK822 *tree)
 	&& tree->tail->type == TOK822_QSTRING
 	&& VSTRING_LEN(tree->tail->vstr) == 0)
 	return;
+
+    /*
+     * Treat a lone @ as if it were an empty address.
+     */
+    if (tree->head == tree->tail
+	&& tree->tail->type == '@') {
+	tok822_free_tree(tok822_sub_keep_before(tree, tree->tail));
+	tok822_sub_append(tree, tok822_alloc(TOK822_QSTRING, ""));
+	return;
+    }
 
     /*
      * Strip source route.

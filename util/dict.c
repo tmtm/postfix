@@ -10,35 +10,51 @@
 /*	extern int dict_errno;
 /*
 /*	void	dict_register(dict_name, dict_info)
-/*	const const char *dict_name;
+/*	const char *dict_name;
 /*	DICT	*dict_info;
 /*
 /*	DICT	*dict_handle(dict_name)
-/*	const const char *dict_name;
+/*	const char *dict_name;
 /*
 /*	void	dict_unregister(dict_name)
-/*	const const char *dict_name;
+/*	const char *dict_name;
 /*
 /*	void	dict_update(dict_name, member, value)
-/*	const const char *dict_name;
-/*	const const char *member;
+/*	const char *dict_name;
+/*	const char *member;
 /*	const char *value;
 /*
 /*	const char *dict_lookup(dict_name, member)
-/*	const const char *dict_name;
-/*	const const char *member;
+/*	const char *dict_name;
+/*	const char *member;
+/*
+/*	int	dict_delete(dict_name, member)
+/*	const char *dict_name;
+/*	const char *member;
+/*
+/*	int	dict_sequence(dict_name, func, member, value)
+/*	const char *dict_name;
+/*	int	func;
+/*	const char **member;
+/*	const char **value;
 /*
 /*	const char *dict_eval(dict_name, string, int recursive)
-/*	const const char *dict_name;
+/*	const char *dict_name;
 /*	const char *string;
 /*	int	recursive;
+/*
+/*	int	dict_walk(action, context)
+/*	void	(*action)(dict_name, dict_handle, context)
+/*	char	*context;
+/*
+/*	int	dict_changed()
 /* AUXILIARY FUNCTIONS
 /*	void	dict_load_file(dict_name, path)
-/*	const const char *dict_name;
-/*	const const char *path;
+/*	const char *dict_name;
+/*	const char *path;
 /*
 /*	void	dict_load_fp(dict_name, fp)
-/*	const const char *dict_name;
+/*	const char *dict_name;
 /*	FILE	*fp;
 /* DESCRIPTION
 /*	This module maintains a collection of name-value dictionaries.
@@ -78,29 +94,44 @@
 /*
 /*	dict_update() updates the value of the named dictionary member.
 /*	The dictionary member and the named dictionary are instantiated
-/*	on the fly.  During the update, a file-based dictionary is locked
-/*	for exclusive access. With file-based dictionaries, duplicate
-/*	of duplicate entries depends on dictionary flag settings:
-/* .IP DICT_FLAG_DUP_WARN
-/*	Log a warning and ignore the duplicate.
-/* .IP DICT_FLAG_DUP_IGNORE
-/*	Silently ignore the duplicate.
-/* .PP
-/*	The default is to terminate the program with a fatal error.
+/*	on the fly.
 /*
 /*	dict_lookup() returns the value of the named member (i.e. without
 /*	expanding macros in the member value).  The \fIdict_name\fR argument
-/*	specifies the dictionary to search. The dictionary is locked for
-/*	shared access, when it is file based.  The result is a null pointer
+/*	specifies the dictionary to search. The result is a null pointer
 /*	when no value is found, otherwise the result is owned by the
 /*	underlying dictionary method. Make a copy if the result is to be
 /*	modified, or if the result is to survive multiple dict_lookup() calls.
+/*
+/*	dict_delete() removes the named member from the named dictionary.
+/*	The result is non-zero when the member does not exist.
+/*
+/*	dict_sequence() steps throuh the named dictionary and returns
+/*	keys and values in some implementation-defined order. The func
+/*	argument is DICT_SEQ_FUN_FIRST to set the cursor to the first
+/*	entry or DICT_SEQ_FUN_NEXT so select the next entry. The result
+/*	is owned by the underlying dictionary method. Make a copy if the
+/*	result is to be modified, or if the result is to survive multiple
+/*	dict_sequence() calls.
 /*
 /*	dict_eval() expands macro references in the specified string.
 /*	The result is owned by the dictionary manager. Make a copy if the
 /*	result is to survive multiple dict_eval() calls. When the
 /*	\fIrecursive\fR argument is non-zero, macros references are
 /*	expanded recursively.
+/*
+/*	dict_walk() iterates over all registered dictionaries in some
+/*	arbitrary order, and invokes the specified action routine with
+/*	as arguments:
+/* .IP "const char *dict_name"
+/*	Dictionary name.
+/* .IP "DICT *dict_handle"
+/*	Generic dictionary handle.
+/* .IP "char *context"
+/*	Application context from the caller.
+/* .PP
+/*	dict_changed() returns non-zero when any dictionary needs to
+/*	be re-opened because it has changed or because it was unlinked.
 /*
 /*	dict_load_file() reads name-value entries from the named file.
 /*	Lines that begin with whitespace are concatenated to the preceding
@@ -137,6 +168,7 @@
 /* System libraries. */
 
 #include "sys_defs.h"
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <ctype.h>
 #include <string.h>
@@ -148,8 +180,7 @@
 #include "mymalloc.h"
 #include "vstream.h"
 #include "vstring.h"
-#include "readline.h"
-#include "myflock.h"
+#include "readlline.h"
 #include "mac_parse.h"
 #include "dict.h"
 #include "dict_ht.h"
@@ -252,11 +283,7 @@ void    dict_update(const char *dict_name, const char *member, const char *value
 	dict = node->dict;
     if (msg_verbose > 1)
 	msg_info("%s: %s = %s", myname, member, value);
-    if (dict->fd >= 0 && myflock(dict->fd, MYFLOCK_EXCLUSIVE) < 0)
-	msg_fatal("%s: lock dictionary %s: %m", myname, dict_name);
     dict->update(dict, member, value);
-    if (dict->fd >= 0 && myflock(dict->fd, MYFLOCK_NONE) < 0)
-	msg_fatal("%s: unlock dictionary %s: %m", myname, dict_name);
 }
 
 /* dict_lookup - look up dictionary entry */
@@ -268,24 +295,63 @@ const char *dict_lookup(const char *dict_name, const char *member)
     DICT   *dict;
     const char *ret = 0;
 
-    dict_errno = 0;
-
     if ((node = dict_node(dict_name)) == 0) {
 	if (dict_unknown_allowed == 0)
 	    msg_fatal("%s: unknown dictionary: %s", myname, dict_name);
     } else {
 	dict = node->dict;
-	if (dict->fd >= 0 && myflock(dict->fd, MYFLOCK_SHARED) < 0)
-	    msg_fatal("%s: lock dictionary %s: %m", myname, dict_name);
 	ret = dict->lookup(dict, member);
-	if (dict->fd >= 0 && myflock(dict->fd, MYFLOCK_NONE) < 0)
-	    msg_fatal("%s: unlock dictionary %s: %m", myname, dict_name);
 	if (ret == 0 && dict_unknown_allowed == 0)
 	    msg_fatal("dictionary %s: unknown member: %s", dict_name, member);
     }
     if (msg_verbose > 1)
 	msg_info("%s: %s = %s", myname, member, ret ? ret : "(notfound)");
     return (ret);
+}
+
+/* dict_delete - delete dictionary entry */
+
+int     dict_delete(const char *dict_name, const char *member)
+{
+    char   *myname = "dict_delete";
+    DICT_NODE *node;
+    DICT   *dict;
+    int     result;
+
+    if ((node = dict_node(dict_name)) == 0) {
+	if (dict_unknown_allowed == 0)
+	    msg_fatal("%s: unknown dictionary: %s", myname, dict_name);
+	dict = dict_ht_open(htable_create(0), myfree);
+	dict_register(dict_name, dict);
+    } else
+	dict = node->dict;
+    if (msg_verbose > 1)
+	msg_info("%s: delete %s", myname, member);
+    if ((result = dict->delete(dict, member)) != 0 && dict_unknown_allowed == 0)
+	msg_fatal("%s: dictionary %s: unknown member: %s",
+		  myname, dict_name, member);
+    return (result);
+}
+
+/* dict_sequence - traverse dictionary */
+
+int     dict_sequence(const char *dict_name, const int func,
+		              const char **member, const char **value)
+{
+    char   *myname = "dict_sequence";
+    DICT_NODE *node;
+    DICT   *dict;
+
+    if ((node = dict_node(dict_name)) == 0) {
+	if (dict_unknown_allowed == 0)
+	    msg_fatal("%s: unknown dictionary: %s", myname, dict_name);
+	dict = dict_ht_open(htable_create(0), myfree);
+	dict_register(dict_name, dict);
+    } else
+	dict = node->dict;
+    if (msg_verbose > 1)
+	msg_info("%s: sequence func %d", myname, func);
+    return (dict->sequence(dict, func, member, value));
 }
 
 /* dict_load_file - read entries from text file */
@@ -328,7 +394,7 @@ void    dict_load_fp(const char *dict_name, VSTREAM *fp)
     buf = vstring_alloc(100);
     lineno = 0;
 
-    while (readline(buf, fp, &lineno)) {
+    while (readlline(buf, fp, &lineno)) {
 	start = STR(buf);
 	SKIP(start, member, ISSPACE(*member));	/* find member begin */
 	if (*member == 0 || *member == '#')
@@ -359,7 +425,7 @@ struct dict_eval_context {
 
 /* dict_eval_action - macro parser call-back routine */
 
-static void dict_eval_action(int type, VSTRING *buf, char *ptr)
+static int dict_eval_action(int type, VSTRING *buf, char *ptr)
 {
     struct dict_eval_context *ctxt = (struct dict_eval_context *) ptr;
     char   *myname = "dict_eval_action";
@@ -389,6 +455,7 @@ static void dict_eval_action(int type, VSTRING *buf, char *ptr)
     } else {
 	vstring_strcat(ctxt->buf, STR(buf));
     }
+    return (0);
 }
 
 /* dict_eval - expand embedded dictionary references */
@@ -434,4 +501,45 @@ const char *dict_eval(const char *dict_name, const char *value, int recursive)
     VSTRING_TERMINATE(buf);
 
     return (STR(buf));
+}
+
+/* dict_walk - iterate over all dictionaries in arbitrary order */
+
+void    dict_walk(DICT_WALK_ACTION action, char *ptr)
+{
+    HTABLE_INFO **ht_info_list;
+    HTABLE_INFO **ht;
+    HTABLE_INFO *h;
+
+    ht_info_list = htable_list(dict_table);
+    for (ht = ht_info_list; (h = *ht) != 0; ht++)
+	action(h->key, (DICT *) h->value, ptr);
+    myfree((char *) ht_info_list);
+}
+
+/* dict_changed - see if any dictionary has changed */
+
+int     dict_changed(void)
+{
+    char   *myname = "dict_changed";
+    struct stat st;
+    HTABLE_INFO **ht_info_list;
+    HTABLE_INFO **ht;
+    HTABLE_INFO *h;
+    int     status;
+    DICT   *dict;
+
+    ht_info_list = htable_list(dict_table);
+    for (status = 0, ht = ht_info_list; status == 0 && (h = *ht) != 0; ht++) {
+	dict = ((DICT_NODE *) h->value)->dict;
+	if (dict->fd < 0)			/* not file-based */
+	    continue;
+	if (dict->mtime == 0)			/* not bloody likely */
+	    msg_warn("%s: table %s: null time stamp", myname, h->key);
+	if (fstat(dict->fd, &st) < 0)
+	    msg_fatal("%s: fstat: %m", myname);
+	status = (st.st_mtime != dict->mtime || st.st_nlink == 0);
+    }
+    myfree((char *) ht_info_list);
+    return (status);
 }

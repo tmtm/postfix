@@ -81,6 +81,7 @@
 #include <bounce.h>
 #include <mail_params.h>
 #include <split_addr.h>
+#include <ext_prop.h>
 
 /* Application-specific. */
 
@@ -105,30 +106,27 @@ static int deliver_switch(LOCAL_STATE state, USER_ATTR usr_attr)
      * \user is special: it means don't do any alias or forward expansion.
      */
     if (state.msg_attr.recipient[0] == '\\') {
-	state.msg_attr.recipient++, state.msg_attr.local++;
-	if (*var_rcpt_delim)
-	    state.msg_attr.extension =
-		split_addr(state.msg_attr.local, *var_rcpt_delim);
+	state.msg_attr.recipient++, state.msg_attr.local++, state.msg_attr.user++;
 	if (deliver_mailbox(state, usr_attr, &status) == 0)
 	    status = deliver_unknown(state, usr_attr);
 	return (status);
     }
 
     /*
-     * Otherwise, alias expansion has highest precedence.
+     * Otherwise, alias expansion has highest precedence. First look up the
+     * full localpart, then the bare user. Obey the address extension
+     * propagation policy.
      */
-    if (deliver_alias(state, usr_attr, &status))
+    state.msg_attr.unmatched = 0;
+    if (deliver_alias(state, usr_attr, state.msg_attr.local, &status))
 	return (status);
-
-    /*
-     * Don't apply the recipient delimiter to reserved addresses. After
-     * stripping the recipient extension, try aliases again.
-     */
-    if (*var_rcpt_delim)
-	state.msg_attr.extension =
-	    split_addr(state.msg_attr.local, *var_rcpt_delim);
-    if (state.msg_attr.extension && deliver_alias(state, usr_attr, &status))
-	return (status);
+    if (state.msg_attr.extension != 0) {
+	if (local_ext_prop_mask & EXT_PROP_ALIAS)
+	    state.msg_attr.unmatched = state.msg_attr.extension;
+	if (deliver_alias(state, usr_attr, state.msg_attr.user, &status))
+	    return (status);
+	state.msg_attr.unmatched = state.msg_attr.extension;
+    }
 
     /*
      * Special case for mail locally forwarded or aliased to a different
@@ -153,8 +151,7 @@ static int deliver_switch(LOCAL_STATE state, USER_ATTR usr_attr)
      * recipient domain is local, so we only have to compare local parts.
      */
     if (state.msg_attr.owner != 0
-	&& strncasecmp(state.msg_attr.owner, state.msg_attr.recipient,
-		       strlen(state.msg_attr.local) + 1) != 0)
+	&& strcasecmp(state.msg_attr.owner, state.msg_attr.user) != 0)
 	return (deliver_indirect(state));
 
     /*
@@ -182,6 +179,13 @@ int     deliver_recipient(LOCAL_STATE state, USER_ATTR usr_attr)
 	MSG_LOG_STATE(myname, state);
 
     /*
+     * Duplicate filter.
+     */
+    if (been_here(state.dup_filter, "recipient %d %s",
+		  state.level, state.msg_attr.recipient))
+	return (0);
+
+    /*
      * With each level of recursion, detect and break external message
      * forwarding loops.
      */
@@ -197,11 +201,26 @@ int     deliver_recipient(LOCAL_STATE state, USER_ATTR usr_attr)
     if (state.msg_attr.delivered == 0)
 	state.msg_attr.delivered = state.msg_attr.recipient;
     state.msg_attr.local = mystrdup(state.msg_attr.recipient);
-    if (split_at_right(state.msg_attr.local, '@') == 0)
-	msg_warn("no @ in recipient address: %s", state.msg_attr.local);
     lowercase(state.msg_attr.local);
+    if ((state.msg_attr.domain = split_at_right(state.msg_attr.local, '@')) == 0)
+	msg_warn("no @ in recipient address: %s", state.msg_attr.local);
     state.msg_attr.features = feature_control(state.msg_attr.local);
-    state.msg_attr.extension = 0;
+
+    /*
+     * Address extension management.
+     */
+    state.msg_attr.user = mystrdup(state.msg_attr.local);
+    if (*var_rcpt_delim) {
+	state.msg_attr.extension =
+	    split_addr(state.msg_attr.user, *var_rcpt_delim);
+	if (state.msg_attr.extension && strchr(state.msg_attr.extension, '/')) {
+	    msg_warn("%s: address with illegal extension: %s",
+		     state.msg_attr.queue_id, state.msg_attr.local);
+	    state.msg_attr.extension = 0;
+	}
+    } else
+	state.msg_attr.extension = 0;
+    state.msg_attr.unmatched = state.msg_attr.extension;
 
     /*
      * Run the recipient through the delivery switch.
@@ -214,6 +233,7 @@ int     deliver_recipient(LOCAL_STATE state, USER_ATTR usr_attr)
      * Clean up.
      */
     myfree(state.msg_attr.local);
+    myfree(state.msg_attr.user);
 
     return (rcpt_stat);
 }

@@ -16,16 +16,24 @@
 /* DESCRIPTION
 /*	This module implements Internet address lookups. By default,
 /*	lookups are done via the Internet domain name service (DNS).
-/*	A reasonable number of CNAME indirections is permitted.
+/*	A reasonable number of CNAME indirections is permitted. When
+/*	DNS lookups are disabled, host address lookup is done with
+/*	gethostbyname().
 /*
 /*	smtp_domain_addr() looks up the network addresses for mail
 /*	exchanger hosts listed for the named domain. Addresses are
 /*	returned in most-preferred first order. The result is truncated
 /*	so that it contains only hosts that are more preferred than the
-/*	local mail server itself.
+/*	local mail server itself. When the "best MX is local" feature
+/*	is enabled, the local system is allowed to be the best mail
+/*	exchanger, and the result is a null list pointer. Otherwise,
+/*	mailer loops are treated as an error.
 /*
 /*	When no mail exchanger is listed in the DNS for \fIname\fR, the
 /*	request is passed to smtp_host_addr().
+/*
+/*	It is an error to call smtp_domain_addr() when DNS lookups are
+/*	disabled.
 /*
 /*	smtp_host_addr() looks up all addresses listed for the named
 /*	host.  The host can be specified as a numerical Internet network
@@ -34,6 +42,9 @@
 /*	Results from smtp_domain_addr() or smtp_host_addr() are
 /*	destroyed by dns_rr_free(), including null lists.
 /* DIAGNOSTICS
+/*	Panics: interface violations. For example, calling smtp_domain_addr()
+/*	when DNS lookups are explicitly disabled.
+/*
 /*	All routines either return a DNS_RR pointer, or return a null
 /*	pointer and set the \fIsmtp_errno\fR global variable accordingly:
 /* .IP SMTP_RETRY
@@ -57,6 +68,7 @@
 /* System library. */
 
 #include <sys_defs.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
@@ -117,11 +129,49 @@ static void smtp_print_addr(char *what, DNS_RR *addr_list)
 static DNS_RR *smtp_addr_one(DNS_RR *addr_list, char *host, unsigned pref, VSTRING *why)
 {
     char   *myname = "smtp_addr_one";
+    struct in_addr inaddr;
+    DNS_FIXED fixed;
     DNS_RR *addr = 0;
     DNS_RR *rr;
+    struct hostent *hp;
 
     if (msg_verbose)
 	msg_info("%s: host %s", myname, host);
+
+    /*
+     * Interpret a numerical name as an address.
+     */
+    if (ISDIGIT(host[0]) && (inaddr.s_addr = inet_addr(host)) != INADDR_NONE) {
+	memset((char *) &fixed, 0, sizeof(fixed));
+	return (dns_rr_append(addr_list,
+			      dns_rr_create(host, &fixed, pref,
+					(char *) &inaddr, sizeof(inaddr))));
+    }
+
+    /*
+     * Use gethostbyname() when DNS is disabled.
+     */
+    if (var_disable_dns) {
+	memset((char *) &fixed, 0, sizeof(fixed));
+	if ((hp = gethostbyname(host)) == 0) {
+	    vstring_sprintf(why, "%s: host not found", host);
+	    smtp_errno = SMTP_FAIL;
+	} else if (hp->h_addrtype != AF_INET) {
+	    vstring_sprintf(why, "%s: host not found", host);
+	    msg_warn("%s: unknown address family %d for %s",
+		     myname, hp->h_addrtype, host);
+	    smtp_errno = SMTP_FAIL;
+	} else {
+	    while (hp->h_addr_list[0]) {
+		addr_list = dns_rr_append(addr_list,
+					  dns_rr_create(host, &fixed, pref,
+							hp->h_addr_list[0],
+							sizeof(inaddr)));
+		hp->h_addr_list++;
+	    }
+	}
+	return (addr_list);
+    }
 
     /*
      * Append the addresses for this host to the address list.
@@ -286,8 +336,11 @@ static DNS_RR *smtp_truncate_self(DNS_RR *addr_list, unsigned pref,
 		smtp_print_addr("truncated", addr);
 	    dns_rr_free(addr);
 	    if (last == 0) {
-		vstring_sprintf(why, "mail for %s loops back to myself", name);
-		smtp_errno = SMTP_FAIL;
+		if (*var_bestmx_transp == 0) {
+		    vstring_sprintf(why, "mail for %s loops back to myself",
+				    name);
+		    smtp_errno = SMTP_FAIL;
+		}
 		addr_list = 0;
 	    } else {
 		last->next = 0;
@@ -312,6 +365,12 @@ DNS_RR *smtp_domain_addr(char *name, VSTRING *why)
     DNS_RR *mx_names;
     DNS_RR *addr_list = 0;
     DNS_RR *self;
+
+    /*
+     * Sanity check.
+     */
+    if (var_disable_dns)
+	msg_panic("smtp_domain_addr: DNS lookup is disabled");
 
     /*
      * Look up the mail exchanger hosts listed for this name. Sort the
@@ -360,24 +419,16 @@ DNS_RR *smtp_domain_addr(char *name, VSTRING *why)
 
 DNS_RR *smtp_host_addr(char *host, VSTRING *why)
 {
-    DNS_FIXED fixed;
     DNS_RR *addr_list;
-    struct in_addr addr;
 
     /*
      * If the host is specified by numerical address, just convert the
      * address to internal form. Otherwise, the host is specified by name.
      */
 #define PREF0	0
-    if (ISDIGIT(host[0]) && (addr.s_addr = inet_addr(host)) != INADDR_NONE) {
-	fixed.type = fixed.class = fixed.ttl = fixed.length = 0;
-	addr_list = dns_rr_create(host, &fixed, PREF0,
-				  (char *) &addr, sizeof(addr));
-    } else {
-	addr_list = smtp_addr_one((DNS_RR *) 0, host, PREF0, why);
-	if (*var_fallback_relay)
-	    addr_list = smtp_addr_fallback(addr_list);
-    }
+    addr_list = smtp_addr_one((DNS_RR *) 0, host, PREF0, why);
+    if (*var_fallback_relay)
+	addr_list = smtp_addr_fallback(addr_list);
     if (msg_verbose)
 	smtp_print_addr(host, addr_list);
     return (addr_list);

@@ -6,9 +6,10 @@
 /* SYNOPSIS
 /*	#include <dict_pcre.h>
 /*
-/*	DICT	*dict_pcre_open(name, flags)
+/*	DICT	*dict_pcre_open(name, dummy, dict_flags)
 /*	const char *name;
-/*	int	flags;
+/*	int	dummy;
+/*	int	dict_flags;
 /* DESCRIPTION
 /*	dict_pcre_open() opens the named file and compiles the contained
 /*	regular expressions.
@@ -16,10 +17,6 @@
 /*	 The lookup interface will match only user@domain form addresses.
 /* SEE ALSO
 /*	dict(3) generic dictionary manager
-/* LICENSE
-/* .ad
-/* .fi
-/*	The Secure Mailer license must be distributed with this software.
 /* AUTHOR(S)
 /*	Andrew McNamara
 /*	andrewm@connect.com.au
@@ -53,7 +50,7 @@
 #include "vstream.h"
 #include "vstring.h"
 #include "stringops.h"
-#include "readline.h"
+#include "readlline.h"
 #include "dict.h"
 #include "dict_pcre.h"
 #include "mac_parse.h"
@@ -110,7 +107,7 @@ struct dict_pcre_context {
  * Macro expansion callback - replace $0-${99} with strings cut from
  * matched string.
  */
-static void dict_pcre_action(int type, VSTRING *buf, char *ptr)
+static int dict_pcre_action(int type, VSTRING *buf, char *ptr)
 {
     struct dict_pcre_context *ctxt = (struct dict_pcre_context *) ptr;
     const char *pp;
@@ -123,17 +120,24 @@ static void dict_pcre_action(int type, VSTRING *buf, char *ptr)
 				 n, &pp);
 	if (ret < 0) {
 	    if (ret == PCRE_ERROR_NOSUBSTRING)
-		msg_warn("regexp %s, line %d: replace index out of range",
-			 ctxt->dict_name, ctxt->lineno);
+		msg_fatal("regexp %s, line %d: replace index out of range",
+			  ctxt->dict_name, ctxt->lineno);
 	    else
-		msg_warn("regexp %s, line %d: pcre_get_substring error: %d",
-			 ctxt->dict_name, ctxt->lineno, ret);
-	    return;
+		msg_fatal("regexp %s, line %d: pcre_get_substring error: %d",
+			  ctxt->dict_name, ctxt->lineno, ret);
+	}
+	if (*pp == 0) {
+	    myfree((char *) pp);
+	    return (MAC_PARSE_UNDEF);
 	}
 	vstring_strcat(ctxt->buf, pp);
+	myfree((char *) pp);
+	return (0);
     } else
 	/* Straight text - duplicate with no substitution */
 	vstring_strcat(ctxt->buf, vstring_str(buf));
+
+    return (0);
 }
 
 /*
@@ -147,20 +151,14 @@ static const char *dict_pcre_lookup(DICT *dict, const char *name)
     int     name_len = strlen(name);
     struct dict_pcre_context ctxt;
     static VSTRING *buf;
-    char   *at;
 
-/*    msg_info("dict_pcre_lookup: %s: %s", dict_pcre->map, name );*/
+    dict_errno = 0;
 
-    /*
-     * XXX Require user@domain, to defeat partial address matching for smtp
-     * access control, canonical and virtual mappings, and to prevent regexps
-     * from being used as alias databases because one might inadvertantly
-     * copy "|command" or /file/name or :include: to the result.
-     */
-    if (name[0] == '@' || (at = strrchr(name, '@')) == 0 || at[1] == 0)
-	return (0);
+    if (msg_verbose)
+	msg_info("dict_pcre_lookup: %s: %s", dict_pcre->map, name);
 
     /* Search for a matching expression */
+    ctxt.matches = 0;
     for (pcre_list = dict_pcre->head; pcre_list; pcre_list = pcre_list->next) {
 	if (pcre_list->pattern) {
 	    ctxt.matches = pcre_exec(pcre_list->pattern, pcre_list->hints,
@@ -207,7 +205,9 @@ static const char *dict_pcre_lookup(DICT *dict, const char *name)
 	ctxt.dict_name = dict_pcre->map;
 	ctxt.lineno = pcre_list->lineno;
 
-	mac_parse(pcre_list->replace, dict_pcre_action, (char *) &ctxt);
+	if (mac_parse(pcre_list->replace, dict_pcre_action, (char *) &ctxt) & MAC_PARSE_ERROR)
+	    msg_fatal("regexp map %s, line %d: bad replacement syntax",
+		      dict_pcre->map, pcre_list->lineno);
 
 	VSTRING_TERMINATE(buf);
 	return (vstring_str(buf));
@@ -230,13 +230,14 @@ static void dict_pcre_close(DICT *dict)
 	if (pcre_list->replace)
 	    myfree((char *) pcre_list->replace);
     }
+    myfree(dict_pcre->map);
     myfree((char *) dict_pcre);
 }
 
 /*
  * dict_pcre_open - load and compile a file containing regular expressions
  */
-DICT   *dict_pcre_open(const char *map, int unused_flags)
+DICT   *dict_pcre_open(const char *map, int unused_flags, int dict_flags)
 {
     DICT_PCRE *dict_pcre;
     VSTREAM *map_fp;
@@ -261,18 +262,18 @@ DICT   *dict_pcre_open(const char *map, int unused_flags)
     dict_pcre->dict.close = dict_pcre_close;
     dict_pcre->dict.fd = -1;
     dict_pcre->map = mystrdup(map);
-    dict_pcre->flags = 0;
+    dict_pcre->dict.flags = dict_flags | DICT_FLAG_PATTERN;
     dict_pcre->head = NULL;
 
     if (dict_pcre_init == 0) {
-	pcre_malloc = (void *(*)(size_t)) mymalloc;
-	pcre_free = (void (*)(void *)) myfree;
+	pcre_malloc = (void *(*) (size_t)) mymalloc;
+	pcre_free = (void (*) (void *)) myfree;
 	dict_pcre_init = 1;
     }
     if ((map_fp = vstream_fopen(map, O_RDONLY, 0)) == 0) {
 	msg_fatal("open %s: %m", map);
     }
-    while (readline(line_buffer, map_fp, &lineno)) {
+    while (readlline(line_buffer, map_fp, &lineno)) {
 
 	if (*vstring_str(line_buffer) == '#')	/* Skip comments */
 	    continue;
@@ -286,8 +287,11 @@ DICT   *dict_pcre_open(const char *map, int unused_flags)
 
 	/* Search for second delimiter, handling backslash escape */
 	while (*p) {
-	    if (*p == re_delimiter &&
-		(p > vstring_str(line_buffer) && *(p - 1) != '\\'))
+	    if (*p == '\\') {
+		++p;
+		if (*p == 0)
+		    break;
+	    } else if (*p == re_delimiter)
 		break;
 	    ++p;
 	}

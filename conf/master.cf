@@ -7,7 +7,9 @@
 # Service: any name that is valid for the specified transport type
 # (the next field).  With INET transports, a service is specified as
 # host:port.  The host part (and colon) may be omitted. Either host
-# or port may be given in symbolic form or in numeric form.
+# or port may be given in symbolic form or in numeric form. Examples
+# for the SMTP server:  localhost:smtp receives mail via the loopback
+# interface only; 10025 receives mail on port 10025.
 #
 # Transport type: "inet" for Internet sockets, "unix" for UNIX-domain
 # sockets, "fifo" for named pipes.
@@ -60,8 +62,11 @@ bounce	  unix	-	-	n	-	0	bounce
 defer	  unix	-	-	n	-	0	bounce
 smtp	  unix	-	-	n	-	-	smtp
 showq     unix	n	-	n	-	-	showq
+error     unix	-	-	n	-	-	error
 local	  unix	-	n	n	-	-	local
 cyrus	  unix	-	n	n	-	-	pipe
     flags=R user=cyrus argv=/cyrus/bin/deliver -e -q -m ${extension} ${user}
 uucp	  unix	-	n	n	-	-	pipe
     flags=F user=uucp argv=uux -r -n -z -a$sender - $nexthop!rmail ($recipient)
+ifmail    unix  -       n       n       -       -       pipe
+    flags=F user=ftn argv=/usr/lib/ifmail/ifmail -r $nexthop ($recipient)

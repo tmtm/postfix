@@ -51,6 +51,7 @@
 /*	int	var_flock_tries;
 /*	int	var_flock_delay;
 /*	int	var_flock_stale;
+/*	int	var_mailtool_compat;
 /*	int	var_disable_dns;
 /*	int	var_soft_bounce;
 /*	time_t	var_starttime;
@@ -97,11 +98,12 @@
 #include <msg.h>
 #include <get_hostname.h>
 #include <valid_hostname.h>
+#include <stringops.h>
 
 /* Global library. */
 
 #include "mynetworks.h"
-#include "config.h"
+#include "mail_conf.h"
 #include "mail_version.h"
 #include "mail_params.h"
 
@@ -153,6 +155,7 @@ int     var_fork_delay;
 int     var_flock_tries;
 int     var_flock_delay;
 int     var_flock_stale;
+int     var_mailtool_compat;
 int     var_disable_dns;
 int     var_soft_bounce;
 time_t  var_starttime;
@@ -165,11 +168,19 @@ static const char *check_myhostname(void)
 {
     const char *name;
     const char *dot;
+    const char *domain;
 
+    /*
+     * If the local machine name is not in FQDN form, try to append the
+     * contents of $mydomain.
+     */
     name = get_hostname();
-    if ((dot = strchr(name, '.')) == 0)
-	msg_fatal("My hostname %s is not a FQDN. Set %s in %s/main.cf",
-		  name, VAR_MYHOSTNAME, var_config_dir);
+    if ((dot = strchr(name, '.')) == 0) {
+	if ((domain = mail_conf_lookup_eval(VAR_MYDOMAIN)) == 0)
+	    msg_fatal("My hostname %s is not a fully qualified name - set %s or %s in %s/main.cf",
+		      name, VAR_MYHOSTNAME, VAR_MYDOMAIN, var_config_dir);
+	name = concatenate(name, ".", domain, (char *) 0);
+    }
     return (name);
 }
 
@@ -278,6 +289,7 @@ void    mail_params_init()
 	VAR_DISABLE_DNS, DEF_DISABLE_DNS, &var_disable_dns,
 	VAR_SOFT_BOUNCE, DEF_SOFT_BOUNCE, &var_soft_bounce,
 	VAR_OWNREQ_SPECIAL, DEF_OWNREQ_SPECIAL, &var_ownreq_special,
+	VAR_MAILTOOL_COMPAT, DEF_MAILTOOL_COMPAT, &var_mailtool_compat,
 	0,
     };
 
@@ -286,16 +298,16 @@ void    mail_params_init()
      * short hostnames in the host table; some sites name their system after
      * the domain.
      */
-    get_config_str_fn_table(function_str_defaults);
+    get_mail_conf_str_fn_table(function_str_defaults);
     if (!valid_hostname(var_myhostname) || !valid_hostname(var_mydomain))
 	msg_fatal("host or domain name configuration error");
 
     /*
      * Variables that are needed by almost every program.
      */
-    get_config_str_table(other_str_defaults);
-    get_config_int_table(other_int_defaults);
-    get_config_bool_table(bool_defaults);
+    get_mail_conf_str_table(other_str_defaults);
+    get_mail_conf_int_table(other_int_defaults);
+    get_mail_conf_bool_table(bool_defaults);
     check_default_privs();
     check_mail_owner();
 
@@ -305,12 +317,12 @@ void    mail_params_init()
      * XXX Perhaps we should just register variables, and let the evaluator
      * figure out in what order to evaluate things.
      */
-    get_config_str_fn_table(function_str_defaults_2);
+    get_mail_conf_str_fn_table(function_str_defaults_2);
 
     /*
      * The PID variable cannot be set from the configuration file!!
      */
-    set_config_int(VAR_PID, var_pid = getpid());
+    set_mail_conf_int(VAR_PID, var_pid = getpid());
 
     /*
      * Neither can the start time variable. It isn't even visible.

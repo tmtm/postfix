@@ -67,6 +67,8 @@
 /*	List of domain or network patterns. When a remote host matches
 /*	a pattern, increase the verbose logging level by the amount
 /*	specified in the \fBdebug_peer_level\fR parameter.
+/* .IP \fBerror_notice_recipient\fR
+/*	Recipient of protocol/policy/resource/software error notices.
 /* .IP \fBhopcount_limit\fR
 /*	Limit the number of \fBReceived:\fR message headers.
 /* .IP \fBnotify_classes\fR
@@ -208,6 +210,7 @@
 #include <events.h>
 #include <smtp_stream.h>
 #include <valid_hostname.h>
+#include <dict.h>
 
 /* Global library. */
 
@@ -218,7 +221,7 @@
 #include <mail_proto.h>
 #include <cleanup_user.h>
 #include <mail_date.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <off_cvt.h>
 #include <debug_peer.h>
 #include <mail_error.h>
@@ -273,6 +276,8 @@ int     var_reject_code;
 int     var_smtpd_err_sleep;
 int     var_non_fqdn_code;
 char   *var_always_bcc;
+char   *var_error_rcpt;
+int     var_smtpd_delay_reject;
 
  /*
   * Global state, for stand-alone mode queue file cleanup. When this is
@@ -280,13 +285,26 @@ char   *var_always_bcc;
   */
 char   *smtpd_path;
 
+/* collapse_args - put arguments together again */
+
+static void collapse_args(int argc, SMTPD_TOKEN *argv)
+{
+    int     i;
+
+    for (i = 2; i < argc; i++) {
+	vstring_strcat(argv[1].vstrval, " ");
+	vstring_strcat(argv[1].vstrval, argv[i].strval);
+    }
+    argv[1].strval = vstring_str(argv[1].vstrval);
+}
+
 /* helo_cmd - process HELO command */
 
 static int helo_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 {
     char   *err;
 
-    if (argc != 2) {
+    if (argc < 2) {
 	state->error_mask |= MAIL_ERROR_PROTOCOL;
 	smtpd_chat_reply(state, "501 Syntax: HELO hostname");
 	return (-1);
@@ -296,7 +314,9 @@ static int helo_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	smtpd_chat_reply(state, "503 Duplicate HELO/EHLO");
 	return (-1);
     }
+    collapse_args(argc, argv);
     if (SMTPD_STAND_ALONE(state) == 0
+	&& var_smtpd_delay_reject == 0
 	&& (err = smtpd_check_helo(state, argv[1].strval)) != 0) {
 	smtpd_chat_reply(state, "%s", err);
 	return (-1);
@@ -313,7 +333,7 @@ static int ehlo_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 {
     char   *err;
 
-    if (argc != 2) {
+    if (argc < 2) {
 	state->error_mask |= MAIL_ERROR_PROTOCOL;
 	smtpd_chat_reply(state, "501 Syntax: EHLO hostname");
 	return (-1);
@@ -323,7 +343,9 @@ static int ehlo_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	smtpd_chat_reply(state, "503 Error: duplicate HELO/EHLO");
 	return (-1);
     }
+    collapse_args(argc, argv);
     if (SMTPD_STAND_ALONE(state) == 0
+	&& var_smtpd_delay_reject == 0
 	&& (err = smtpd_check_helo(state, argv[1].strval)) != 0) {
 	smtpd_chat_reply(state, "%s", err);
 	return (-1);
@@ -443,6 +465,7 @@ static int mail_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
     }
     state->time = time((time_t *) 0);
     if (SMTPD_STAND_ALONE(state) == 0
+	&& var_smtpd_delay_reject == 0
 	&& (err = smtpd_check_mail(state, argv[3].strval)) != 0) {
 	smtpd_chat_reply(state, "%s", err);
 	return (-1);
@@ -618,7 +641,7 @@ static int data_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *unused_argv)
      * whitespace, so that it won't be considered as being part of our own
      * Received: header. What an ugly Kluge.
      */
-    if (vstream_ferror(state->cleanup))
+    if (vstream_fflush(state->cleanup))
 	state->err = CLEANUP_STAT_WRITE;
 
     for (prev_rec_type = 0; /* void */ ; prev_rec_type = curr_rec_type) {
@@ -695,6 +718,9 @@ static int data_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *unused_argv)
     } else if ((state->err & CLEANUP_STAT_HOPS) != 0) {
 	state->error_mask |= MAIL_ERROR_BOUNCE;
 	smtpd_chat_reply(state, "554 Error: too many hops");
+    } else if ((state->err & CLEANUP_STAT_CONT) != 0) {
+	state->error_mask |= MAIL_ERROR_BOUNCE;
+	smtpd_chat_reply(state, "552 Error: content rejected");
     } else if ((state->err & CLEANUP_STAT_WRITE) != 0) {
 	state->error_mask |= MAIL_ERROR_RESOURCE;
 	smtpd_chat_reply(state, "451 Error: queue file write error");
@@ -760,9 +786,7 @@ static int noop_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *unused_argv)
 
 static int vrfy_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 {
-    VSTRING *buf;
     char   *err = 0;
-    int     i;
 
     /*
      * The SMTP standard (RFC 821) disallows unquoted special characters in
@@ -774,18 +798,9 @@ static int vrfy_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	smtpd_chat_reply(state, "501 Syntax: VRFY address");
 	return (-1);
     }
-
-    /*
-     * Yuck. All input is tokenized. Now put it back together again.
-     */
-    buf = vstring_alloc(100);
-    for (i = 1; i < argc; i++) {
-	vstring_strcat(buf, " ");
-	vstring_strcat(buf, argv[i].strval);
-    }
+    collapse_args(argc, argv);
     if (SMTPD_STAND_ALONE(state) == 0)
-	err = smtpd_check_rcpt(state, vstring_str(buf));
-    vstring_free(buf);
+	err = smtpd_check_rcpt(state, argv[1].strval);
 
     /*
      * End untokenize.
@@ -1035,7 +1050,8 @@ static void smtpd_service(VSTREAM *stream, char *unused_service, char **argv)
      * See if we want to talk to this client at all. Then, log the connection
      * event.
      */
-    if ((state.access_denied = smtpd_check_client(&state)) != 0) {
+    if (var_smtpd_delay_reject == 0
+	&& (state.access_denied = smtpd_check_client(&state)) != 0) {
 	smtpd_chat_reply(&state, "%s", state.access_denied);
     } else {
 	smtpd_chat_reply(&state, "220 %s", var_smtpd_banner);
@@ -1083,9 +1099,19 @@ static void smtpd_sig(int sig)
     exit(sig);
 }
 
+/* pre_accept - see if tables have changed */
+
+static void pre_accept(char *unused_name, char **unused_argv)
+{
+    if (dict_changed()) {
+	msg_info("lookup table has changed -- exiting");
+	exit(0);
+    }
+}
+
 /* post_jail_init - post-jail initialization */
 
-static void post_jail_init(void)
+static void post_jail_init(char *unused_name, char **unused_argv)
 {
 
     /*
@@ -1099,7 +1125,7 @@ static void post_jail_init(void)
 
 /* pre_jail_init - pre-jail initialization */
 
-static void pre_jail_init(void)
+static void pre_jail_init(char *unused_name, char **unused_argv)
 {
 
     /*
@@ -1136,6 +1162,7 @@ int     main(int argc, char **argv)
     };
     static CONFIG_BOOL_TABLE bool_table[] = {
 	VAR_HELO_REQUIRED, DEF_HELO_REQUIRED, &var_helo_required,
+	VAR_SMTPD_DELAY_REJECT, DEF_SMTPD_DELAY_REJECT, &var_smtpd_delay_reject,
 	0,
     };
     static CONFIG_STR_TABLE str_table[] = {
@@ -1150,6 +1177,7 @@ int     main(int argc, char **argv)
 	VAR_ETRN_CHECKS, DEF_ETRN_CHECKS, &var_etrn_checks, 0, 0,
 	VAR_MAPS_RBL_DOMAINS, DEF_MAPS_RBL_DOMAINS, &var_maps_rbl_domains, 0, 0,
 	VAR_ALWAYS_BCC, DEF_ALWAYS_BCC, &var_always_bcc, 0, 0,
+	VAR_ERROR_RCPT, DEF_ERROR_RCPT, &var_error_rcpt, 1, 0,
 	0,
     };
 
@@ -1162,5 +1190,6 @@ int     main(int argc, char **argv)
 		       MAIL_SERVER_BOOL_TABLE, bool_table,
 		       MAIL_SERVER_PRE_INIT, pre_jail_init,
 		       MAIL_SERVER_POST_INIT, post_jail_init,
+		       MAIL_SERVER_PRE_ACCEPT, pre_accept,
 		       0);
 }

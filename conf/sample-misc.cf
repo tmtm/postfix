@@ -7,6 +7,12 @@
 #
 always_bcc =
 
+# The daemon_timeout parameter specifies how much time a daemon may
+# take to handle a request before it assumes it is wedged and commits
+# suicide.
+#
+daemon_timeout = 18000
+
 # The default_database_type parameter specifies the default database
 # type to use in postalias(1) and postmap(1) commands. On many UNIX
 # systems the default type is either `dbm' or `hash'. The default is
@@ -166,12 +172,18 @@ myorigin = $myhostname
 # to distinguish local clients from strangers. See permit_mynetworks
 # in the sample-smtpd.cf file.
 #
-# The default is all networks attached to the machine:  a complete
-# class A network, a complete class B network, and so on. If you want
-# stricter control, specify a list of network/mask patterns, where
-# the mask specifies the number of bits in the network part of a host
-# address. You can also specify the absolute pathname of a pattern
-# file instead of listing the patterns here.
+# The mynetworks parameter specifies the list of networks that are
+# local to this machine.  The list is used by the anti-UCE software
+# to distinguish local clients from strangers. See permit_mynetworks
+# and smtpd_recipient_restrictions in the file sample-smtpd.cf file.
+#
+# The default is a list of all networks attached to the machine:  a
+# complete class A network (X.0.0.0/8), a complete class B network
+# (X.X.0.0/16), and so on. If you want stricter control, specify a
+# list of network/mask patterns, where the mask specifies the number
+# of bits in the network part of a host address. You can also specify
+# the absolute pathname of a pattern file instead of listing the
+# patterns here.
 #
 #mynetworks = 168.100.189.0/28, 127.0.0.0/8
 
@@ -184,6 +196,15 @@ myorigin = $myhostname
 # notify_classes = bounce,delay,policy,protocol,resource,software
 # notify_classes = 2bounce,resource,software
 notify_classes = resource,software
+
+# The following parameters specify who gets postmaster notices if
+# one of the above error conditions is recognized. All parameters
+# default to "postmaster".
+#
+bounce_notice_recipient = postmaster
+2bounce_notice_recipient = postmaster
+delay_notice_recipient = postmaster
+error_notice_recipient = postmaster
 
 # The process_id_directory specifies a lock file directory relative
 # to the Postfix queue directory. This facility is used by the master
@@ -241,6 +262,15 @@ relayhost =
 #
 # relocated_maps = hash:/etc/postfix/relocated
 relocated_maps =
+
+# The sun_mailtool_compatibility parameter disables kernel file locks
+# on mailboxes. This is needed on SUN workstations because the mailtool
+# program keeps an exclusive kernel lock while its window is open.
+# SUN software uses user.lock files only. Unless you remove all SUN
+# mail software, kernel locks just give a false sense of security.
+#
+#sun_mailtool_compatibility = yes
+sun_mailtool_compatibility = no
 
 # The trigger_timeout parameter limits the time to send a trigger to
 # a Postfix daemon. This prevents programs from getting stuck when the

@@ -112,24 +112,26 @@ int     deliver_resolve_tree(LOCAL_STATE state, USER_ATTR usr_attr, TOK822 *addr
      */
     tok822_rewrite(addr, REWRITE_CANON);
     tok822_resolve(addr, &reply);
-    state.msg_attr.recipient = STR(reply.recipient);
 
     /*
      * Splice in the optional unmatched address extension.
      */
-    if (state.msg_attr.extension) {
+    if (state.msg_attr.unmatched) {
 	if ((ratsign = strrchr(STR(reply.recipient), '@')) == 0) {
 	    VSTRING_ADDCH(reply.recipient, *var_rcpt_delim);
-	    vstring_strcat(reply.recipient, state.msg_attr.extension);
+	    vstring_strcat(reply.recipient, state.msg_attr.unmatched);
 	} else {
-	    ext_len = strlen(state.msg_attr.extension);
+	    ext_len = strlen(state.msg_attr.unmatched);
 	    VSTRING_SPACE(reply.recipient, ext_len + 2);
+	    if ((ratsign = strrchr(STR(reply.recipient), '@')) == 0)
+		msg_panic("%s: recipient @ botch", myname);
 	    memmove(ratsign + ext_len + 1, ratsign, strlen(ratsign) + 1);
 	    *ratsign = *var_rcpt_delim;
-	    memcpy(ratsign + 1, state.msg_attr.extension, ext_len);
+	    memcpy(ratsign + 1, state.msg_attr.unmatched, ext_len);
 	    VSTRING_SKIP(reply.recipient);
 	}
     }
+    state.msg_attr.recipient = STR(reply.recipient);
 
     /*
      * Delivery to a local or non-local address. For a while there was some

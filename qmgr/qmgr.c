@@ -231,12 +231,13 @@
 #include <msg.h>
 #include <events.h>
 #include <vstream.h>
+#include <dict.h>
 
 /* Global library. */
 
 #include <mail_queue.h>
 #include <recipient_list.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <mail_params.h>
 #include <mail_proto.h>			/* QMGR_SCAN constants */
 
@@ -346,7 +347,7 @@ static void qmgr_trigger_event(char *buf, int len,
 
 /* qmgr_loop - queue manager main loop */
 
-static int qmgr_loop(void)
+static int qmgr_loop(char *unused_name, char **unused_argv)
 {
     char   *in_path = 0;
     char   *df_path = 0;
@@ -387,19 +388,31 @@ static int qmgr_loop(void)
     return (WAIT_FOR_EVENT);
 }
 
+/* pre_accept - see if tables have changed */
+
+static void pre_accept(char *unused_name, char **unused_argv)
+{
+    if (dict_changed()) {
+	msg_info("table has changed -- exiting");
+	exit(0);
+    }
+}
+
 /* qmgr_pre_init - pre-jail initialization */
 
-static void qmgr_pre_init(void)
+static void qmgr_pre_init(char *unused_name, char **unused_argv)
 {
     if (*var_relocated_maps)
-	qmgr_relocated = maps_create("relocated", var_relocated_maps);
+	qmgr_relocated = maps_create("relocated", var_relocated_maps,
+				     DICT_FLAG_LOCK);
     if (*var_virtual_maps)
-	qmgr_virtual = maps_create("virtual", var_virtual_maps);
+	qmgr_virtual = maps_create("virtual", var_virtual_maps,
+				   DICT_FLAG_LOCK);
 }
 
 /* qmgr_post_init - post-jail initialization */
 
-static void qmgr_post_init(void)
+static void qmgr_post_init(char *unused_name, char **unused_argv)
 {
 
     /*
@@ -459,5 +472,6 @@ int     main(int argc, char **argv)
 			MAIL_SERVER_PRE_INIT, qmgr_pre_init,
 			MAIL_SERVER_POST_INIT, qmgr_post_init,
 			MAIL_SERVER_LOOP, qmgr_loop,
+			MAIL_SERVER_PRE_ACCEPT, pre_accept,
 			0);
 }

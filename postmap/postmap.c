@@ -47,6 +47,8 @@
 /* .IP \fB-v\fR
 /*	Enable verbose logging for debugging purposes. Multiple \fB-v\fR
 /*	options make the software increasingly verbose.
+/* .IP \f\B-w\fR
+/*	Do not warn about duplicate entries; silently ignore them.
 /* .PP
 /*	Arguments:
 /* .IP \fIfile_type\fR
@@ -114,13 +116,13 @@
 #include <vstring.h>
 #include <vstream.h>
 #include <msg_vstream.h>
-#include <readline.h>
+#include <readlline.h>
 #include <stringops.h>
 #include <split_at.h>
 
 /* Global library. */
 
-#include <config.h>
+#include <mail_conf.h>
 #include <mail_params.h>
 #include <mkmap.h>
 
@@ -130,7 +132,8 @@
 
 /* postmap - create or update mapping database */
 
-static void postmap(char *map_type, char *path_name, int incremental)
+static void postmap(char *map_type, char *path_name,
+		            int open_flags, int dict_flags)
 {
     VSTREAM *source_fp;
     VSTRING *line_buffer;
@@ -143,7 +146,7 @@ static void postmap(char *map_type, char *path_name, int incremental)
      * Initialize.
      */
     line_buffer = vstring_alloc(100);
-    if (incremental) {
+    if ((open_flags & O_TRUNC) == 0) {
 	source_fp = VSTREAM_IN;
 	vstream_control(source_fp, VSTREAM_CTL_PATH, "stdin", VSTREAM_CTL_END);
     } else if ((source_fp = vstream_fopen(path_name, O_RDONLY, 0)) == 0) {
@@ -151,17 +154,17 @@ static void postmap(char *map_type, char *path_name, int incremental)
     }
 
     /*
-     * Open the database, create it when it does not exist, truncate it when
-     * it does exist, and lock out any spectators.
+     * Open the database, optionally create it when it does not exist,
+     * optionally truncate it when it does exist, and lock out any
+     * spectators.
      */
-    mkmap = mkmap_open(map_type, path_name, incremental ?
-		       O_RDWR | O_CREAT : O_RDWR | O_CREAT | O_TRUNC);
+    mkmap = mkmap_open(map_type, path_name, open_flags, dict_flags);
 
     /*
      * Add records to the database.
      */
     lineno = 0;
-    while (readline(line_buffer, source_fp, &lineno)) {
+    while (readlline(line_buffer, source_fp, &lineno)) {
 
 	/*
 	 * Skip comments.
@@ -227,7 +230,7 @@ static void postmap(char *map_type, char *path_name, int incremental)
 
 static NORETURN usage(char *myname)
 {
-    msg_fatal("usage: %s [-c config_directory] [-i] [-v] [output_type:]file...",
+    msg_fatal("usage: %s [-c config_directory] [-i] [-v] [-w] [output_type:]file...",
 	      myname);
 }
 
@@ -238,7 +241,8 @@ int     main(int argc, char **argv)
     int     fd;
     char   *slash;
     struct stat st;
-    int     incremental = 0;
+    int     open_flags = O_RDWR | O_CREAT | O_TRUNC;
+    int     dict_flags = DICT_FLAG_DUP_WARN;
 
     /*
      * Be consistent with file permissions.
@@ -252,7 +256,7 @@ int     main(int argc, char **argv)
      */
     for (fd = 0; fd < 3; fd++)
 	if (fstat(fd, &st) == -1
-	    && (close(fd), open("/dev/null", 2)) != fd)
+	    && (close(fd), open("/dev/null", O_RDWR, 0)) != fd)
 	    msg_fatal("open /dev/null: %m");
 
     /*
@@ -273,7 +277,7 @@ int     main(int argc, char **argv)
     /*
      * Parse JCL.
      */
-    while ((ch = GETOPT(argc, argv, "c:iv")) > 0) {
+    while ((ch = GETOPT(argc, argv, "c:ivw")) > 0) {
 	switch (ch) {
 	default:
 	    usage(argv[0]);
@@ -283,14 +287,18 @@ int     main(int argc, char **argv)
 		msg_fatal("out of memory");
 	    break;
 	case 'i':
-	    incremental = 1;
+	    open_flags &= ~O_TRUNC;
 	    break;
 	case 'v':
 	    msg_verbose++;
 	    break;
+	case 'w':
+	    dict_flags &= ~DICT_FLAG_DUP_WARN;
+	    dict_flags |= DICT_FLAG_DUP_IGNORE;
+	    break;
 	}
     }
-    read_config();
+    mail_conf_read();
 
     /*
      * Use the map type specified by the user, or fall back to a default
@@ -300,9 +308,9 @@ int     main(int argc, char **argv)
 	usage(argv[0]);
     while (optind < argc) {
 	if ((path_name = split_at(argv[optind], ':')) != 0) {
-	    postmap(argv[optind], path_name, incremental);
+	    postmap(argv[optind], path_name, open_flags, dict_flags);
 	} else {
-	    postmap(var_db_type, argv[optind], incremental);
+	    postmap(var_db_type, argv[optind], open_flags, dict_flags);
 	}
 	optind++;
     }

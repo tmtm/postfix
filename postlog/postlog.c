@@ -156,7 +156,7 @@ int     main(int argc, char **argv)
      */
     for (fd = 0; fd < 3; fd++)
 	if (fstat(fd, &st) == -1
-	    && (close(fd), open("/dev/null", 2)) != fd)
+	    && (close(fd), open("/dev/null", O_RDWR, 0)) != fd)
 	    msg_fatal("open /dev/null: %m");
 
     /*

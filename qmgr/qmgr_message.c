@@ -478,7 +478,7 @@ static void qmgr_message_resolve(QMGR_MESSAGE *message)
 	    && qmgr_virtual != 0
 	    && (at = strrchr(recipient->address, '@')) != 0) {
 	    domain = lowercase(mystrdup(at + 1));
-	    junk = maps_find(qmgr_virtual, domain);
+	    junk = maps_find(qmgr_virtual, domain, 0);
 	    myfree(domain);
 	    if (junk) {
 		qmgr_bounce_recipient(message, recipient,
@@ -513,6 +513,8 @@ static void qmgr_message_resolve(QMGR_MESSAGE *message)
 		sent(message->queue_id, recipient->address,
 		     "none", message->arrival_time, "discarded");
 		deliver_completed(message->fp, recipient->offset);
+		msg_warn("%s: undeliverable postmaster notification discarded",
+			 message->queue_id);
 		continue;
 	    }
 	}

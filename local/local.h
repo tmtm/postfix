@@ -68,8 +68,11 @@ typedef struct DELIVER_ATTR {
     long    offset;			/* data offset */
     char   *sender;			/* taken from envelope */
     char   *recipient;			/* taken from resolver */
-    char   *local;			/* recipient localpart, base name */
+    char   *domain;			/* recipient domain */
+    char   *local;			/* recipient full localpart */
+    char   *user;			/* recipient localpart, base name */
     char   *extension;			/* recipient localpart, extension */
+    char   *unmatched;			/* unmatched extension */
     char   *owner;			/* null or list owner */
     char   *delivered;			/* for loop detection */
     char   *relay;			/* relay host */
@@ -124,19 +127,19 @@ typedef struct LOCAL_STATE {
 #define OPENED_ATTR(attr)	attr.queue_id, attr.sender
 #define COPY_ATTR(attr)		attr.sender, attr.delivered, attr.fp
 
-#define MSG_LOG_STATE(m, s) \
+#define MSG_LOG_STATE(m, p) \
 	msg_info("%s[%d]: local %s recip %s exten %s deliver %s", m, \
-                s.level, \
-		s.msg_attr.local ? s.msg_attr.local : "" , \
-		s.msg_attr.recipient ? s.msg_attr.recipient : "", \
-		s.msg_attr.extension ? s.msg_attr.extension : "", \
-		s.msg_attr.delivered ? s.msg_attr.delivered : "")
+                p.level, \
+		p.msg_attr.local ? p.msg_attr.local : "" , \
+		p.msg_attr.recipient ? p.msg_attr.recipient : "", \
+		p.msg_attr.extension ? p.msg_attr.extension : "", \
+		p.msg_attr.delivered ? p.msg_attr.delivered : "")
 
  /*
   * "inner" nodes of the delivery graph.
   */
 extern int deliver_recipient(LOCAL_STATE, USER_ATTR);
-extern int deliver_alias(LOCAL_STATE, USER_ATTR, int *);
+extern int deliver_alias(LOCAL_STATE, USER_ATTR, char *, int *);
 extern int deliver_dotforward(LOCAL_STATE, USER_ATTR, int *);
 extern int deliver_include(LOCAL_STATE, USER_ATTR, char *);
 extern int deliver_token(LOCAL_STATE, USER_ATTR, TOK822 *);
@@ -162,6 +165,11 @@ extern int local_file_deliver_mask;
 extern int local_cmd_deliver_mask;
 
  /*
+  * Restrictions on extension propagation.
+  */
+extern int local_ext_prop_mask;
+
+ /*
   * delivered.c
   */
 extern HTABLE *delivered_init(DELIVER_ATTR);
@@ -180,6 +188,13 @@ extern int forward_finish(DELIVER_ATTR, int);
   * feature.c
   */
 extern int feature_control(const char *);
+
+ /*
+  * local_expand.c
+  */
+int     local_expand(VSTRING *, const char *, LOCAL_STATE *, USER_ATTR *, const char *);
+
+#define LOCAL_EXP_EXTENSION_MATCHED	(1<<MAC_PARSE_USER)
 
 /* LICENSE
 /* .ad

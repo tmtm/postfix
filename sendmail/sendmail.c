@@ -254,7 +254,7 @@
 #include <record.h>
 #include <rec_type.h>
 #include <rec_streamlf.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <cleanup_user.h>
 #include <mail_task.h>
 #include <mail_run.h>
@@ -458,8 +458,10 @@ static void show_queue(void)
     int     n;
 
     /*
-     * Connect to the show queue service.
+     * Connect to the show queue service. Terminate silently when piping into
+     * a program that terminates early.
      */
+    signal(SIGPIPE, SIG_DFL);
     if ((showq = mail_connect(MAIL_CLASS_PUBLIC, MAIL_SERVICE_SHOWQ, BLOCKING)) != 0) {
 	while ((n = vstream_fread(showq, buf, sizeof(buf))) > 0)
 	    if (vstream_fwrite(VSTREAM_OUT, buf, n) != n)
@@ -569,7 +571,7 @@ int     main(int argc, char **argv)
      */
     for (fd = 0; fd < 3; fd++)
 	if (fstat(fd, &st) == -1
-	    && (close(fd), open("/dev/null", 2)) != fd)
+	    && (close(fd), open("/dev/null", O_RDWR, 0)) != fd)
 	    msg_fatal("open /dev/null: %m");
 
     /*
@@ -591,9 +593,9 @@ int     main(int argc, char **argv)
 	argv[0] = slash + 1;
     msg_vstream_init(argv[0], VSTREAM_ERR);
     msg_syslog_init(mail_task("sendmail"), LOG_PID, LOG_FACILITY);
-    set_config_str(VAR_PROCNAME, var_procname = mystrdup(argv[0]));
+    set_mail_conf_str(VAR_PROCNAME, var_procname = mystrdup(argv[0]));
 
-    read_config();
+    mail_conf_read();
     if (chdir(var_queue_dir))
 	msg_fatal("chdir %s: %m", var_queue_dir);
 
@@ -702,7 +704,7 @@ int     main(int argc, char **argv)
 		    msg_fatal("-oA requires pathname");
 		myfree(var_alias_db_map);
 		var_alias_db_map = mystrdup(optarg + 1);
-		set_config_str(VAR_ALIAS_DB_MAP, var_alias_db_map);
+		set_mail_conf_str(VAR_ALIAS_DB_MAP, var_alias_db_map);
 		break;
 	    case '7':
 	    case '8':
@@ -739,7 +741,7 @@ int     main(int argc, char **argv)
 	msg_fatal("-t can be used only in delivery mode");
 
     if (extract_recipients && argv[OPTIND])
-	msg_fatal("cannot delete recipients with -t");
+	msg_fatal("cannot handle command-line recipients with -t");
 
     /*
      * Start processing. Some modes are implemented internally (enqueue

@@ -69,7 +69,7 @@
 /* Global library. */
 
 #include <mynetworks.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <mail_proto.h>
 #include <mail_version.h>
 #include <mail_params.h>
@@ -146,11 +146,33 @@ static CONFIG_STR_FN_TABLE str_fn_table_2[] = {
     0,
 };
 
+ /*
+  * XXX Global so that call-backs can see it.
+  */
+static int mode = SHOW_NAME;
+
 /* check_myhostname - lookup hostname and validate */
 
 static const char *check_myhostname(void)
 {
-    return (get_hostname());
+    const char *name;
+    const char *dot;
+    const char *domain;
+
+    /*
+     * If the local machine name is not in FQDN form, try to append the
+     * contents of $mydomain.
+     * 
+     * XXX Do not complain when running as "postconf -d".
+     */
+    name = get_hostname();
+    if ((mode & SHOW_DEFS) == 0 && (dot = strchr(name, '.')) == 0) {
+	if ((domain = mail_conf_lookup_eval(VAR_MYDOMAIN)) == 0)
+	    msg_fatal("My hostname %s is not a fully qualified name - set %s or %s in %s/main.cf",
+		      name, VAR_MYHOSTNAME, VAR_MYDOMAIN, var_config_dir);
+	name = concatenate(name, ".", domain, (char *) 0);
+    }
+    return (name);
 }
 
 /* get_myhostname - look up and store my hostname */
@@ -198,7 +220,7 @@ static void read_parameters(void)
     char   *path;
 
     /*
-     * A direct rip-off of read_config(). XXX Avoid code duplication by
+     * A direct rip-off of mail_conf_read(). XXX Avoid code duplication by
      * better code decomposition.
      */
     dict_unknown_allowed = 1;
@@ -206,7 +228,7 @@ static void read_parameters(void)
 	myfree(var_config_dir);
     var_config_dir = mystrdup((config_dir = safe_getenv(CONF_ENV_PATH)) != 0 ?
 			      config_dir : DEF_CONFIG_DIR);	/* XXX */
-    set_config_str(VAR_CONFIG_DIR, var_config_dir);
+    set_mail_conf_str(VAR_CONFIG_DIR, var_config_dir);
     path = concatenate(var_config_dir, "/", "main.cf", (char *) 0);
     dict_load_file(CONFIG_DICT, path);
     myfree(path);
@@ -444,7 +466,6 @@ static void show_parameters(int mode, char **names)
 int     main(int argc, char **argv)
 {
     int     ch;
-    int     mode = SHOW_NAME;
     int     fd;
     struct stat st;
 
@@ -455,7 +476,7 @@ int     main(int argc, char **argv)
      */
     for (fd = 0; fd < 3; fd++)
 	if (fstat(fd, &st) == -1
-	    && (close(fd), open("/dev/null", 2)) != fd)
+	    && (close(fd), open("/dev/null", O_RDWR, 0)) != fd)
 	    msg_fatal("open /dev/null: %m");
 
     /*

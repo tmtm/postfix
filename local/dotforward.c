@@ -12,14 +12,10 @@
 /*	int	*statusp;
 /* DESCRIPTION
 /*	deliver_dotforward() delivers a message to the destinations
-/*	listed in a recipient's $HOME/.forward file.  The result is
-/*	zero when no acceptable $HOME/.forward file was found, or when
+/*	listed in a recipient's .forward file(s) as specified through
+/*	the forward_path configuration parameter.  The result is
+/*	zero when no acceptable .forward file was found, or when
 /*	a recipient is listed in her own .forward file.
-/*
-/*	When mail is sent to an extended address (e.g., user+foo),
-/*	the address extension is appended to the .forward file name
-/*	(e.g., .forward+foo). When that file does not exist, .forward
-/*	is used instead.
 /*
 /*	Arguments:
 /* .IP state
@@ -71,6 +67,7 @@
 #include <iostuff.h>
 #include <stringops.h>
 #include <mymalloc.h>
+#include <mac_expand.h>
 
 /* Global library. */
 
@@ -78,6 +75,8 @@
 #include <bounce.h>
 #include <been_here.h>
 #include <mail_params.h>
+#include <mail_conf.h>
+#include <ext_prop.h>
 
 /* Application-specific. */
 
@@ -100,7 +99,10 @@ int     deliver_dotforward(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
     int     forward_found = NO;
     int     lookup_status;
     int     addr_count;
-    char   *extension;
+    char   *saved_forward_path;
+    char   *lhs;
+    char   *next;
+    int     expand_status;
 
     /*
      * Make verbose logging easier to understand.
@@ -110,20 +112,16 @@ int     deliver_dotforward(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
 	MSG_LOG_STATE(myname, state);
 
     /*
-     * DUPLICATE/LOOP ELIMINATION
-     * 
-     * If this user includes (an alias of) herself in her own .forward file,
-     * deliver to the user instead.
+     * Skip this module if per-user forwarding is disabled. 
      */
-    if (been_here(state.dup_filter, "forward %s", state.msg_attr.local))
+    if (*var_forward_path == 0)
 	return (NO);
-    state.msg_attr.exp_from = state.msg_attr.local;
 
     /*
      * Skip non-existing users. The mailbox delivery routine will catch the
      * error.
      */
-    if ((mypwd = mypwnam(state.msg_attr.local)) == 0)
+    if ((mypwd = mypwnam(state.msg_attr.user)) == 0)
 	return (NO);
 
     /*
@@ -167,43 +165,56 @@ int     deliver_dotforward(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
      * be this user and 2) mail forwarded to other local users will be
      * resubmitted as a new queue file.
      */
-    state.msg_attr.owner = state.msg_attr.recipient;
+    state.msg_attr.owner = state.msg_attr.user;
 
     /*
-     * Assume that usernames do not have file system meta characters. Open
-     * the .forward file as the user. Ignore files that aren't regular files,
-     * files that are owned by the wrong user, or files that have world write
-     * permission enabled. We take no special precautions to deal with home
-     * directories imported via NFS, because mailbox and .forward files
-     * should always be local to the host running the delivery process.
-     * Anything else is just asking for trouble when a server goes down
-     * (either the mailbox server or the home directory server).
+     * Search the forward_path for an existing forward file.
      * 
-     * With mail to user+foo, try ~/.forward+foo before ~/.forward. Ignore foo
-     * when it contains '/' or when forward+foo does not exist.
+     * If unmatched extensions should never be propagated, or if a forward file
+     * name includes the address extension, don't propagate the extension to
+     * the recipient addresses.
      */
 #define STR(x)	vstring_str(x)
 
     status = 0;
     path = vstring_alloc(100);
-    extension = state.msg_attr.extension;
-    if (extension && strchr(extension, '/')) {
-	msg_warn("%s: address with illegal extension: %s",
-		 state.msg_attr.queue_id, state.msg_attr.recipient);
-	extension = 0;
+    saved_forward_path = mystrdup(var_forward_path);
+    next = saved_forward_path;
+    lookup_status = -1;
+
+    while ((lhs = mystrtok(&next, ", \t\r\n")) != 0) {
+	expand_status = local_expand(path, lhs, &state, &usr_attr, (char *) 0);
+	if ((expand_status & (MAC_PARSE_ERROR | MAC_PARSE_UNDEF)) == 0) {
+	    lookup_status =
+		lstat_as(STR(path), &st, usr_attr.uid, usr_attr.gid);
+	    if (msg_verbose)
+		msg_info("%s: path %s expand_status %d look_status %d", myname,
+			 STR(path), expand_status, lookup_status);
+	    if (lookup_status >= 0) {
+		if ((expand_status & LOCAL_EXP_EXTENSION_MATCHED) != 0
+		    || (local_ext_prop_mask & EXT_PROP_FORWARD) == 0)
+		    state.msg_attr.unmatched = 0;
+		break;
+	    }
+	}
     }
-    if (extension != 0) {
-	vstring_sprintf(path, "%s/.forward%c%s", mypwd->pw_dir,
-			var_rcpt_delim[0], extension);
-	if ((lookup_status = lstat_as(STR(path), &st,
-				      usr_attr.uid, usr_attr.gid)) < 0)
-	    extension = 0;
-    }
-    if (extension == 0) {
-	vstring_sprintf(path, "%s/.forward", mypwd->pw_dir);
-	lookup_status = lstat_as(STR(path), &st, usr_attr.uid, usr_attr.gid);
-    }
-    if (lookup_status >= 0) {
+
+    /*
+     * Process the forward file.
+     * 
+     * Assume that usernames do not have file system meta characters. Open the
+     * .forward file as the user. Ignore files that aren't regular files,
+     * files that are owned by the wrong user, or files that have world write
+     * permission enabled.
+     * 
+     * DUPLICATE/LOOP ELIMINATION
+     * 
+     * If this user includes (an alias of) herself in her own .forward file,
+     * deliver to the user instead.
+     */
+    if (lookup_status >= 0
+	&& been_here(state.dup_filter, "forward %s", STR(path)) == 0) {
+	state.msg_attr.exp_from = state.msg_attr.local;
 	if (S_ISREG(st.st_mode) == 0) {
 	    msg_warn("file %s is not a regular file", STR(path));
 	} else if (st.st_uid != 0 && st.st_uid != usr_attr.uid) {
@@ -228,6 +239,7 @@ int     deliver_dotforward(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
      * Clean up.
      */
     vstring_free(path);
+    myfree(saved_forward_path);
     mypwfree(mypwd);
 
     *statusp = status;

@@ -81,6 +81,25 @@ extern char *var_myhostname;
 extern char *var_mydomain;
 
  /*
+  * Where to send postmaster copies of bounced mail, and other notices.
+  */
+#define VAR_BOUNCE_RCPT		"bounce_notice_recipient"
+#define DEF_BOUNCE_RCPT		"postmaster"
+extern char *var_bounce_rcpt;
+
+#define VAR_2BOUNCE_RCPT	"2bounce_notice_recipient"
+#define DEF_2BOUNCE_RCPT	"postmaster"
+extern char *var_2bounce_rcpt;
+
+#define VAR_DELAY_RCPT		"delay_notice_recipient"
+#define DEF_DELAY_RCPT		"postmaster"
+extern char *var_delay_rcpt;
+
+#define VAR_ERROR_RCPT		"error_notice_recipient"
+#define DEF_ERROR_RCPT		"postmaster"
+extern char *var_error_rcpt;
+
+ /*
   * Virtual host support. Default is to listen on all machine interfaces.
   */
 #define VAR_INET_INTERFACES	"inet_interfaces"	/* listen addresses */
@@ -306,12 +325,22 @@ extern char *var_fallback_transport;
   * Local delivery: path to per-user forwarding file.
   */
 #define VAR_FORWARD_PATH	"forward_path"
-#define DEF_FORWARD_PATH	"$home/.forward"
+#define DEF_FORWARD_PATH	"$home/.forward${recipient_delimiter}${extension},$home/.forward"
 extern char *var_forward_path;
+
+#define VAR_PROP_EXTENSION	"propagate_unmatched_extensions"
+#define DEF_PROP_EXTENSION	"canonical, virtual"
+extern char *var_prop_extension;
 
 #define VAR_RCPT_DELIM		"recipient_delimiter"
 #define DEF_RCPT_DELIM		""
 extern char *var_rcpt_delim;
+
+#define VAR_CMD_EXP_FILTER	"command_expansion_filter"
+#define DEF_CMD_EXP_FILTER	"1234567890!@%-_=+:,./\
+abcdefghijklmnopqrstuvwxyz\
+ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+extern char *var_cmd_exp_filter;
 
 #define VAR_RCPT_FDELIM		"recipient_feature_delimiter"
 #define DEF_RCPT_FDELIM		""
@@ -368,7 +397,7 @@ extern int var_qmgr_rcpt_limit;
   * Queue manager: default destination concurrency levels.
   */
 #define VAR_INIT_DEST_CON	"initial_destination_concurrency"
-#define DEF_INIT_DEST_CON	2
+#define DEF_INIT_DEST_CON	5
 extern int var_init_dest_concurrency;
 
 #define VAR_DEST_CON_LIMIT	"default_destination_concurrency_limit"
@@ -471,6 +500,10 @@ extern int var_hash_queue_depth;
   * each message. Unfortunately, some mailers misbehave and disconnect (smap)
   * when given more recipients than they are willing to handle.
   */
+#define VAR_BESTMX_TRANSP	"best_mx_transport"
+#define DEF_BESTMX_TRANSP	""
+extern char *var_bestmx_transp;
+
 #define VAR_SMTP_CONN_TMOUT	"smtp_connect_timeout"
 #define DEF_SMTP_CONN_TMOUT	0
 extern int var_smtp_conn_tmout;
@@ -567,6 +600,10 @@ extern int var_message_limit;
 #define DEF_QUEUE_MINFREE	0
 extern int var_queue_minfree;
 
+#define VAR_HEADER_CHECKS	"header_checks"
+#define DEF_HEADER_CHECKS	""
+extern char *var_header_checks;
+
  /*
   * Bounce service: truncate bounce message that exceed $bounce_size_limit.
   */
@@ -607,6 +644,10 @@ extern int var_flock_delay;
 #define VAR_FLOCK_STALE		"stale_lock_time"
 #define DEF_FLOCK_STALE		500
 extern int var_flock_stale;
+
+#define VAR_MAILTOOL_COMPAT	"sun_mailtool_compatibility"
+#define DEF_MAILTOOL_COMPAT	0
+extern int var_mailtool_compat;
 
  /*
   * How long a daemon command may take to receive or deliver a message etc.
@@ -675,7 +716,7 @@ extern char *var_etrn_checks;
 #define PERMIT_ALL		"permit"
 #define REJECT_ALL		"reject"
 #define VAR_REJECT_CODE		"reject_code"
-#define DEF_REJECT_CODE		550
+#define DEF_REJECT_CODE		554
 extern int var_reject_code;
 
 #define REJECT_UNKNOWN_CLIENT	"reject_unknown_client"
@@ -704,6 +745,8 @@ extern int var_unk_name_code;
 #define DEF_NON_FQDN_CODE	504
 extern int var_non_fqdn_code;
 
+#define REJECT_UNKNOWN_SENDDOM	"reject_unknown_sender_domain"
+#define REJECT_UNKNOWN_RCPTDOM	"reject_unknown_recipient_domain"
 #define REJECT_UNKNOWN_ADDRESS	"reject_unknown_address"
 #define VAR_UNK_ADDR_CODE	"unknown_address_reject_code"
 #define DEF_UNK_ADDR_CODE	450
@@ -711,13 +754,13 @@ extern int var_unk_addr_code;
 
 #define CHECK_RELAY_DOMAINS	"check_relay_domains"
 #define VAR_RELAY_CODE		"relay_domains_reject_code"
-#define DEF_RELAY_CODE		550
+#define DEF_RELAY_CODE		554
 extern int var_relay_code;
 
 #define PERMIT_MX_BACKUP	"permit_mx_backup"
 
 #define VAR_ACCESS_MAP_CODE	"access_map_reject_code"
-#define DEF_ACCESS_MAP_CODE	550
+#define DEF_ACCESS_MAP_CODE	554
 extern int var_access_map_code;
 
 #define CHECK_CLIENT_ACL	"check_client_access"
@@ -728,12 +771,16 @@ extern int var_access_map_code;
 
 #define REJECT_MAPS_RBL		"reject_maps_rbl"
 #define VAR_MAPS_RBL_CODE	"maps_rbl_reject_code"
-#define DEF_MAPS_RBL_CODE	550
+#define DEF_MAPS_RBL_CODE	554
 extern int var_maps_rbl_code;
 
 #define VAR_MAPS_RBL_DOMAINS	"maps_rbl_domains"
 #define DEF_MAPS_RBL_DOMAINS	"rbl.maps.vix.com"
 extern char *var_maps_rbl_domains;
+
+#define VAR_SMTPD_DELAY_REJECT	"smtpd_delay_reject"
+#define DEF_SMTPD_DELAY_REJECT	1
+extern int var_smtpd_delay_reject;
 
  /*
   * Other.

@@ -139,13 +139,14 @@
 #include <iostuff.h>
 #include <vstream.h>
 #include <stringops.h>
+#include <myflock.h>
 
 /* Global library. */
 
 #include <mail_params.h>
 #include <debug_process.h>
 #include <mail_task.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <open_lock.h>
 
 /* Application-specific. */
@@ -200,7 +201,7 @@ int     main(int argc, char **argv)
      * Strip and save the process name for diagnostics etc.
      */
     var_procname = mystrdup(basename(argv[0]));
-    set_config_str(VAR_PROCNAME, var_procname);
+    set_mail_conf_str(VAR_PROCNAME, var_procname);
 
     /*
      * When running a child process, don't leak any open files that were
@@ -331,6 +332,10 @@ int     main(int argc, char **argv)
      */
     signal(SIGALRM, master_watchdog);
     for (;;) {
+#ifdef HAS_VOLATILE_LOCKS
+	if (myflock(vstream_fileno(lock_fp), MYFLOCK_EXCLUSIVE) < 0)
+	    msg_fatal("refresh exclusive lock: %m");
+#endif
 	alarm(1000);				/* same as trigger servers */
 	event_loop(-1);
 	if (master_gotsighup) {

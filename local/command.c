@@ -15,6 +15,10 @@
 /*	input.  A limited amount of standard output and standard error
 /*	output is captured for diagnostics purposes.
 /*	Duplicate commands for the same recipient are suppressed.
+/*	A limited amount of information is exported via the environment:
+/*	HOME, SHELL, LOGNAME, USER, EXTENSION, DOMAIN, RECIPIENT (entire
+/*	address) and LOCAL (just the local part). The exported
+/*	information is censored with var_cmd_filter.
 /*
 /*	Arguments:
 /* .IP state
@@ -24,8 +28,9 @@
 /* .IP usr_attr
 /*	Attributes describing user rights and environment.
 /* .IP command
-/*	The shell command to be executed. If possible, the command
-/*	is executed without actually invoking a shell.
+/*	The shell command to be executed. If possible, the command is
+/*	executed without actually invoking a shell. if the command is
+/*	the mailbox_command, it is subjected to $name expansion.
 /* DIAGNOSTICS
 /*	deliver_command() returns non-zero when delivery should be
 /*	tried again,
@@ -48,6 +53,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 
 /* Utility library. */
 
@@ -81,6 +87,8 @@ int     deliver_command(LOCAL_STATE state, USER_ATTR usr_attr, char *command)
     int     deliver_status;
     ARGV   *env;
     int     copy_flags;
+    char  **cpp;
+    char   *cp;
 
     /*
      * Make verbose logging easier to understand.
@@ -139,11 +147,26 @@ int     deliver_command(LOCAL_STATE state, USER_ATTR usr_attr, char *command)
     env = argv_alloc(1);
     if (usr_attr.home)
 	argv_add(env, "HOME", usr_attr.home, ARGV_END);
-    if (usr_attr.logname)
-	argv_add(env, "LOGNAME", usr_attr.logname, ARGV_END);
+    argv_add(env,
+	     "LOGNAME", state.msg_attr.user,
+	     "USER", state.msg_attr.user,
+	     "RECIPIENT", state.msg_attr.recipient,
+	     "LOCAL", state.msg_attr.local,
+	     ARGV_END);
     if (usr_attr.shell)
 	argv_add(env, "SHELL", usr_attr.shell, ARGV_END);
+    if (state.msg_attr.domain)
+	argv_add(env, "DOMAIN", state.msg_attr.domain, ARGV_END);
+    if (state.msg_attr.extension)
+	argv_add(env, "EXTENSION", state.msg_attr.extension, ARGV_END);
     argv_terminate(env);
+
+    /*
+     * Censor out undesirable characters from exported data.
+     */
+    for (cpp = env->argv; *cpp; cpp += 2)
+	for (cp = cpp[1]; *(cp += strspn(cp, var_cmd_exp_filter)) != 0;)
+	    *cp++ = '_';
 
     cmd_status = pipe_command(state.msg_attr.fp, why,
 			      PIPE_CMD_UID, usr_attr.uid,

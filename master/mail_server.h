@@ -14,20 +14,23 @@
 #include <vstream.h>
 
  /*
-  * External interface. Tables are defined in config.h.
+  * External interface. Tables are defined in mail_conf.h.
   */
 #define MAIL_SERVER_INT_TABLE	1
 #define MAIL_SERVER_STR_TABLE	2
 #define MAIL_SERVER_BOOL_TABLE	3
+#define MAIL_SERVER_RAW_TABLE	4
 
 #define	MAIL_SERVER_PRE_INIT	10
 #define MAIL_SERVER_POST_INIT	11
 #define MAIL_SERVER_LOOP	12
 #define MAIL_SERVER_EXIT	13
+#define MAIL_SERVER_PRE_ACCEPT	14
 
-typedef void (*MAIL_SERVER_INIT_FN) (void);
-typedef int (*MAIL_SERVER_LOOP_FN) (void);
-typedef void (*MAIL_SERVER_EXIT_FN) (void);
+typedef void (*MAIL_SERVER_INIT_FN) (char *, char **);
+typedef int (*MAIL_SERVER_LOOP_FN) (char *, char **);
+typedef void (*MAIL_SERVER_EXIT_FN) (char *, char **);
+typedef void (*MAIL_SERVER_ACCEPT_FN) (char *, char **);
 
  /*
   * single_server.c

@@ -36,6 +36,7 @@
 #define ROOT_PATH	"/bin:/usr/bin:/sbin:/usr/sbin"
 #define USE_STATFS
 #define STATFS_IN_SYS_MOUNT_H
+#define HAS_POSIX_REGEXP
 #endif
 
 #if defined(OPENBSD2)
@@ -97,6 +98,7 @@ extern int opterr;			/* XXX use <getopt.h> */
 #define ROOT_PATH	"/bin:/usr/bin:/sbin:/usr/sbin:/usr/ucb"
 #define USE_STATFS
 #define STATFS_IN_SYS_MOUNT_H
+#define HAS_POSIX_REGEXP
 #endif
 
 #ifdef SUNOS4
@@ -148,10 +150,14 @@ extern int opterr;
 #define GETTIMEOFDAY(t)	gettimeofday(t)
 #define ROOT_PATH	"/bin:/usr/bin:/sbin:/usr/sbin:/usr/ucb"
 #define FIONREAD_IN_SYS_FILIO_H
-#define DBM_NO_TRAILING_NULL
 #define USE_STATVFS
 #define STATVFS_IN_SYS_STATVFS_H
-#define UNIX_DOMAIN_CONNECT_BLOCKS_FOR_ACCEPT	/* Solaris 2.5.1, reportedly */
+#define STREAM_CONNECTIONS		/* avoid UNIX-domain sockets */
+#define LOCAL_LISTEN	stream_listen
+#define LOCAL_ACCEPT	stream_accept
+#define LOCAL_CONNECT	stream_connect
+#define LOCAL_TRIGGER	stream_trigger
+#define HAS_VOLATILE_LOCKS
 #endif
 
 #ifdef UW7		/* UnixWare 7 */
@@ -282,6 +288,7 @@ extern int initgroups(const char *, int);
 #define STATFS_IN_SYS_VFS_H
 #define UNIX_DOMAIN_CONNECT_BLOCKS_FOR_ACCEPT
 #define PREPEND_PLUS_TO_OPTSTRING
+#define HAS_POSIX_REGEXP
 #endif
 
  /*
@@ -312,6 +319,7 @@ extern int h_errno;			/* <netdb.h> imports too much stuff */
 
 #define USE_STATFS
 #define STATFS_IN_SYS_VFS_H
+#define HAS_POSIX_REGEXP
 #endif
 
 #ifdef HPUX10
@@ -339,6 +347,7 @@ extern int h_errno;			/* <netdb.h> imports too much stuff */
 
 #define USE_STATFS
 #define STATFS_IN_SYS_VFS_H
+#define HAS_POSIX_REGEXP
 #endif
 
 #ifdef HPUX9
@@ -368,6 +377,7 @@ extern int h_errno;
 #define USE_ULIMIT			/* no setrlimit() */
 #define USE_STATFS
 #define STATFS_IN_SYS_VFS_H
+#define HAS_POSIX_REGEXP
 #endif
 
  /*
@@ -479,6 +489,7 @@ extern int opterr;
 #else
 #define GETOPT(argc, argv, str) getopt((argc), (argv), (str))
 #endif
+#define OPTIND  (optind > 0 ? optind : 1)
 
 #if defined(USE_FCNTL_LOCK) && defined(USE_FLOCK_LOCK)
 #error "define USE_FCNTL_LOCK or USE_FLOCK_LOCK, not both"
@@ -505,6 +516,13 @@ extern int opterr;
 
 #ifndef SOCKOPT_SIZE
 #define SOCKOPT_SIZE	int
+#endif
+
+#ifndef LOCAL_LISTEN
+#define LOCAL_LISTEN	unix_listen
+#define LOCAL_ACCEPT	unix_accept
+#define LOCAL_CONNECT	unix_connect
+#define LOCAL_TRIGGER	unix_trigger
 #endif
 
 #if !defined (HAVE_SYS_NDIR_H) && !defined (HAVE_SYS_DIR_H) \

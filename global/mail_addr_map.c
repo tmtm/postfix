@@ -6,15 +6,17 @@
 /* SYNOPSIS
 /*	#include <mail_addr_map.h>
 /*
-/*	ARGV	*mail_addr_map(path, address)
+/*	ARGV	*mail_addr_map(path, address, propagate)
 /*	MAPS	*path;
 /*	const char *address;
+/*	int	propagate;
 /* DESCRIPTION
 /*	mail_addr_map() returns the translation for the named address,
 /*	or a null pointer if none is found.  The result is in canonical
 /*	external (quoted) form.  The search is case insensitive.
 /*
-/*	Address extensions that aren't explicitly matched in the lookup
+/*	When the \fBpropagate\fR argument is non-zero,
+/*	address extensions that aren't explicitly matched in the lookup
 /*	table are propagated to the result addresses. The caller is
 /*	expected to pass the result to argv_free().
 /*
@@ -69,7 +71,7 @@
 
 /* mail_addr_map - map a canonical address */
 
-ARGV   *mail_addr_map(MAPS *path, const char *address)
+ARGV   *mail_addr_map(MAPS *path, const char *address, int propagate)
 {
     VSTRING *buffer = 0;
     char   *myname = "mail_addr_map";
@@ -102,7 +104,7 @@ ARGV   *mail_addr_map(MAPS *path, const char *address)
 	 * Canonicalize and externalize the result, and propagate the
 	 * unmatched extension to each address found.
 	 */
-	argv = mail_addr_crunch(string, extension);
+	argv = mail_addr_crunch(string, propagate ? extension : 0);
 	if (buffer)
 	    vstring_free(buffer);
 	if (msg_verbose)
@@ -135,7 +137,7 @@ ARGV   *mail_addr_map(MAPS *path, const char *address)
   * the lookup result.
   */
 #include <unistd.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <vstream.h>
 #include <vstring_vstream.h>
 #include <mail_params.h>
@@ -155,11 +157,11 @@ int     main(int argc, char **argv)
     /*
      * Initialize.
      */
-    read_config();
+    mail_conf_read();
     msg_verbose = 1;
     if (chdir(var_queue_dir) < 0)
 	msg_fatal("chdir %s: %m", var_queue_dir);
-    path = maps_create(argv[0], argv[1]);
+    path = maps_create(argv[0], argv[1], DICT_FLAG_LOCK);
     while (vstring_fgets_nonl(buffer, VSTREAM_IN)) {
 	if ((result = mail_addr_map(path, STR(buffer))) != 0)
 	    argv_free(result);

@@ -59,6 +59,7 @@
 #include <mail_date.h>
 #include <mail_addr.h>
 #include <is_header.h>
+#include <ext_prop.h>
 
 /* Application-specific. */
 
@@ -153,9 +154,11 @@ static void cleanup_rewrite_sender(HEADER_OPTS *hdr_opts)
     for (tpp = addr_list; *tpp; tpp++) {
 	cleanup_rewrite_tree(*tpp);
 	if (cleanup_send_canon_maps)
-	    cleanup_map11_tree(*tpp, cleanup_send_canon_maps);
+	    cleanup_map11_tree(*tpp, cleanup_send_canon_maps,
+			       cleanup_ext_prop_mask & EXT_PROP_CANONICAL);
 	if (cleanup_comm_canon_maps)
-	    cleanup_map11_tree(*tpp, cleanup_comm_canon_maps);
+	    cleanup_map11_tree(*tpp, cleanup_comm_canon_maps,
+			       cleanup_ext_prop_mask & EXT_PROP_CANONICAL);
 	if (cleanup_masq_domains)
 	    cleanup_masquerade_tree(*tpp, cleanup_masq_domains);
 	if (hdr_opts->type == HDR_FROM && cleanup_from == 0)
@@ -194,9 +197,11 @@ static void cleanup_rewrite_recip(HEADER_OPTS *hdr_opts)
     for (tpp = addr_list; *tpp; tpp++) {
 	cleanup_rewrite_tree(*tpp);
 	if (cleanup_rcpt_canon_maps)
-	    cleanup_map11_tree(*tpp, cleanup_rcpt_canon_maps);
+	    cleanup_map11_tree(*tpp, cleanup_rcpt_canon_maps,
+			       cleanup_ext_prop_mask & EXT_PROP_CANONICAL);
 	if (cleanup_comm_canon_maps)
-	    cleanup_map11_tree(*tpp, cleanup_comm_canon_maps);
+	    cleanup_map11_tree(*tpp, cleanup_comm_canon_maps,
+			       cleanup_ext_prop_mask & EXT_PROP_CANONICAL);
 	tok822_internalize(cleanup_temp1, tpp[0]->head, TOK822_STR_DEFL);
 	if (cleanup_recip == 0 && (hdr_opts->flags & HDR_OPT_EXTRACT) != 0)
 	    argv_add((hdr_opts->flags & HDR_OPT_RR) ?
@@ -223,8 +228,23 @@ static void cleanup_rewrite_recip(HEADER_OPTS *hdr_opts)
 
 static void cleanup_header(void)
 {
+    char   *myname = "cleanup_header";
     HEADER_OPTS *hdr_opts;
 
+    if (msg_verbose)
+	msg_info("%s: '%s'", myname, vstring_str(cleanup_header_buf));
+
+    if (cleanup_header_checks) {
+	char   *header = vstring_str(cleanup_header_buf);
+	const char *value;
+
+	if ((value = maps_find(cleanup_header_checks, header, 0)) != 0) {
+	    if (strcasecmp(value, "REJECT") == 0) {
+		msg_warn("%s: reject: header %.100s", cleanup_queue_id, header);
+		cleanup_errs |= CLEANUP_STAT_CONT;
+	    }
+	}
+    }
 
     /*
      * If this is an "unknown" header, just copy it to the output without

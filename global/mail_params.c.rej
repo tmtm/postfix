@@ -1,0 +1,17 @@
+***************
+*** 160,165 ****
+  int     var_soft_bounce;
+  time_t  var_starttime;
+  int     var_ownreq_special;
+  
+  #ifdef HAS_LDAP
+  
+--- 160,167 ----
+  int     var_soft_bounce;
+  time_t  var_starttime;
+  int     var_ownreq_special;
++ char   *var_forward_path;
++ char   *var_forward_owner;
+  
+  #ifdef HAS_LDAP
+  

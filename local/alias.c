@@ -6,9 +6,10 @@
 /* SYNOPSIS
 /*	#include "local.h"
 /*
-/*	int	deliver_alias(state, usr_attr, statusp)
+/*	int	deliver_alias(state, usr_attr, name, statusp)
 /*	LOCAL_STATE state;
 /*	USER_ATTR usr_attr;
+/*	char	*name;
 /*	int	*statusp;
 /* DESCRIPTION
 /*	deliver_alias() looks up the expansion of the recipient in
@@ -37,6 +38,8 @@
 /*      A table with delivered-to: addresses taken from the message.
 /* .IP usr_attr
 /*	User attributes (rights, environment).
+/* .IP name
+/*	The alias to be looked up.
 /* .IP statusp
 /*	Delivery status. See below.
 /* DIAGNOSTICS
@@ -119,7 +122,8 @@ static uid_t dict_owner(char *table)
 
 /* deliver_alias - expand alias file entry */
 
-int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
+int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr,
+		              char *name, int *statusp)
 {
     char   *myname = "deliver_alias";
     const char *alias_result;
@@ -130,6 +134,7 @@ int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
     uid_t   alias_uid;
     struct mypasswd *alias_pwd;
     VSTRING *canon_owner;
+    DICT   *dict;
 
     /*
      * Make verbose logging easier to understand.
@@ -142,7 +147,7 @@ int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
      * Do this only once.
      */
     if (maps == 0)
-	maps = maps_create("aliases", var_alias_maps);
+	maps = maps_create("aliases", var_alias_maps, DICT_FLAG_LOCK);
 
     /*
      * DUPLICATE/LOOP ELIMINATION
@@ -160,15 +165,15 @@ int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
      * a possible alias loop.
      */
     if (state.msg_attr.exp_from != 0
-	&& strcasecmp(state.msg_attr.exp_from, state.msg_attr.local) == 0)
+	&& strcasecmp(state.msg_attr.exp_from, name) == 0)
 	return (NO);
     if (state.level > 100) {
-	msg_warn("possible alias database loop for %s", state.msg_attr.local);
+	msg_warn("possible alias database loop for %s", name);
 	*statusp = bounce_append(BOUNCE_FLAG_KEEP, BOUNCE_ATTR(state.msg_attr),
-	       "possible alias database loop for %s", state.msg_attr.local);
+	       "possible alias database loop for %s", name);
 	return (YES);
     }
-    state.msg_attr.exp_from = state.msg_attr.local;
+    state.msg_attr.exp_from = name;
 
     /*
      * There are a bunch of roles that we're trying to keep track of.
@@ -185,12 +190,19 @@ int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
      * With aliases that have an owner- alias, the latter is used to set the
      * sender and owner attributes. Otherwise, the owner attribute is reset
      * (the alias is globally visible and could be sent to by anyone).
+     * 
+     * Don't match aliases that are based on regexps.
      */
     for (cpp = maps->argv->argv; *cpp; cpp++) {
-	if ((alias_result = dict_lookup(*cpp, state.msg_attr.local)) != 0) {
+	if ((dict = dict_handle(*cpp)) == 0)
+	    msg_panic("%s: dictionary not found: %s", myname, *cpp);
+	if ((dict->flags & DICT_FLAG_FIXED) == 0) {
+	    msg_warn("invalid alias map type: %s", *cpp);
+	    continue;
+	}
+	if ((alias_result = dict_get(dict, name)) != 0) {
 	    if (msg_verbose)
-		msg_info("%s: %s: %s = %s", myname, *cpp,
-			 state.msg_attr.local, alias_result);
+		msg_info("%s: %s: %s = %s", myname, *cpp, name, alias_result);
 
 	    /*
 	     * DELIVERY POLICY
@@ -228,14 +240,17 @@ int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
 	     * Use the owner- alias if one is specified, otherwise reset the
 	     * owner attribute and use the include file ownership if we can.
 	     * Save the dict_lookup() result before something clobbers it.
+	     * 
+	     * Don't match aliases that are based on regexps.
 	     */
 #define STR(x)	vstring_str(x)
 #define OWNER_ASSIGN(own) \
 	    (own = (var_ownreq_special == 0 ? 0 : \
-	    concatenate("owner-", state.msg_attr.local, (char *) 0)))
+	    concatenate("owner-", name, (char *) 0)))
 
 	    expansion = mystrdup(alias_result);
-	    if (OWNER_ASSIGN(owner) != 0 && maps_find(maps, owner)) {
+	    if (OWNER_ASSIGN(owner) != 0 && maps_find(maps, owner,
+						      DICT_FLAG_FIXED)) {
 		canon_owner = canon_addr_internal(vstring_alloc(10), owner);
 		SET_OWNER_ATTR(state.msg_attr, STR(canon_owner), state.level);
 	    } else {
@@ -280,8 +295,7 @@ int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
 	    return (YES);
 	} else {
 	    if (msg_verbose)
-		msg_info("%s: %s: %s not found", myname, *cpp,
-			 state.msg_attr.local);
+		msg_info("%s: %s: %s not found", myname, *cpp, name);
 	}
     }
 
@@ -291,9 +305,9 @@ int     deliver_alias(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
      */
 #define STREQ(x,y) (strcasecmp(x,y) == 0)
 
-    if (STREQ(state.msg_attr.local, MAIL_ADDR_MAIL_DAEMON)
-	|| STREQ(state.msg_attr.local, MAIL_ADDR_POSTMASTER)) {
-	msg_warn("required alias not found: %s", state.msg_attr.local);
+    if (STREQ(name, MAIL_ADDR_MAIL_DAEMON)
+	|| STREQ(name, MAIL_ADDR_POSTMASTER)) {
+	msg_warn("required alias not found: %s", name);
 	*statusp = sent(SENT_ATTR(state.msg_attr), "discarded");
 	return (YES);
     }

@@ -98,7 +98,7 @@
 #include <mail_params.h>
 #include <dot_lockfile.h>
 #include <deliver_flock.h>
-#include <config.h>
+#include <mail_conf.h>
 
 /* Application-specific. */
 
@@ -142,7 +142,7 @@ int     main(int argc, char **argv)
      */
     for (fd = 0; fd < 3; fd++)
 	if (fstat(fd, &st) == -1
-	    && (close(fd), open("/dev/null", 2)) != fd)
+	    && (close(fd), open("/dev/null", O_RDWR, 0)) != fd)
 	    msg_fatal("open /dev/null: %m");
 
     /*
@@ -184,7 +184,7 @@ int     main(int argc, char **argv)
     /*
      * Read the config file.
      */
-    read_config();
+    mail_conf_read();
 
     /*
      * Lock the folder for exclusive access. Lose the lock upon exit. The

@@ -102,7 +102,8 @@ case "$SYSTEM.$RELEASE" in
 		RANLIB=echo
 		SYSLIBS="-lresolv -lsocket -lnsl"
 		case $RELEASE in
-		    5.[0-4]) CCARGS="$CCARGS -Dusleep=doze"
+		    5.[0-4]) CCARGS="$CCARGS -Dusleep=doze";;
+			  *) CCARGS="$CCARGS -DHAS_POSIX_REGEXP";;
 		esac
 		# Avoid common types of braindamage
 		case "$LD_LIBRARY_PATH" in
@@ -132,17 +133,16 @@ case "$SYSTEM.$RELEASE" in
 		done
 		if [ -f /usr/include/db_185.h ]; then
 		    CCARGS="$CCARGS -DPATH_DB_H='<db_185.h>'"
-		fi
-		if [ -f /usr/include/db/db.h ]; then
+		elif [ -f /usr/include/db/db.h ]; then
 		    CCARGS="$CCARGS -DPATH_DB_H='<db/db.h>'"
 		fi
 		;;
-     IRIX*.5*)	SYSTYPE=IRIX5
+     IRIX*.5.*)	SYSTYPE=IRIX5
 		# Use the native compiler by default
 		: ${CC=cc}
 		RANLIB=echo
 		;;
-     IRIX*.6*)	SYSTYPE=IRIX6
+     IRIX*.6.*)	SYSTYPE=IRIX6
 		# Use the native compiler by default, and allow nested comments.
 		: ${CC="cc -woff 1009,1116,1412"}
 		RANLIB=echo
@@ -156,6 +156,8 @@ HP-UX.A.09.*)	SYSTYPE=HPUX9
 		fi
 		;;
 HP-UX.B.10.*)	SYSTYPE=HPUX10
+		CCARGS="$CCARGS `nm /usr/lib/libc.a 2>/dev/null |
+		    (grep usleep >/dev/null || echo '-Dusleep=doze')`"
 		if [ -f /usr/lib/libdb.a ]; then
 		    CCARGS="$CCARGS -DHAS_DB"
 		    SYSLIBS=-ldb
@@ -193,7 +195,8 @@ case "$CC" in
 */gcc|gcc) case `$CC -v` in
 	   "gcc version 2.8"*) : ${OPT=};;
 	   esac;;
-       *) : ${OPT='-O'};;
+      *CC) echo "Don't use CC. That's the C++ compiler" 1>&2; exit 1;;
+        *) : ${OPT='-O'};;
 esac
 
 : ${CC='gcc $(WARN)'} ${OPT='-O'} ${DEBUG='-g'}

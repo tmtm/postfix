@@ -23,10 +23,10 @@ Makefile: Makefile.in
 
 test:	$(TESTPROG)
 
-update: ../bin/$(PROG)
+update: ../libexec/$(PROG)
 
-../bin/$(PROG): $(PROG)
-	cp $(PROG) ../bin
+../libexec/$(PROG): $(PROG)
+	cp $(PROG) ../libexec
 
 SMTPD_CHECK_OBJ = smtpd_state.o
 
@@ -94,6 +94,7 @@ smtpd.o: ../include/stringops.h
 smtpd.o: ../include/events.h
 smtpd.o: ../include/smtp_stream.h
 smtpd.o: ../include/valid_hostname.h
+smtpd.o: ../include/dict.h
 smtpd.o: ../include/peer_name.h
 smtpd.o: ../include/mail_params.h
 smtpd.o: ../include/record.h
@@ -102,7 +103,7 @@ smtpd.o: ../include/mail_proto.h
 smtpd.o: ../include/iostuff.h
 smtpd.o: ../include/cleanup_user.h
 smtpd.o: ../include/mail_date.h
-smtpd.o: ../include/config.h
+smtpd.o: ../include/mail_conf.h
 smtpd.o: ../include/off_cvt.h
 smtpd.o: ../include/debug_peer.h
 smtpd.o: ../include/mail_error.h
@@ -173,6 +174,7 @@ smtpd_state.o: ../include/mymalloc.h
 smtpd_state.o: ../include/vstream.h
 smtpd_state.o: ../include/vbuf.h
 smtpd_state.o: ../include/name_mask.h
+smtpd_state.o: ../include/stringops.h
 smtpd_state.o: ../include/cleanup_user.h
 smtpd_state.o: ../include/mail_params.h
 smtpd_state.o: ../include/mail_error.h

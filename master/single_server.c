@@ -51,16 +51,22 @@
 /*	global Postfix configuration file. Tables are loaded in the
 /*	order as specified, and multiple instances of the same type
 /*	are allowed.
-/* .IP "MAIL_SERVER_PRE_INIT (void *(void))"
+/* .IP "MAIL_SERVER_RAW_TABLE (CONFIG_STR_TABLE *)"
+/*	A table with configurable parameters, to be loaded from the
+/*	global Postfix configuration file. Tables are loaded in the
+/*	order as specified, and multiple instances of the same type
+/*	are allowed. Raw parameters are not subjected to $name
+/*	evaluation.
+/* .IP "MAIL_SERVER_PRE_INIT (void *(char *service_name char **argv))"
 /*	A pointer to a function that is called once
 /*	by the skeleton after it has read the global configuration file
 /*	and after it has processed command-line arguments, but before
 /*	the skeleton has optionally relinquished the process privileges.
-/* .IP "MAIL_SERVER_POST_INIT (void *(void))"
+/* .IP "MAIL_SERVER_POST_INIT (void *(char *service_name char **argv))"
 /*	A pointer to a function that is called once
 /*	by the skeleton after it has optionally relinquished the process
 /*	privileges, but before servicing client connection requests.
-/* .IP "MAIL_SERVER_LOOP (int *(void))"
+/* .IP "MAIL_SERVER_LOOP (int *(char *service_name char **argv))"
 /*	A pointer to function that is executed from
 /*	within the event loop, whenever an I/O or timer event has happened,
 /*	or whenever nothing has happened for a specified amount of time.
@@ -69,6 +75,8 @@
 /* .IP "MAIL_SERVER_EXIT (void *(void))"
 /*	A pointer to function that is executed immediately before normal
 /*	process termination.
+/* .IP "MAIL_SERVER_PRE_ACCEPT (void *(char *service_name char **argv))"
+/*	Function to be executed prior to accepting a new connection.
 /* .PP
 /*	The var_use_limit variable limits the number of clients that
 /*	a server can service before it commits suicide.
@@ -124,17 +132,16 @@
 #include <iostuff.h>
 #include <stringops.h>
 #include <sane_accept.h>
-#ifndef NO_SELECT_COLLISION
 #include <myflock.h>
 #include <safe_open.h>
-#endif
+#include <listen.h>
 
 /* Global library. */
 
 #include <mail_params.h>
 #include <mail_task.h>
 #include <debug_process.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <timed_ipc.h>
 #include <resolve_local.h>
 
@@ -154,19 +161,17 @@ static int use_count;
 static void (*single_server_service) (VSTREAM *, char *, char **);
 static char *single_server_name;
 static char **single_server_argv;
-static void (*single_server_onexit) (void);
-
-#ifndef NO_SELECT_COLLISION
+static void (*single_server_accept) (int, char *);
+static void (*single_server_onexit) (char *, char **);
+static void (*single_server_pre_accept) (char *, char **);
 static VSTREAM *single_server_lock;
-
-#endif
 
 /* single_server_exit - normal termination */
 
 static NORETURN single_server_exit(void)
 {
     if (single_server_onexit)
-	single_server_onexit();
+	single_server_onexit(single_server_name, single_server_argv);
     exit(0);
 }
 
@@ -201,43 +206,11 @@ static void single_server_timeout(int unused_event, char *unused_context)
     single_server_exit();
 }
 
-/* single_server_accept - accept client connection request */
+/* single_server_wakeup - wake up application */
 
-static void single_server_accept(int unused_event, char *context)
+static void single_server_wakeup(int fd)
 {
-    int     listen_fd = (int) context;
     VSTREAM *stream;
-    int     time_left = -1;
-    int     fd;
-
-#ifndef NO_SELECT_COLLISION
-    if (single_server_lock != 0
-	&& myflock(vstream_fileno(single_server_lock), MYFLOCK_NONE) < 0)
-	msg_fatal("select unlock: %m");
-#endif
-
-    /*
-     * Some buggy systems cause Postfix to lock up.
-     */
-    signal(SIGALRM, single_server_watchdog);
-    alarm(var_daemon_timeout);
-
-    /*
-     * Be prepared for accept() to fail because some other process already
-     * got the connection. We use select() + accept(), instead of simply
-     * blocking in accept(), because we must be able to detect that the
-     * master process has gone away unexpectedly.
-     */
-    if (var_idle_limit > 0)
-	time_left = event_cancel_timer(single_server_timeout, (char *) 0);
-
-    if ((fd = sane_accept(listen_fd, (struct sockaddr *) 0, (SOCKADDR_SIZE *) 0)) < 0) {
-	if (errno != EAGAIN)
-	    msg_fatal("accept connection: %m");
-	if (time_left >= 0)
-	    event_request_timer(single_server_timeout, (char *) 0, time_left);
-	return;
-    }
 
     /*
      * If the accept() succeeds, be sure to disable non-blocking I/O, because
@@ -264,6 +237,84 @@ static void single_server_accept(int unused_event, char *context)
 	event_request_timer(single_server_timeout, (char *) 0, var_idle_limit);
 }
 
+/* single_server_accept_local - accept client connection request */
+
+static void single_server_accept_local(int unused_event, char *context)
+{
+    int     listen_fd = (int) context;
+    int     time_left = -1;
+    int     fd;
+
+    /*
+     * Some buggy systems cause Postfix to lock up.
+     */
+    signal(SIGALRM, single_server_watchdog);
+    alarm(var_daemon_timeout);
+
+    /*
+     * Be prepared for accept() to fail because some other process already
+     * got the connection. We use select() + accept(), instead of simply
+     * blocking in accept(), because we must be able to detect that the
+     * master process has gone away unexpectedly.
+     */
+    if (var_idle_limit > 0)
+	time_left = event_cancel_timer(single_server_timeout, (char *) 0);
+
+    if (single_server_pre_accept)
+	single_server_pre_accept(single_server_name, single_server_argv);
+    fd = LOCAL_ACCEPT(listen_fd);
+    if (single_server_lock != 0
+	&& myflock(vstream_fileno(single_server_lock), MYFLOCK_NONE) < 0)
+	msg_fatal("select unlock: %m");
+    if (fd < 0) {
+	if (errno != EAGAIN)
+	    msg_fatal("accept connection: %m");
+	if (time_left >= 0)
+	    event_request_timer(single_server_timeout, (char *) 0, time_left);
+	return;
+    }
+    single_server_wakeup(fd);
+}
+
+/* single_server_accept_inet - accept client connection request */
+
+static void single_server_accept_inet(int unused_event, char *context)
+{
+    int     listen_fd = (int) context;
+    int     time_left = -1;
+    int     fd;
+
+    /*
+     * Some buggy systems cause Postfix to lock up.
+     */
+    signal(SIGALRM, single_server_watchdog);
+    alarm(var_daemon_timeout);
+
+    /*
+     * Be prepared for accept() to fail because some other process already
+     * got the connection. We use select() + accept(), instead of simply
+     * blocking in accept(), because we must be able to detect that the
+     * master process has gone away unexpectedly.
+     */
+    if (var_idle_limit > 0)
+	time_left = event_cancel_timer(single_server_timeout, (char *) 0);
+
+    if (single_server_pre_accept)
+	single_server_pre_accept(single_server_name, single_server_argv);
+    fd = inet_accept(listen_fd);
+    if (single_server_lock != 0
+	&& myflock(vstream_fileno(single_server_lock), MYFLOCK_NONE) < 0)
+	msg_fatal("select unlock: %m");
+    if (fd < 0) {
+	if (errno != EAGAIN)
+	    msg_fatal("accept connection: %m");
+	if (time_left >= 0)
+	    event_request_timer(single_server_timeout, (char *) 0, time_left);
+	return;
+    }
+    single_server_wakeup(fd);
+}
+
 /* single_server_main - the real main program */
 
 NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
@@ -284,12 +335,8 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
     MAIL_SERVER_LOOP_FN loop = 0;
     int     key;
     char   *transport = 0;
-
-#ifndef NO_SELECT_COLLISION
     char   *lock_path;
     VSTRING *why;
-
-#endif
     int     alone = 0;
 
     /*
@@ -309,7 +356,7 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
      * May need this every now and then.
      */
     var_procname = mystrdup(basename(argv[0]));
-    set_config_str(VAR_PROCNAME, var_procname);
+    set_mail_conf_str(VAR_PROCNAME, var_procname);
 
     /*
      * Initialize logging and exit handler. Do the syslog first, so that its
@@ -323,18 +370,21 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
      * Initialize from the configuration file. Allow command-line options to
      * override compiled-in defaults or configured parameter values.
      */
-    read_config();
+    mail_conf_read();
     va_start(ap, service);
     while ((key = va_arg(ap, int)) != 0) {
 	switch (key) {
 	case MAIL_SERVER_INT_TABLE:
-	    get_config_int_table(va_arg(ap, CONFIG_INT_TABLE *));
+	    get_mail_conf_int_table(va_arg(ap, CONFIG_INT_TABLE *));
 	    break;
 	case MAIL_SERVER_STR_TABLE:
-	    get_config_str_table(va_arg(ap, CONFIG_STR_TABLE *));
+	    get_mail_conf_str_table(va_arg(ap, CONFIG_STR_TABLE *));
 	    break;
 	case MAIL_SERVER_BOOL_TABLE:
-	    get_config_bool_table(va_arg(ap, CONFIG_BOOL_TABLE *));
+	    get_mail_conf_bool_table(va_arg(ap, CONFIG_BOOL_TABLE *));
+	    break;
+	case MAIL_SERVER_RAW_TABLE:
+	    get_mail_conf_raw_table(va_arg(ap, CONFIG_STR_TABLE *));
 	    break;
 	case MAIL_SERVER_PRE_INIT:
 	    pre_init = va_arg(ap, MAIL_SERVER_INIT_FN);
@@ -347,6 +397,9 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
 	    break;
 	case MAIL_SERVER_EXIT:
 	    single_server_onexit = va_arg(ap, MAIL_SERVER_EXIT_FN);
+	    break;
+	case MAIL_SERVER_PRE_ACCEPT:
+	    single_server_pre_accept = va_arg(ap, MAIL_SERVER_ACCEPT_FN);
 	    break;
 	default:
 	    msg_panic("%s: unknown argument type: %d", myname, key);
@@ -417,8 +470,11 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
     if (stream == 0) {
 	if (transport == 0)
 	    msg_fatal("no transport type specified");
-	if (strcasecmp(transport, MASTER_XPORT_NAME_INET) != 0
-	    && strcasecmp(transport, MASTER_XPORT_NAME_UNIX) != 0)
+	if (strcasecmp(transport, MASTER_XPORT_NAME_INET) == 0)
+	    single_server_accept = single_server_accept_inet;
+	else if (strcasecmp(transport, MASTER_XPORT_NAME_UNIX) == 0)
+	    single_server_accept = single_server_accept_local;
+	else
 	    msg_fatal("unsupported transport type: %s", transport);
     }
 
@@ -434,7 +490,6 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
      * Illustrated volume 2 page 532. We avoid select() collisions with an
      * external lock file.
      */
-#ifndef NO_SELECT_COLLISION
     if (stream == 0 && !alone) {
 	lock_path = concatenate(DEF_PID_DIR, "/", transport,
 				".", service_name, (char *) 0);
@@ -446,13 +501,12 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
 	myfree(lock_path);
 	vstring_free(why);
     }
-#endif
 
     /*
      * Run pre-jail initialization.
      */
     if (pre_init)
-	pre_init();
+	pre_init(single_server_name, single_server_argv);
 
     /*
      * Optionally, restrict the damage that this process can do.
@@ -466,7 +520,7 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
      * Run post-jail initialization.
      */
     if (post_init)
-	post_init();
+	post_init(single_server_name, single_server_argv);
 
     /*
      * Are we running as a one-shot server with the client connection on
@@ -501,12 +555,10 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
     event_enable_read(MASTER_STATUS_FD, single_server_abort, (char *) 0);
     close_on_exec(MASTER_STATUS_FD, CLOSE_ON_EXEC);
     while (var_use_limit == 0 || use_count < var_use_limit) {
-	delay = loop ? loop() : -1;
-#ifndef NO_SELECT_COLLISION
+	delay = loop ? loop(single_server_name, single_server_argv) : -1;
 	if (single_server_lock != 0
 	    && myflock(vstream_fileno(single_server_lock), MYFLOCK_EXCLUSIVE) < 0)
 	    msg_fatal("select lock: %m");
-#endif
 	event_loop(delay);
     }
     single_server_exit();

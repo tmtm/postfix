@@ -129,10 +129,11 @@
 #include <vstream.h>
 #include <mymalloc.h>
 #include <iostuff.h>
+#include <dict.h>
 
 /* Global library. */
 
-#include <config.h>
+#include <mail_conf.h>
 #include <cleanup_user.h>
 #include <mail_queue.h>
 #include <mail_proto.h>
@@ -141,6 +142,7 @@
 #include <mail_params.h>
 #include <mail_stream.h>
 #include <mail_addr.h>
+#include <ext_prop.h>
 
 /* Single-threaded server skeleton. */
 
@@ -167,9 +169,11 @@ char   *var_rcpt_canon_maps;		/* recipient canonical maps */
 char   *var_virtual_maps;		/* virtual maps */
 char   *var_masq_domains;		/* masquerade domains */
 char   *var_masq_exceptions;		/* users not masqueraded */
+char   *var_header_checks;		/* any header checks */
 int     var_dup_filter_limit;		/* recipient dup filter */
 char   *var_empty_addr;			/* destination of bounced bounces */
 int     var_delay_warn_time;		/* delay that triggers warning */
+char   *var_prop_extension;		/* propagate unmatched extension */
 
  /*
   * Mappings.
@@ -177,8 +181,14 @@ int     var_delay_warn_time;		/* delay that triggers warning */
 MAPS   *cleanup_comm_canon_maps;
 MAPS   *cleanup_send_canon_maps;
 MAPS   *cleanup_rcpt_canon_maps;
+MAPS   *cleanup_header_checks;
 MAPS   *cleanup_virtual_maps;
 ARGV   *cleanup_masq_domains;
+
+ /*
+  * Address extension propagation restrictions.
+  */
+int     cleanup_ext_prop_mask;
 
 /* cleanup_service - process one request to inject a message into the queue */
 
@@ -371,26 +381,42 @@ static void cleanup_sig(int sig)
 
 /* pre_jail_init - initialize before entering the chroot jail */
 
-static void pre_jail_init(void)
+static void pre_jail_init(char *unused_name, char **unused_argv)
 {
     if (*var_canonical_maps)
 	cleanup_comm_canon_maps =
-	maps_create(VAR_CANONICAL_MAPS, var_canonical_maps);
+	maps_create(VAR_CANONICAL_MAPS, var_canonical_maps, DICT_FLAG_LOCK);
     if (*var_send_canon_maps)
 	cleanup_send_canon_maps =
-	    maps_create(VAR_SEND_CANON_MAPS, var_send_canon_maps);
+	    maps_create(VAR_SEND_CANON_MAPS, var_send_canon_maps,
+			DICT_FLAG_LOCK);
     if (*var_rcpt_canon_maps)
 	cleanup_rcpt_canon_maps =
-	    maps_create(VAR_RCPT_CANON_MAPS, var_rcpt_canon_maps);
+	    maps_create(VAR_RCPT_CANON_MAPS, var_rcpt_canon_maps,
+			DICT_FLAG_LOCK);
     if (*var_virtual_maps)
-	cleanup_virtual_maps = maps_create(VAR_VIRTUAL_MAPS, var_virtual_maps);
+	cleanup_virtual_maps = maps_create(VAR_VIRTUAL_MAPS, var_virtual_maps,
+					   DICT_FLAG_LOCK);
     if (*var_masq_domains)
 	cleanup_masq_domains = argv_split(var_masq_domains, " ,\t\r\n");
+    if (*var_header_checks)
+	cleanup_header_checks = 
+	    maps_create(VAR_HEADER_CHECKS, var_header_checks, DICT_FLAG_LOCK);
+}
+
+/* pre_accept - see if tables have changed */
+
+static void pre_accept(char *unused_name, char **unused_argv)
+{
+    if (dict_changed()) {
+	msg_info("table has changed -- exiting");
+	exit(0);
+    }
 }
 
 /* post_jail_init - initialize after entering the chroot jail */
 
-static void post_jail_init(void)
+static void post_jail_init(char *unused_name, char **unused_argv)
 {
 
     /*
@@ -402,6 +428,11 @@ static void post_jail_init(void)
      */
     if (var_message_limit > 0)
 	set_file_limit((off_t) var_message_limit);
+
+    /*
+     * Control how unmatched extensions are propagated.
+     */
+    cleanup_ext_prop_mask = ext_prop_mask(var_prop_extension);
 }
 
 /* main - the main program */
@@ -423,6 +454,8 @@ int     main(int argc, char **argv)
 	VAR_MASQ_DOMAINS, DEF_MASQ_DOMAINS, &var_masq_domains, 0, 0,
 	VAR_EMPTY_ADDR, DEF_EMPTY_ADDR, &var_empty_addr, 1, 0,
 	VAR_MASQ_EXCEPTIONS, DEF_MASQ_EXCEPTIONS, &var_masq_exceptions, 0, 0,
+	VAR_HEADER_CHECKS, DEF_HEADER_CHECKS, &var_header_checks, 0, 0,
+	VAR_PROP_EXTENSION, DEF_PROP_EXTENSION, &var_prop_extension, 0, 0,
 	0,
     };
 
@@ -441,5 +474,6 @@ int     main(int argc, char **argv)
 		       MAIL_SERVER_STR_TABLE, str_table,
 		       MAIL_SERVER_PRE_INIT, pre_jail_init,
 		       MAIL_SERVER_POST_INIT, post_jail_init,
+		       MAIL_SERVER_PRE_ACCEPT, pre_accept,
 		       0);
 }

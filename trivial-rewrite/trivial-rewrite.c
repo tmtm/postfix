@@ -120,13 +120,14 @@
 #include <vstring_vstream.h>
 #include <split_at.h>
 #include <stringops.h>
+#include <dict.h>
 
 /* Global library. */
 
 #include <mail_params.h>
 #include <mail_proto.h>
 #include <resolve_local.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <resolve_clnt.h>
 #include <rewrite_clnt.h>
 #include <tok822.h>
@@ -182,9 +183,19 @@ static void rewrite_service(VSTREAM *stream, char *unused_service, char **argv)
 	multi_server_disconnect(stream);
 }
 
+/* pre_accept - see if tables have changed */
+
+static void pre_accept(char *unused_name, char **unused_argv)
+{
+    if (dict_changed()) {
+	msg_info("table has changed -- exiting");
+	exit(0);
+    }
+}
+
 /* pre_jail_init - initialize before entering chroot jail */
 
-static void pre_jail_init(void)
+static void pre_jail_init(char *unused_name, char **unused_argv)
 {
     command = vstring_alloc(100);
     rewrite_init();
@@ -213,5 +224,6 @@ int     main(int argc, char **argv)
 		      MAIL_SERVER_STR_TABLE, str_table,
 		      MAIL_SERVER_BOOL_TABLE, bool_table,
 		      MAIL_SERVER_PRE_INIT, pre_jail_init,
+		      MAIL_SERVER_PRE_ACCEPT, pre_accept,
 		      0);
 }

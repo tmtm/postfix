@@ -117,7 +117,7 @@
 
 /* Global library. */
 
-#include <config.h>
+#include <mail_conf.h>
 #include <mail_params.h>
 
 /* check_setenv - setenv() with extreme prejudice */
@@ -152,7 +152,7 @@ int     main(int argc, char **argv)
      */
     for (fd = 0; fd < 3; fd++)
 	if (fstat(fd, &st) == -1
-	    && (close(fd), open("/dev/null", 2)) != fd)
+	    && (close(fd), open("/dev/null", O_RDWR, 0)) != fd)
 	    msg_fatal("open /dev/null: %m");
 
     /*
@@ -202,10 +202,10 @@ int     main(int argc, char **argv)
      * utility that makes config parameters easily accessible for shell
      * scripts.
      */
-    read_config();
+    mail_conf_read();
 
     check_setenv("PATH", ROOT_PATH);		/* sys_defs.h */
-    check_setenv(CONF_ENV_PATH, var_config_dir);/* config.h */
+    check_setenv(CONF_ENV_PATH, var_config_dir);/* mail_conf.h */
 
     check_setenv(VAR_COMMAND_DIR, var_command_dir);	/* main.cf */
     check_setenv(VAR_DAEMON_DIR, var_daemon_dir);	/* main.cf */

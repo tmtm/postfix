@@ -27,6 +27,20 @@
 /*	destinations in ~\fIname\fR/.\fBforward\fR, to the mailbox owned
 /*	by the user \fIname\fR, or it is sent back as undeliverable.
 /*
+/*	The system administrator can specify a comma/space separated list
+/*	of ~\fR/.\fBforward\fR like files through the \fBforward_path\fR
+/*	configuration parameter. Upon delivery, the local delivery agent
+/*	tries each pathname in the list until a file is found.
+/*	The \fBforward_path\fR parameter is subject to interpolation of
+/*	\fB$user\fR (recipient username), \fB$home\fR (recipient home
+/*	directory), \fB$shell\fR (recipient shell), \fB$recipient\fR
+/*	(complete recipient address), \fB$extension\fR (recipient address
+/*	extension), \fB$domain\fR (recipient domain), \fBlocal\fR
+/*	(entire recipient address localpart) and
+/*	\fB$recipient_delimiter.\fR The forms \fI${name?value}\fR and
+/*	\fI${name:value}\fR expand conditionally to \fIvalue\fR when
+/*	\fI$name\fR is (is not) defined.
+/*
 /*	An alias or ~/.\fBforward\fR file may list any combination of external
 /*	commands, destination file names, \fB:include:\fR directives, or
 /*	mail addresses.
@@ -76,7 +90,7 @@
 /*	with the \fBmailbox_command\fR configuration parameter. The command
 /*	executes with the privileges of the recipient user (exception: in
 /*	case of delivery as root, the command executes with the privileges
-/*	of \fBdefault_user\fR).
+/*	of \fBdefault_privs\fR).
 /*
 /*	Mailbox delivery can be delegated to alternative message transports
 /*	specified in the \fBmaster.cf\fR file.
@@ -118,9 +132,29 @@
 /*	\fBcommand_time_limit\fR seconds.  Command exit status codes are
 /*	expected to follow the conventions defined in <\fBsysexits.h\fR>.
 /*
-/*	When mail is delivered on behalf of a user, the \fBHOME\fR,
-/*	\fBLOGNAME\fR, and \fBSHELL\fR environment variables are set
-/*	accordingly.
+/*	A limited amount of message context is exported via environment
+/*	variables. Characters that may have special meaning to the shell
+/*	are replaced by underscores.  The list of acceptable characters
+/*	is specified with the \fBcommand_expansion_filter\fR configuration
+/*	parameter.
+/* .IP \fBSHELL\fR
+/*	The recipient user's login shell.
+/* .IP \fBHOME\fR
+/*	The recipient user's home directory.
+/* .IP \fBUSER\fR
+/*	The bare recipient name.
+/* .IP \fBEXTENSION\fR
+/*	The optional recipient address extension.
+/* .IP \fBDOMAIN\fR
+/*	The recipient address domain part.
+/* .IP \fBLOGNAME\fR
+/*	The bare recipient name.
+/* .IP \fBLOCAL\fR
+/*	The entire recipient address localpart (text to the left of the
+/*	rightmost @ character).
+/* .IP \fBRECIPIENT\fR
+/*	The entire recipient address.
+/* .PP
 /*	The \fBPATH\fR environment variable is always reset to a
 /*	system-dependent default path, and the \fBTZ\fR (time zone)
 /*	environment variable is always passed on without change.
@@ -212,6 +246,9 @@
 /* .fi
 /* .IP \fBalias_maps\fR
 /*	List of alias databases.
+/* .IP \fBforward_path\fR
+/*	Search list for .forward files.  The names are subject to \fI$name\fR
+/*	expansion.
 /* .IP \fBlocal_command_shell\fR
 /*	Shell to use for external command execution (for example,
 /*	/some/where/smrsh -c).
@@ -234,14 +271,14 @@
 /*	Specify a path ending in \fB/\fR for maildir-style delivery.
 /* .IP \fBluser_relay\fR
 /*	Destination (\fI@domain\fR or \fIaddress\fR) for non-existent users.
-/*	The \fIaddress\fR can be any destination that is valid in an alias
-/*	file.
+/*	The \fIaddress\fR is subjected to \fI$name\fR expansion.
 /* .IP \fBmail_spool_directory\fR
 /*	Directory with UNIX-style mailboxes. The default pathname is system
 /*	dependent.
 /* .IP \fBmailbox_command\fR
 /*	External command to use for mailbox delivery. The command executes
-/*	with the recipient privileges (exception: root).
+/*	with the recipient privileges (exception: root). The string is subject
+/*	to $name expansions.
 /* .IP \fBmailbox_transport\fR
 /*	Message transport to use for mailbox delivery to all local
 /*	recipients, whether or not they are found in the UNIX passwd database.
@@ -284,6 +321,9 @@
 /*	Restrict the usage of mail delivery to external command.
 /* .IP \fBallow_mail_to_files\fR
 /*	Restrict the usage of mail delivery to external file.
+/* .IP \fBcommand_expansion_filter\fR
+/*	What characters are allowed to appear in $name expansions of
+/*	mailbox_command. Illegal characters are replaced by underscores.
 /* .IP \fBdefault_privs\fR
 /*	Default rights for delivery to external file or command.
 /* HISTORY
@@ -332,6 +372,7 @@
 #include <iostuff.h>
 #include <name_mask.h>
 #include <set_eugid.h>
+#include <dict.h>
 
 /* Global library. */
 
@@ -341,9 +382,10 @@
 #include <deliver_completed.h>
 #include <mail_params.h>
 #include <mail_addr.h>
-#include <config.h>
+#include <mail_conf.h>
 #include <been_here.h>
 #include <mail_params.h>
+#include <ext_prop.h>
 
 /* Single server skeleton. */
 
@@ -370,9 +412,13 @@ int     var_biff;
 char   *var_mail_spool_dir;
 char   *var_mailbox_transport;
 char   *var_fallback_transport;
+char   *var_forward_path;
+char   *var_cmd_exp_filter;
+char   *var_prop_extension;
 
 int     local_cmd_deliver_mask;
 int     local_file_deliver_mask;
+int     local_ext_prop_mask;
 
 /* local_deliver - deliver message with extreme prejudice */
 
@@ -493,11 +539,22 @@ static void local_mask_init(void)
 
     local_file_deliver_mask = name_mask(file_mask, var_allow_files);
     local_cmd_deliver_mask = name_mask(command_mask, var_allow_commands);
+    local_ext_prop_mask = ext_prop_mask(var_prop_extension);
+}
+
+/* pre_accept - see if tables have changed */
+
+static void pre_accept(char *unused_name, char **unused_argv)
+{
+    if (dict_changed()) {
+	msg_info("table has changed -- exiting");
+	exit(0);
+    }
 }
 
 /* post_init - post-jail initialization */
 
-static void post_init(void)
+static void post_init(char *unused_name, char **unused_argv)
 {
 
     /*
@@ -519,15 +576,15 @@ int     main(int argc, char **argv)
     static CONFIG_STR_TABLE str_table[] = {
 	VAR_ALIAS_MAPS, DEF_ALIAS_MAPS, &var_alias_maps, 0, 0,
 	VAR_HOME_MAILBOX, DEF_HOME_MAILBOX, &var_home_mailbox, 0, 0,
-	VAR_MAILBOX_COMMAND, DEF_MAILBOX_COMMAND, &var_mailbox_command, 0, 0,
 	VAR_ALLOW_COMMANDS, DEF_ALLOW_COMMANDS, &var_allow_commands, 0, 0,
 	VAR_ALLOW_FILES, DEF_ALLOW_FILES, &var_allow_files, 0, 0,
 	VAR_RCPT_FDELIM, DEF_RCPT_FDELIM, &var_rcpt_fdelim, 0, 0,
 	VAR_LOCAL_CMD_SHELL, DEF_LOCAL_CMD_SHELL, &var_local_cmd_shell, 0, 0,
-	VAR_LUSER_RELAY, DEF_LUSER_RELAY, &var_luser_relay, 0, 0,
 	VAR_MAIL_SPOOL_DIR, DEF_MAIL_SPOOL_DIR, &var_mail_spool_dir, 0, 0,
 	VAR_MAILBOX_TRANSP, DEF_MAILBOX_TRANSP, &var_mailbox_transport, 0, 0,
 	VAR_FALLBACK_TRANSP, DEF_FALLBACK_TRANSP, &var_fallback_transport, 0, 0,
+	VAR_CMD_EXP_FILTER, DEF_CMD_EXP_FILTER, &var_cmd_exp_filter, 1, 0,
+	VAR_PROP_EXTENSION, DEF_PROP_EXTENSION, &var_prop_extension, 0, 0,
 	0,
     };
     static CONFIG_BOOL_TABLE bool_table[] = {
@@ -535,10 +592,20 @@ int     main(int argc, char **argv)
 	0,
     };
 
+    /* Suppress $name expansion upon loading. */
+    static CONFIG_STR_TABLE raw_table[] = {
+	VAR_FORWARD_PATH, DEF_FORWARD_PATH, &var_forward_path, 0, 0,
+	VAR_MAILBOX_COMMAND, DEF_MAILBOX_COMMAND, &var_mailbox_command, 0, 0,
+	VAR_LUSER_RELAY, DEF_LUSER_RELAY, &var_luser_relay, 0, 0,
+	0,
+    };
+
     single_server_main(argc, argv, local_service,
 		       MAIL_SERVER_INT_TABLE, int_table,
 		       MAIL_SERVER_STR_TABLE, str_table,
+		       MAIL_SERVER_RAW_TABLE, raw_table,
 		       MAIL_SERVER_BOOL_TABLE, bool_table,
 		       MAIL_SERVER_POST_INIT, post_init,
+		       MAIL_SERVER_PRE_ACCEPT, pre_accept,
 		       0);
 }

@@ -3,6 +3,7 @@
 #
 #! ../bin/postmap smtpd_check_access
 #msg_verbose 1
+smtpd_delay_reject 0
 mynetworks 127.0.0.0/8,168.100.189.0/28
 relay_domains porcupine.org
 #
@@ -83,3 +84,13 @@ mail foo@friend.bad.domain
 client_restrictions reject_maps_rbl
 client spike.porcupine.org 168.100.189.2
 client foo 127.0.0.2
+#
+# unknown sender/recipient domain
+#
+unknown_address_reject_code 554
+recipient_restrictions reject_unknown_recipient_domain,reject_unknown_sender_domain
+mail wietse@porcupine.org
+rcpt wietse@porcupine.org
+rcpt wietse@no.recipient.domain
+mail wietse@no.sender.domain
+rcpt wietse@porcupine.org

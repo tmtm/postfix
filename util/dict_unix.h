@@ -1,5 +1,5 @@
-#ifndef _DIST_UNIX_H_INCLUDED_
-#define _DIST_UNIX_H_INCLUDED_
+#ifndef _DICT_UNIX_H_INCLUDED_
+#define _DICT_UNIX_H_INCLUDED_
 
 /*++
 /* NAME
@@ -19,7 +19,7 @@
  /*
   * External interface.
   */
-extern DICT *dict_unix_open(const char *, int);
+extern DICT *dict_unix_open(const char *, int, int);
 
 /* LICENSE
 /* .ad

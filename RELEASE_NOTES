@@ -1,5 +1,114 @@
-Incompatible changes with postfix-alpha-19990317:
-=================================================
+Incompatible changes with postfix-19990601:
+===========================================
+
+- The SMTP server now delays all UCE restrictions until the RCPT
+TO, VRFY or ETRN command. This makes the restrictions more useful,
+because many SMTP clients do not expect negative responses earlier
+in the protocol.  In order to restore the old behavior, specify
+"smtpd_delay_reject = no" in /etc/postfix/main.cf.
+
+- The Postfix local delivery agent no longer automatically propagates
+address extensions to aliases/include/forward addresses.  Specify
+"propagate_unmatched_extensions = canonical, virtual, alias, forward,
+include" to restore the old behavior.
+
+- The Postfix local delivery agent no longer does $name expansion
+on words found in the mailbox_command configuration parameter. This
+makes it easier to specify shell syntax. See conf/main.cf.
+
+- The luser_relay syntax has changed. You can specify one address;
+it is subjected to $user, etc. expansions. See conf/main.cf.
+
+- File system reorganization: daemon executables are now in the
+libexec subdirectory, command executables in the bin subdirectory.
+The INSTALL instructions now recommend installing daemons and
+commands into separate directories.
+
+Major changes with postfix-19990601:
+=====================================
+
+- New USER, EXTENSION, LOCAL, DOMAIN and RECIPIENT environment
+variables for delivery to command (including mailbox_command) by
+the local delivery agent. As you might expect, the information is
+censored. The list of acceptable characters is specified with the
+command_expansion_filter configuration parameter.  Unacceptable
+characters are replaced by underscores. See html/local.8.html.
+
+- Specify "forward_path = /var/forward/$user" to avoid looking up
+.forward files in user home directories.  The default value is
+$home/.forward$recipient_delimiter$extension, $home/.forward.
+Initial code by Philip A.  Prindeville, Mirapoint, Inc., USA.
+
+- Conditional $name expansion in forward_path and luser_relay.
+Available names are: $user (bare user name) $shell (user login
+shell), $home (user home directory), $local (everything to the left
+of @), $extension (optional address extension), $domain (everything
+to the right of @), $recipient (the complete address) and
+$recipient_delimiter.  A simple $name expands as usual.  ${name?value}
+expands to value when $name is defined.  ${name:value} expands to
+value when $name is not defined. With ${name?value} and ${name:value},
+the value is subject to another iteration of $name expansion.
+
+- POSIX regular expression support, enabled by default on 4.4BSD,
+LINUX, HP-UX, and Solaris 2.5 and later. See conf/sample-regexp.cf.
+Initial code by Lamont Jones, Hewlett-Packard, borrowing heavily
+from the PCRE implementation by Andrew McNamara, connect.com.au
+Pty. Ltd., Australia.
+
+- Regular expression checks for message headers.  This requires
+support for POSIX or for PCRE regular expressions.  Specify
+"header_checks = regexp:/file/name" or "header_checks = pcre:/file/name",
+and specify "/^header-name:  badstuff/ REJECT" in the pattern file
+(patterns are case-insensitive by default).  Code by Lamont Jones,
+Hewlett-Packard.  It is to be expected that full content filtering
+will be delegated to an external command.
+
+- Regular expression support for all lookup tables, including access
+control (full mail addresses only), address rewriting (canonical/virtual,
+full mail addresses only) and transport tables (full domain names
+only).  However, regular expressions are not allowed for aliases,
+because that would open up security exposures.
+
+- Automatic detection of changes to DB or DBM lookup tables.  This
+eliminates the need to run "postfix reload" after each change to
+the SMTP access table, or to the canonical, virtual, transport or
+aliases tables.
+
+- New error mailer. Specify ".domain.name error:domain is undeliverable"
+in the transport table to bounce mail for entire domains.
+
+- No more Postfix lockups on Solaris (knock on wood). The code no
+longer uses Solaris UNIX-domain sockets, because they are still
+broken, even with Solaris 7.
+
+- Workaround for the Solaris mailtool, which keeps an exclusive
+kernel lock on the mailbox while its window is not iconified (specify
+"sun_mailtool_compatibility = yes" in main.cf).
+
+- Questionable workaround for Solaris, which reportedly loses
+long-lived exclusive locks that are held by the master daemon.
+
+- New reject_unknown_{sender,recipient}_domain restrictions for
+sender and recipient mail addresses that distinguish between soft
+errors (always 450) and hard errors (unknown_address_reject_code,
+default 450).
+
+- MIME-encapsulated bounce messages, making it easier to recover
+bounced mail. Initial implementation by Philip A.  Prindeville,
+Mirapoint, Inc., USA. Support for RFC 1892 (multipart/report) and
+RFC 1894 (DSN) will have to wait until Postfix internals have been
+revised to support RFC 1893.
+
+- Separately configurable "postmaster" addresses for single bounces
+(bounce_notice_recipient), double bounces (2bounce_notice_recipient),
+delayed mail (delay_notice_recipient), and for mailer error reports
+(error_notice_recipient). See conf/main.cf.
+
+- Questionable feature: specify "best_mx_transport = local" if
+this machine is the best MX host for domains not in mydestinations.
+
+Incompatible changes with postfix-19990317:
+===========================================
 
 - You MUST install the new version of /etc/postfix/postfix-script.
 
@@ -7,8 +116,8 @@ Incompatible changes with postfix-alpha-19990317:
 MUST specify the R flag in order to generate a Return-Path:  message
 header (as needed by, for example, cyrus).
 
-Major changes since postfix-beta-19990122-pl01:
-===============================================
+Major changes with postfix-19990317:
+====================================
 
 A detailed record of changes is given in the HISTORY file.
 

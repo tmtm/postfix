@@ -2371,6 +2371,40 @@ Apologies for any names omitted.
 	Bugfix: \username was broken. Frank Dziuba was the first
 	to notice.
 
+19990321
+
+	Workaround: from now on, Postfix on Solaris uses stream
+	pipes instead of UNIX-domain sockets. Despite workarounds,
+	the latter were causing more trouble than anything else on
+	all systems combined.
+
+19990322
+
+	Portability: the makedefs would mis-identify IRIX 6.5.x as
+	IRIX 5.x. Fix by Brian Truelsen of Maersk Mc-Kinney Moller
+	Institute for Production Technology, Denmark.
+
+	Feature: reject_unknown_recipient_domain restriction for
+	recipient addresses. For the sake of symmetry, we now also
+	have reject_unknown_sender_domain. This means the old
+	reject_unknown_address restriction is being phased out.
+	Suggested by Rask Ingemann Lambertsen, Denmark Technical
+	University.
+
+	Feature: unknown sender/recipient domain restrictions now
+	distinguish between soft errors (always: 450) and hard
+	errors (configurable with the unknown_address_reject_code
+	parameter, default: 450; use 550 at your own risk).
+
+	Feature: no HELO junk mail restrictions means that no syntax
+	check will be done on HELO/EHLO hostname arguments.
+
+	Bugfix: the initial Solaris workaround for UNIX-domain
+	sockets could cause the queue manager to block if Postfix
+	ran into a delivery agent process limit. After another code
+	rewrite that problem is eliminated.  Thanks to Chris
+	Cappuccio, Empire Net, for assistance with testing.
+
 19990323
 
 	Bugfix: too much forwarding when users list their own name
@@ -2379,22 +2413,103 @@ Apologies for any names omitted.
 	and would go through .forward again). Problem reported by
 	Roman Dolejsi, Prague University of Economics.
 
+19990324
+
+	Bugfix: missing map name in check_xxx_access restrictions
+	could cause a segmentation error. Lamont Jones, Hewlett-
+	Packard.
+
+	Feature: forward_path configuration parameter (default:
+	$home/.forward$recipient_delimiter$extension,$home/.forward).
+	Based on initial code by Philip A.  Prindeville, Mirapoint,
+	Inc., USA.  Files:  local/dotforward.c.
+
+19990325
+
+	Workaround: Solaris NIS alias maps need special entries
+	(YP_MASTER_NAME, YP_LAST_MODIFIED). What's worse, normal
+	keys/values include a null byte at the end, but the YP_XXX
+	ones don't. Problem reported by Walcir Fontanini, state
+	university of Campinas, Brazil.  File: postalias/postalias.c.
+
+	Compatibility: Solaris NIS apparently does include a null
+	byte at the end of keys and values. File: util/sys_defs.h.
+
+	Feature: library support for config parameters that are
+	not $name expanded at program start-up. This was needed
+	for forward_path, and will also be needed to make message
+	headers customizable.
+
+	Bugfix: pcre didn't handle \\ right. Lamont Jones, Hewlett-
+	Packard. File: util/dict_pcre.c.
+
 19990326
 
-	Compatibility: Postfix now puts to spaces after the sender
+	Compatibility: Postfix now puts two spaces after the sender
 	in a "From sender date..." header. Found by John A. Martin,
 	fixed by Lamont Jones, Hewlett-Packard.
 
 	Bugfix: when a recipient appeared multiple times in a local
 	alias or include expansion, the delivery status could be
-	left uninitialized, causing the mail to be deferred and
+	left uninitialized, causing the mail to be deferred and 
 	delivered again. File: local/recipient.c.
+
+19990327
+
+	Cleanup: the dictionary routines now take an extra flag
+	argument to control such things as warning about duplicates,
+	and appending null bytes to key/value. The latter was needed
+	for a clean implementation of NIS master alias maps support.
+
+	Feature: POSIX regular expressions by Lamont Jones. See
+	config/sample-regexp.c. Right now, enabled on *BSD and
+	LINUX only.
+
+19990328
+
+	Code cleanup: dictionaries now have flags that say whether
+	lookup keys are fixed strings or whether keys are subjected
+	to pattern matching. This is needed to avoid passing partial
+	addresses to regexp-based lookup tables (user, @domain,
+	user@, domain). Files: util/dict*.c.
+
+	Bugfix: fixed memory leaks and core dumps in the regexp
+	and pcre routines (neither handled an empty pattern file).
+
+19990329
+
+	Code cleanup: the dictionary I/O routines now do their own
+	locking depending on dictionary flag settings. This means
+	that the low-level dict_get() interface can now be used
+	for safe dictionary lookups. This is needed for 19990328's
+	partial lookup key support. Files: util/dict*.c. global/maps.c.
+
+	Feature: regular expression matches are no longer limited
+	to user@domain address forms in access/canonical/virtual
+	maps, but can also be used for domains in transport maps.
+	This needed the partial lookup key support to avoid passing
+	partial addresses to regexp-based lookup tables (user,
+	@domain, user@, domain). Files: global/maps.c
+	globl/mail_addr_find.c.
+
+	Feature: new dictionary types can be registered with
+	dict_open_register(). File: util/dict_open.c.
 
 19990330
 
 	Bug fix: match_list membership dictionary lookups were case
 	sensitive when they should not. Patch by Lutz Jaenicke,
 	BTU Cottbus, Germany.
+
+19990402
+
+	Feature: $domain macro support in forward_path.  Philip A.
+	Prindeville, Mirapoint, Inc., USA.  File:  local/dotforward.c.
+
+	Feature: if an address extension (+foo) is explicitly
+	matched by the .forward+foo file name, do not propagate
+	the extension to recipient addresses. This is more consistent
+	with the way aliases are expanded. File:  local/dotforward.c.
 
 19990404
 
@@ -2403,8 +2518,286 @@ Apologies for any names omitted.
 	the same SMTP session could fail due to errors with previous
 	deliveries. Found by Lamont Jones, Hewlett-Packard.
 
+19990405
+
+	Feature: MIME-encapsulated bounces. Philip A.  Prindeville,
+	Mirapoint, Inc., USA.  File:  bounce/bounce_notify_service.c
+
+	Cleanup: vstreams now properly look at the EOF flag before
+	attempting to read, eliminating the need for typing Ctrl-D
+	twice to test programs; the EOF flag is reset after each
+	unget or seek operation.  Files: util/vstream.c, util/vbuf.c.
+
+	Feature: in preparation for configurable message headers
+	the mac_parse() routine now balances the parentheses in
+	${name} or $(name). We need this in order to support
+	conditional expressions such as ${name?text} where `text'
+	contains other ${name} expressions.
+
+19990406
+
+	Cleanup: changed MIME header information to make bounces
+	more RFC 1892 compliant.
+
+19990407
+
+	Feature: "best_mx_transport = local" delivers mail locally
+	if the local machine is the best mail exchanger (by default,
+	mail is bounced with a "mail loops back to myself" error).
+
+	Config: in order to make feature tracking easier the source
+	code distribution now has a copy of the default settings in
+	conf/main.cf.default.
+
+	Feature: separate configurable postmaster addresses for
+	single bounces (bounce_notice_recipient), double bounces
+	(2bounce_notice_recipient), delayed mail (delay_notice_recipient),
+	and for other mailer errors (error_notice_recipient).  The
+	default for all is "postmaster".
+
+19990408
+
+	Workaround: on Solaris 2.x, the master appears to lose its
+	exclusive lock on the master.pid file, so keep grabbing
+	the lock each time the master wakes up from select().
+
+	Robustness: don't flush VSTREAM buffers after I/O error.
+	This prevents surprises when calling vstream_fclose() after
+	truncating a mailbox to its original size.
+
+	Portability: on LINUX systems, if <db_185.h> exists, don't
+	look for <db/db.h>.
+
+	Workaround: specify "sun_mailtool_compatibility = yes" to
+	avoid clashes with the mailtool application. This disables
+	kernel locks on mailbox files. Use only where needed.
+
+	Portability: renamed readline to readlline, to avoid clashes
+	with mysql.
+
 19990409
 
 	Bugfix: ignore temp queue files that aren't old enough.
 	Problem reported by Vivek Khera, Khera Communications, Inc.
 
+	Bugfix: fixed typo in dict_db.c that caused processes to
+	not release DB shared locks.
+
+	Feature: auto-detection of changes to DB or DBM lookup
+	tables.  This avoids the need to run "postfix reload" after
+	change to the smtp access table and other tables.
+
+	Feature: regular expression checks for message headers.
+	This requires support for POSIX or for PCRE regular
+	expressions.  Specify "header_checks = regexp:/file/name"
+	or "header_checks = pcre:/file/name", and specify
+	"/^header-name:  badstuff/ REJECT" in the pattern file
+	(patterns are case-insensitive by default).  Code by Lamont
+	Jones, Hewlett-Packard.  It is to be expected that full
+	content filtering will be delegated to an external command.
+
+19990410
+
+	Bugfix: auto-detection of changes to DB or DBM lookup
+	tables wan't done for TCP connections.
+
+19990410
+
+	Feature: $recipient expansion in forward_path.  Philip A.
+	Prindeville, Mirapoint, Inc., USA.  File: local/dotforward.c
+
+	Feature: the smtp client consistently treats a numerical
+	hostname as an address. File: smtp/smtp_addr.c.
+
+19990414
+
+	Compatibility: support comment lines starting with # in
+	$mydestination include files. This makes Postfix more
+	compatible with sendmail.cw files. File: util/match_list.c.
+
+	Feature: if your machines have short host names, specify
+	"mydomain = domain.name", and you no longer have to specify
+	"myhostname = host.domain.name". Files:  global/mail_params.c,
+	postconf/postconf.c.
+
+19990420
+
+	Cleanup: bounce mail when a mailbox goes over file quota,
+	instead of deferring delivery.  File:  local/mailbox.c.
+
+19990421
+
+	Feature: auto-detection of changes to DB or DBM lookup
+	tables now includes the case where a file is unlinked.
+	Philip A.  Prindeville, Mirapoint, Inc., USA.  File:
+	util/dict.c.
+
+19990422
+
+	Robustness: Lotus mail sends MAIL FROM: <@> instead of <>.
+	Problem reported by Erik Toubro Nielsen, IFAD, Denmark.
+	Files:  trivial-rewrite/rewrite.c (@ becomes empty address)
+	and global/rewrite_clnt.c (allow empty response).
+
+	Bugfix: showq could segfault when writing to a broken pipe.
+	Problem reported by Bryan Fullerton, Canadian Broadcasting
+	Corporation. Files: util/vbuf_print.c.
+
+	Cleanup: got rid of the "fatal: write error: Broken pipe"
+	message when mailq output is piped into a program that
+	terminates early.
+
+	Cleanup: bounce messages are multipart/mixed with the error
+	report as part of the first message segment, because users
+	had trouble extracting the delivery error report from the
+	attachment.
+
+19990423
+
+	Cleanup: the default junk mail reject code is now 554
+	(service unavailable) rather than 550 (user unknown).
+
+	Folded in the updated dict_ldap.c module by John Hensley,
+	Merit Network, USA.
+
+	Folded in the vstream_popen.c updates by Philip A.
+	Prindeville, Mirapoint, Inc., USA.  This copies a lot of
+	code from pipe_command(); the next step is to trim that
+	module.
+
+19990425
+
+	Workaround: renamed config.h to mail_conf.h etc. in order
+	to avoid name collisions with LINUX (yes, they have a system
+	include file calle config.h). For compatibility with people
+	who have written software for Postfix, there's a config.h
+	that aliases the old names to the new ones. That file will
+	go away eventually.
+
+19990426
+
+	Feature: error mailer, in order to easily bounce mail for
+	specific destinations. In the transport table, specify:
+	"host.domain    error:host.domain is unavailable". Too bad
+	that the transport table triggers on destination domain
+	only; it would be nice to bounce specific users as well.
+
+19990427
+
+	Cleanup: "disable_dns_lookups = yes" now should disable
+	all DNS lookups by the SMTP client.
+
+19990428
+
+	Bugfix: with DBM files, Postfix was watching the "dir" file
+	modification time for changes. It should be watching the
+	"pag" file instead.
+
+19990429
+
+	Cleanup: all callbacks in the master to server API now pass
+	on the service name and the application-specific argument
+	vector. Files: master/*server.c.
+
+19990504
+
+	Feature: conditional macro expansion. ${name?text} expands
+	to text when name is defined, otherwise the result is empty.
+	${name:text} expands to text when name is undefined,
+	otherwise the result is empty. File: util/mac_expand.c.
+
+	Feature: conditional macro expansion of the forward_path
+	configuration parameters of $user, $home, $shell, $recipient,
+	$extension, $domain, $mailbox and $recipient_delimiter.
+	Files:  local/dotforward.c, local/local_expand.c.
+
+19990506
+
+	Cleanup: eliminated misleading warnings about unknown HELO
+	etc. SMTPD restrictions when the HELO etc. information is
+	not available. File: smtpd/smtpd_check.c.
+
+19990507
+
+	Feature: all smtpd reject messages now contain the MAIL
+	FROM and RCPT TO addresses, if available.
+
+19990508
+
+	Feature: conditional macro expansion of the luser_relay
+	configuration parameter. It is no longer possible to specify
+	/file/name or "|command" destinations. File: local/unknown.c.
+
+	Cleanup: changed the mac_parse interface so that the
+	application callback routine can return status information.
+	Updated the dict_regexp and dict_pcre modules accordingly.
+
+	Cleanup: changed the mac_expand interface so that the caller
+	provides an attribute lookup routine, instead of having to
+	provide a copy of all attributes upfront. Files:
+	util/mac_expand.c, local/local_expand.c.
+
+	Feature: control over how address extensions are propagated
+	to other addresses. By default, propagation of unmatched
+	address extensions is now restricted to canonical and
+	virtual mappings. Specify "propagate_unmatched_extensions
+	= canonical, virtual, alias, forward, include" to restore
+	previous behavior.
+
+19990509
+
+	Feature: USER, EXTENSION, DOMAIN, RECIPIENT (entire address)
+	and MAILBOX (address localpart) environment variables are
+	exported to shell commands (including mailbox_command).
+
+	Feature: new command_expansion_filter parameter to control
+	what characters may appear in message attributes that are
+	exported via environment variables.
+
+	Cleanup: SMTPD reject messages are more informative, and
+	more complete sender/recipient information is logged for
+	the local sysadmin.
+
+19990510
+
+	Bugfix: missing MIME header in postmaster bounce notices.
+	Found by Samuel Tardieu, Ecole Nationale Superieure des
+	Telecommunications, France.
+
+	Feature: UCE restrictions are always delayed until RCPT
+	TO, VRFY or ETRN. To change back to the default specify
+	"smtpd_delay_reject = no" in /etc/postfix/main.cf.
+
+	Bugfix: missing duplicate filter call. This caused too many
+	deliveries when a user is listed multiple times in an alias.
+	Reported by Hideyuki Suzuki, School of Engineering, University
+	of Tokyo. Backed out on 19990512 because it caused problems.
+	Fixed 19990513 but needs further study.
+
+	Feature: it is now possible to move queue files back into
+	the maildrop queue, so that they can benefit from changes
+	in canonical and virtual mappings. In order to make this
+	possible, some restrictions on queue file contents were
+	relaxed. Files: pickup/pickup.c, cleanup/cleanup_extracted.c.
+
+	Feature: made a start with integrating Joerg Henne's
+	dictionary extensions to remove entries and to iterate over
+	entries. That code is almost four months old by now.
+
+19990511
+
+	Feature: added a "undeliverable postmaster notification
+	discarded" warning when mail is dropped on the floor.
+	Requested by Michael Hasenstein, SuSE, Germany.
+
+19990517
+
+	Bugfix: reject_non_fqdn_sender/recipient would pass
+	user@[ip_address] regardless of destination. Eric Cholet
+	had the honor of suffering from this one.
+
+1990601
+
+	Bugfix: emit a blank line before a MIME boundary; the line
+	is part of the boundary. File: bounce/bounce_notify_service.c.
+	Wolfgang Segmuller, IBM Research.
