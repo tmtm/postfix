@@ -161,6 +161,7 @@ static int sanitize(int status)
 
     case DB_KEYEMPTY:				/* get, others? */
 	status = EINVAL;
+	/* FALLTHROUGH */
     default:
 	errno = status;
 	return (-1);				/* fatal */
@@ -189,6 +190,14 @@ static const char *dict_db_lookup(DICT *dict, const char *name)
     dict_errno = 0;
     memset(&db_key, 0, sizeof(db_key));
     memset(&db_value, 0, sizeof(db_value));
+
+    /*
+     * Optionally fold the key.
+     */
+    if (dict->fold_buf) {
+	vstring_strcpy(dict->fold_buf, name);
+	name = lowercase(vstring_str(dict->fold_buf));
+    }
 
     /*
      * Acquire a shared lock.
@@ -253,6 +262,13 @@ static void dict_db_update(DICT *dict, const char *name, const char *value)
     if ((dict->flags & (DICT_FLAG_TRY1NULL | DICT_FLAG_TRY0NULL)) == 0)
 	msg_panic("dict_db_update: no DICT_FLAG_TRY1NULL | DICT_FLAG_TRY0NULL flag");
 
+    /*
+     * Optionally fold the key.
+     */
+    if (dict->fold_buf) {
+	vstring_strcpy(dict->fold_buf, name);
+	name = lowercase(vstring_str(dict->fold_buf));
+    }
     memset(&db_key, 0, sizeof(db_key));
     memset(&db_value, 0, sizeof(db_value));
     db_key.data = (void *) name;
@@ -330,6 +346,13 @@ static int dict_db_delete(DICT *dict, const char *name)
     if ((dict->flags & (DICT_FLAG_TRY1NULL | DICT_FLAG_TRY0NULL)) == 0)
 	msg_panic("dict_db_delete: no DICT_FLAG_TRY1NULL | DICT_FLAG_TRY0NULL flag");
 
+    /*
+     * Optionally fold the key.
+     */
+    if (dict->fold_buf) {
+	vstring_strcpy(dict->fold_buf, name);
+	name = lowercase(vstring_str(dict->fold_buf));
+    }
     memset(&db_key, 0, sizeof(db_key));
 
     /*
@@ -383,7 +406,7 @@ static int dict_db_delete(DICT *dict, const char *name)
 static int dict_db_sequence(DICT *dict, int function,
 			            const char **key, const char **value)
 {
-    char   *myname = "dict_db_sequence";
+    const char *myname = "dict_db_sequence";
     DICT_DB *dict_db = (DICT_DB *) dict;
     DB     *db = dict_db->db;
     DBT     db_key;
@@ -512,6 +535,8 @@ static void dict_db_close(DICT *dict)
 	vstring_free(dict_db->key_buf);
     if (dict_db->val_buf)
 	vstring_free(dict_db->val_buf);
+    if (dict->fold_buf)
+	vstring_free(dict->fold_buf);
     dict_free(dict);
 }
 
@@ -547,6 +572,15 @@ static DICT *dict_db_open(const char *class, const char *path, int open_flags,
 	      "compiled against %d.%d.%d, run-time linked against %d.%d.%d",
 		  DB_VERSION_MAJOR, DB_VERSION_MINOR, DB_VERSION_PATCH,
 		  major_version, minor_version, patch_version);
+    if (msg_verbose) {
+	msg_info("Compiled against Berkeley DB: %d.%d.%d\n",
+		 DB_VERSION_MAJOR, DB_VERSION_MINOR, DB_VERSION_PATCH);
+	msg_info("Run-time linked against Berkeley DB: %d.%d.%d\n",
+		 major_version, minor_version, patch_version);
+    }
+#else
+    if (msg_verbose)
+	msg_info("Compiled against Berkeley DB version 1");
 #endif
 
     db_path = concatenate(path, ".db", (char *) 0);
@@ -669,6 +703,8 @@ static DICT *dict_db_open(const char *class, const char *path, int open_flags,
     dict_db->dict.flags = dict_flags | DICT_FLAG_FIXED;
     if ((dict_flags & (DICT_FLAG_TRY1NULL | DICT_FLAG_TRY0NULL)) == 0)
 	dict_db->dict.flags |= (DICT_FLAG_TRY1NULL | DICT_FLAG_TRY0NULL);
+    if (dict_flags & DICT_FLAG_FOLD_FIX)
+	dict_db->dict.fold_buf = vstring_alloc(10);
     dict_db->db = db;
 #if DB_VERSION_MAJOR > 1
     dict_db->cursor = 0;

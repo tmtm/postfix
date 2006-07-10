@@ -33,6 +33,7 @@
 #include <sys_defs.h>			/* includes <sys/types.h> */
 #include <sys/socket.h>
 #include <sys/uio.h>
+#include <string.h>
 
 /* Utility library. */
 
@@ -43,7 +44,7 @@
 
 int     unix_recv_fd(int fd)
 {
-    char   *myname = "unix_recv_fd";
+    const char *myname = "unix_recv_fd";
 
     /*
      * This code does not work with version <2.2 Linux kernels, and it does
@@ -71,6 +72,7 @@ int     unix_recv_fd(int fd)
     }       control_un;
     struct cmsghdr *cmptr;
 
+    memset((char *) &msg, 0, sizeof(msg));	/* Fix 200512 */
     msg.msg_control = control_un.control;
     msg.msg_controllen = CMSG_LEN(sizeof(newfd));	/* Fix 200506 */
 #else
