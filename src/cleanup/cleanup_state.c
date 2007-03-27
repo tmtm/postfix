@@ -88,7 +88,9 @@ CLEANUP_STATE *cleanup_state_alloc(VSTREAM *src)
     state->dups = been_here_init(var_dup_filter_limit, BH_FLAG_FOLD);
     state->action = cleanup_envelope;
     state->data_offset = -1;
+    state->body_offset = -1;
     state->xtra_offset = -1;
+    state->cont_length = 0;
     state->append_rcpt_pt_offset = -1;
     state->append_rcpt_pt_target = -1;
     state->append_hdr_pt_offset = -1;
@@ -115,6 +117,7 @@ CLEANUP_STATE *cleanup_state_alloc(VSTREAM *src)
     state->client_port = 0;
     state->milter_ext_from = 0;
     state->milter_ext_rcpt = 0;
+    state->free_regions = state->body_regions = state->curr_body_region = 0;
     return (state);
 }
 
@@ -165,5 +168,6 @@ void    cleanup_state_free(CLEANUP_STATE *state)
 	vstring_free(state->milter_ext_from);
     if (state->milter_ext_rcpt)
 	vstring_free(state->milter_ext_rcpt);
+    cleanup_region_done(state);
     myfree((char *) state);
 }
