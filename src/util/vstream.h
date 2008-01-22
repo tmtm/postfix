@@ -50,6 +50,8 @@ typedef struct VSTREAM {
     int     timeout;			/* read/write timout */
     jmp_buf *jbuf;			/* exception handling */
     struct timeval iotime;		/* time of last fill/flush */
+    /* At bottom for Postfix 2.4 binary compatibility. */
+    ssize_t req_bufsize;		/* write buffer size */
 } VSTREAM;
 
 extern VSTREAM vstream_fstd[];		/* pre-defined streams */
@@ -123,6 +125,7 @@ extern void vstream_control(VSTREAM *, int,...);
 #ifdef F_DUPFD
 #define VSTREAM_CTL_DUPFD	11
 #endif
+#define VSTREAM_CTL_BUFSIZE	12
 
 extern VSTREAM *PRINTFLIKE(1, 2) vstream_printf(const char *,...);
 extern VSTREAM *PRINTFLIKE(2, 3) vstream_fprintf(VSTREAM *, const char *,...);
