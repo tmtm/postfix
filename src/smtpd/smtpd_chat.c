@@ -200,9 +200,10 @@ void    smtpd_chat_reply(SMTPD_STATE *state, const char *format,...)
 	vstream_longjmp(state->client, SMTP_ERR_EOF);
 
     /*
-     * Orderly disconnect in case of 421 reply.
+     * Orderly disconnect in case of 421 or 521 reply.
      */
-    if (strncmp(STR(state->buffer), "421", 3) == 0)
+    if (strncmp(STR(state->buffer), "421", 3) == 0
+	|| strncmp(STR(state->buffer), "521", 3) == 0)
 	state->flags |= SMTPD_FLAG_HANGUP;
 }
 
@@ -245,7 +246,7 @@ void    smtpd_chat_notify(SMTPD_STATE *state)
 
     notice = post_mail_fopen_nowait(mail_addr_double_bounce(),
 				    var_error_rcpt,
-				    INT_FILT_NOTIFY,
+				    INT_FILT_MASK_NOTIFY,
 				    NULL_TRACE_FLAGS, NO_QUEUE_ID);
     if (notice == 0) {
 	msg_warn("postmaster notify: %m");
@@ -266,5 +267,7 @@ void    smtpd_chat_notify(SMTPD_STATE *state)
     post_mail_fputs(notice, "");
     if (state->reason)
 	post_mail_fprintf(notice, "Session aborted, reason: %s", state->reason);
+    post_mail_fputs(notice, "");
+    post_mail_fprintf(notice, "For other details, see the local mail logfile");
     (void) post_mail_fclose(notice);
 }

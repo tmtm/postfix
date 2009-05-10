@@ -300,10 +300,6 @@
 /*	~\fIname\fR/.\fBforward\fR+\fIfoo\fR or in ~\fIname\fR/.\fBforward\fR,
 /*	to the mailbox owned by the user \fIname\fR, or it is sent back as
 /*	undeliverable.
-/*
-/*	In all cases the \fBlocal\fR(8) daemon prepends an optional
-/*	`\fBDelivered-To:\fR header line with the final recipient
-/*	address.
 /* DELIVERY RIGHTS
 /* .ad
 /* .fi
@@ -537,7 +533,7 @@
 /*	before mail delivery is attempted.
 /* .IP "\fBsyslog_facility (mail)\fR"
 /*	The syslog facility of Postfix logging.
-/* .IP "\fBsyslog_name (postfix)\fR"
+/* .IP "\fBsyslog_name (see 'postconf -d' output)\fR"
 /*	The mail system name that is prepended to the process name in syslog
 /*	records, so that "smtpd" becomes, for example, "postfix/smtpd".
 /* FILES
