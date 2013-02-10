@@ -153,7 +153,7 @@ PC_PARAM_NODE *make_param_node(int flags, char *param_data,
     return (node);
 }
 
-/* convert_param_node - get actual or default parameter value */
+/* convert_param_node - get default parameter value */
 
 const char *convert_param_node(int mode, const char *name, PC_PARAM_NODE *node)
 {

@@ -1957,8 +1957,13 @@ extern char *var_helo_checks;
 #define DEF_MAIL_CHECKS		""
 extern char *var_mail_checks;
 
+#define VAR_RELAY_CHECKS	"smtpd_relay_restrictions"
+#define DEF_RELAY_CHECKS	PERMIT_MYNETWORKS ", " \
+				REJECT_UNAUTH_DEST
+extern char *var_relay_checks;
+
 #define VAR_RCPT_CHECKS		"smtpd_recipient_restrictions"
-#define DEF_RCPT_CHECKS		PERMIT_MYNETWORKS ", " REJECT_UNAUTH_DEST
+#define DEF_RCPT_CHECKS		""
 extern char *var_rcpt_checks;
 
 #define VAR_ETRN_CHECKS		"smtpd_etrn_restrictions"
@@ -2113,6 +2118,7 @@ extern int var_mul_rcpt_code;
 
 #define PERMIT_AUTH_DEST	"permit_auth_destination"
 #define REJECT_UNAUTH_DEST	"reject_unauth_destination"
+#define DEFER_UNAUTH_DEST	"defer_unauth_destination"
 #define CHECK_RELAY_DOMAINS	"check_relay_domains"
 #define PERMIT_TLS_CLIENTCERTS	"permit_tls_clientcerts"
 #define PERMIT_TLS_ALL_CLIENTCERTS	"permit_tls_all_clientcerts"
@@ -2232,6 +2238,7 @@ extern int var_local_rcpt_code;
 				" $" VAR_RELOCATED_MAPS \
 				" $" VAR_TRANSPORT_MAPS \
 				" $" VAR_MYNETWORKS \
+				" $" VAR_SMTPD_SND_AUTH_MAPS \
 				" $" VAR_SEND_BCC_MAPS \
 				" $" VAR_RCPT_BCC_MAPS \
 				" $" VAR_SMTP_GENERIC_MAPS \
@@ -3381,14 +3388,6 @@ extern char *var_psc_barlf_action;
 #define DEF_PSC_BARLF_TTL	"30d"
 extern int var_psc_barlf_ttl;
 
-#define VAR_PSC_WLIST_NETS	"postscreen_whitelist_networks"
-#define DEF_PSC_WLIST_NETS	"$" VAR_MYNETWORKS
-extern char *var_psc_wlist_nets;
-
-#define VAR_PSC_BLIST_NETS	"postscreen_blacklist_networks"
-#define DEF_PSC_BLIST_NETS	""
-extern char *var_psc_blist_nets;
-
 #define VAR_PSC_BLIST_ACTION	"postscreen_blacklist_action"
 #define DEF_PSC_BLIST_ACTION	"ignore"
 extern char *var_psc_blist_nets;
@@ -3460,6 +3459,14 @@ extern char *var_psc_acl;
 #define VAR_PSC_WLIST_IF	"postscreen_whitelist_interfaces"
 #define DEF_PSC_WLIST_IF	"static:all"
 extern char *var_psc_wlist_if;
+
+#define VAR_PSC_UPROXY_PROTO	"postscreen_upstream_proxy_protocol"
+#define DEF_PSC_UPROXY_PROTO	""
+extern char *var_psc_uproxy_proto;
+
+#define VAR_PSC_UPROXY_TMOUT	"postscreen_upstream_proxy_timeout"
+#define DEF_PSC_UPROXY_TMOUT	"5s"
+extern int var_psc_uproxy_tmout;
 
 #define VAR_DNSBLOG_SERVICE	"dnsblog_service_name"
 #define DEF_DNSBLOG_SERVICE	MAIL_SERVICE_DNSBLOG
@@ -3615,6 +3622,24 @@ extern bool var_smtpd_rec_deadline;
 #define VAR_LMTP_REC_DEADLINE	"lmtp_per_record_deadline"
 #define DEF_LMTP_REC_DEADLINE	0
 extern bool var_smtp_rec_deadline;
+
+ /*
+  * Permit logging.
+  */
+#define VAR_SMTPD_ACL_PERM_LOG	"smtpd_log_access_permit_actions"
+#define DEF_SMTPD_ACL_PERM_LOG	""
+extern char *var_smtpd_acl_perm_log;
+
+ /*
+  * Before-smtpd proxy support.
+  */
+#define VAR_SMTPD_UPROXY_PROTO	"smtpd_upstream_proxy_protocol"
+#define DEF_SMTPD_UPROXY_PROTO	""
+extern char *var_smtpd_uproxy_proto;
+
+#define VAR_SMTPD_UPROXY_TMOUT	"smtpd_upstream_proxy_timeout"
+#define DEF_SMTPD_UPROXY_TMOUT	"5s"
+extern int var_smtpd_uproxy_tmout;
 
  /*
   * Postfix sendmail command compatibility features.
