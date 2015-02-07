@@ -23,6 +23,7 @@
 /*	bool	var_tls_bc_pkey_fprint;
 /*	bool	var_tls_multi_wildcard;
 /*	char	*var_tls_mgr_service;
+/*	char	*var_tls_tkt_cipher;
 /*
 /*	TLS_APPL_STATE *tls_alloc_app_context(ssl_ctx, log_mask)
 /*	SSL_CTX	*ssl_ctx;
@@ -231,6 +232,7 @@ bool    var_tls_bc_pkey_fprint;
 bool    var_tls_dane_taa_dgst;
 bool    var_tls_multi_wildcard;
 char   *var_tls_mgr_service;
+char   *var_tls_tkt_cipher;
 
 #ifdef VAR_TLS_PREEMPT_CLIST
 bool    var_tls_preempt_clist;
@@ -250,12 +252,9 @@ static const NAME_CODE protocol_table[] = {
     SSL_TXT_SSLV2, TLS_PROTOCOL_SSLv2,
     SSL_TXT_SSLV3, TLS_PROTOCOL_SSLv3,
     SSL_TXT_TLSV1, TLS_PROTOCOL_TLSv1,
-#ifdef SSL_TXT_TLSV1_1
     SSL_TXT_TLSV1_1, TLS_PROTOCOL_TLSv1_1,
-#endif
-#ifdef SSL_TXT_TLSV1_2
     SSL_TXT_TLSV1_2, TLS_PROTOCOL_TLSv1_2,
-#endif
+    SSL_TXT_TLSV1_3, TLS_PROTOCOL_TLSv1_3,
     0, TLS_PROTOCOL_INVALID,
 };
 
@@ -578,7 +577,7 @@ int     tls_protocol_mask(const char *plist)
     } while (0)
 
     save = cp = mystrdup(plist);
-    while ((tok = mystrtok(&cp, "\t\n\r ,:")) != 0) {
+    while ((tok = mystrtok(&cp, CHARS_COMMA_SP ":")) != 0) {
 	if (*tok == '!')
 	    exclude |= code =
 		name_code(protocol_table, NAME_CODE_FLAG_NONE, ++tok);
@@ -617,6 +616,7 @@ void    tls_param_init(void)
 	VAR_TLS_DANE_AGILITY, DEF_TLS_DANE_AGILITY, &var_tls_dane_agility, 1, 0,
 	VAR_TLS_DANE_DIGESTS, DEF_TLS_DANE_DIGESTS, &var_tls_dane_digests, 1, 0,
 	VAR_TLS_MGR_SERVICE, DEF_TLS_MGR_SERVICE, &var_tls_mgr_service, 1, 0,
+	VAR_TLS_TKT_CIPHER, DEF_TLS_TKT_CIPHER, &var_tls_tkt_cipher, 0, 0,
 	0,
     };
     static const CONFIG_INT_TABLE int_table[] = {
@@ -715,7 +715,7 @@ const char *tls_set_ciphers(TLS_APPL_STATE *app_ctx, const char *context,
     /*
      * Apply locally-specified exclusions.
      */
-#define CIPHER_SEP "\t\n\r ,:"
+#define CIPHER_SEP CHARS_COMMA_SP ":"
     if (exclusions != 0) {
 	cp = save = mystrdup(exclusions);
 	while ((tok = mystrtok(&cp, CIPHER_SEP)) != 0) {
@@ -752,7 +752,7 @@ TLS_APPL_STATE *tls_alloc_app_context(SSL_CTX *ssl_ctx, int log_mask)
     app_ctx = (TLS_APPL_STATE *) mymalloc(sizeof(*app_ctx));
 
     /* See portability note below with other memset() call. */
-    memset((char *) app_ctx, 0, sizeof(*app_ctx));
+    memset((void *) app_ctx, 0, sizeof(*app_ctx));
     app_ctx->ssl_ctx = ssl_ctx;
     app_ctx->log_mask = log_mask;
 
@@ -781,7 +781,7 @@ void    tls_free_app_context(TLS_APPL_STATE *app_ctx)
 	myfree(app_ctx->cipher_list);
     if (app_ctx->why)
 	vstring_free(app_ctx->why);
-    myfree((char *) app_ctx);
+    myfree((void *) app_ctx);
 }
 
 /* tls_alloc_sess_context - allocate TLS session context */
@@ -800,7 +800,7 @@ TLS_SESS_STATE *tls_alloc_sess_context(int log_mask, const char *namaddr)
      * However, it's OK to use memset() to zero integer values.
      */
     TLScontext = (TLS_SESS_STATE *) mymalloc(sizeof(TLS_SESS_STATE));
-    memset((char *) TLScontext, 0, sizeof(*TLScontext));
+    memset((void *) TLScontext, 0, sizeof(*TLScontext));
     TLScontext->con = 0;
     TLScontext->cache_type = 0;
     TLScontext->serverid = 0;
@@ -857,7 +857,7 @@ void    tls_free_context(TLS_SESS_STATE *TLScontext)
     if (TLScontext->trusted)
 	sk_X509_pop_free(TLScontext->trusted, X509_free);
 
-    myfree((char *) TLScontext);
+    myfree((void *) TLScontext);
 }
 
 /* tls_version_split - Split OpenSSL version number into major, minor, ... */

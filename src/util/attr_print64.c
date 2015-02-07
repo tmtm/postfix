@@ -41,25 +41,24 @@
 /*	By default, attr_print64() automatically appends an attribute list
 /*	terminator when it has sent the last requested attribute.
 /* .RE
-/* .IP type
-/*	The type determines the arguments that follow.
+/* .IP List of attributes followed by terminator:
 /* .RS
-/* .IP "ATTR_TYPE_INT (char *, int)"
-/*	This argument is followed by an attribute name and an integer.
-/* .IP "ATTR_TYPE_LONG (char *, long)"
-/*	This argument is followed by an attribute name and a long integer.
-/* .IP "ATTR_TYPE_STR (char *, char *)"
-/*	This argument is followed by an attribute name and a null-terminated
+/* .IP "SEND_ATTR_INT(const char *name, int value)"
+/*	The arguments are an attribute name and an integer.
+/* .IP "SEND_ATTR_LONG(const char *name, long value)"
+/*	The arguments are an attribute name and a long integer.
+/* .IP "SEND_ATTR_STR(const char *name, const char *value)"
+/*	The arguments are an attribute name and a null-terminated
 /*	string.
-/* .IP "ATTR_TYPE_DATA (char *, ssize_t, char *)"
-/*	This argument is followed by an attribute name, an attribute value
+/* .IP "SEND_ATTR_DATA(const char *name, ssize_t len, const void *value)"
+/*	The arguments are an attribute name, an attribute value
 /*	length, and an attribute value pointer.
-/* .IP "ATTR_TYPE_FUNC (ATTR_PRINT_SLAVE_FN, void *)"
-/*	This argument is followed by a function pointer and generic data
+/* .IP "SEND_ATTR_FUNC(ATTR_PRINT_SLAVE_FN, const void *value)"
+/*	The arguments are a function pointer and generic data
 /*	pointer. The caller-specified function returns whatever the
 /*	specified attribute printing function returns.
-/* .IP "ATTR_TYPE_HASH (HTABLE *)"
-/* .IP "ATTR_TYPE_NAMEVAL (NVTABLE *)"
+/* .IP "SEND_ATTR_HASH(const HTABLE *table)"
+/* .IP "SEND_ATTR_NAMEVAL(const NVTABLE *table)"
 /*	The content of the table is sent as a sequence of string-valued
 /*	attributes with names equal to the table lookup keys.
 /* .IP ATTR_TYPE_END
@@ -220,9 +219,9 @@ int     attr_vprint64(VSTREAM *fp, int flags, va_list ap)
 		VSTREAM_PUTC('\n', fp);
 		if (msg_verbose)
 		    msg_info("send attr name %s value %s",
-			     ht[0]->key, ht[0]->value);
+			     ht[0]->key, (char *) ht[0]->value);
 	    }
-	    myfree((char *) ht_info_list);
+	    myfree((void *) ht_info_list);
 	    break;
 	default:
 	    msg_panic("%s: unknown type code: %d", myname, attr_type);
@@ -261,17 +260,17 @@ int     main(int unused_argc, char **argv)
     htable_enter(table, "foo-name", mystrdup("foo-value"));
     htable_enter(table, "bar-name", mystrdup("bar-value"));
     attr_print64(VSTREAM_OUT, ATTR_FLAG_NONE,
-		 ATTR_TYPE_INT, ATTR_NAME_INT, 4711,
-		 ATTR_TYPE_LONG, ATTR_NAME_LONG, 1234L,
-		 ATTR_TYPE_STR, ATTR_NAME_STR, "whoopee",
-	       ATTR_TYPE_DATA, ATTR_NAME_DATA, strlen("whoopee"), "whoopee",
-		 ATTR_TYPE_HASH, table,
+		 SEND_ATTR_INT(ATTR_NAME_INT, 4711),
+		 SEND_ATTR_LONG(ATTR_NAME_LONG, 1234L),
+		 SEND_ATTR_STR(ATTR_NAME_STR, "whoopee"),
+	       SEND_ATTR_DATA(ATTR_NAME_DATA, strlen("whoopee"), "whoopee"),
+		 SEND_ATTR_HASH(table),
 		 ATTR_TYPE_END);
     attr_print64(VSTREAM_OUT, ATTR_FLAG_NONE,
-		 ATTR_TYPE_INT, ATTR_NAME_INT, 4711,
-		 ATTR_TYPE_LONG, ATTR_NAME_LONG, 1234L,
-		 ATTR_TYPE_STR, ATTR_NAME_STR, "whoopee",
-	       ATTR_TYPE_DATA, ATTR_NAME_DATA, strlen("whoopee"), "whoopee",
+		 SEND_ATTR_INT(ATTR_NAME_INT, 4711),
+		 SEND_ATTR_LONG(ATTR_NAME_LONG, 1234L),
+		 SEND_ATTR_STR(ATTR_NAME_STR, "whoopee"),
+	       SEND_ATTR_DATA(ATTR_NAME_DATA, strlen("whoopee"), "whoopee"),
 		 ATTR_TYPE_END);
     if (vstream_fflush(VSTREAM_OUT) != 0)
 	msg_fatal("write error: %m");

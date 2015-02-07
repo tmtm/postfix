@@ -256,7 +256,8 @@ void    db_common_parse_domain(CFG_PARSER *parser, void *ctxPtr)
 
     domainlist = cfg_get_str(parser, "domain", "", 0, 0);
     if (*domainlist) {
-	ctx->domain = string_list_init(MATCH_FLAG_RETURN, domainlist);
+	ctx->domain = string_list_init(parser->name, MATCH_FLAG_RETURN,
+				       domainlist);
 	if (ctx->domain == 0)
 
 	    /*
@@ -290,7 +291,7 @@ void    db_common_free_ctx(void *ctxPtr)
 
     if (ctx->domain)
 	string_list_free(ctx->domain);
-    myfree((char *) ctxPtr);
+    myfree((void *) ctxPtr);
 }
 
 /* db_common_expand - expand query and result templates */

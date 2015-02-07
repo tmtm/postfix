@@ -3,11 +3,11 @@
 
 /*++
 /* NAME
-/*      tls 3h
+/*	tls 3h
 /* SUMMARY
-/*      libtls internal interfaces
+/*	libtls internal interfaces
 /* SYNOPSIS
-/*      #include <tls.h>
+/*	#include <tls.h>
 /* DESCRIPTION
 /* .nf
 
@@ -53,6 +53,8 @@
 #define TLS_MUST_MATCH(l)	((l) > TLS_LEV_ENCRYPT)
 #define TLS_MUST_TRUST(l)	((l) >= TLS_LEV_DANE)
 #define TLS_MUST_PKIX(l)	((l) >= TLS_LEV_VERIFY)
+#define TLS_OPPORTUNISTIC(l)	((l) == TLS_LEV_MAY || (l) == TLS_LEV_DANE)
+#define TLS_DANE_BASED(l)	((l) == TLS_LEV_DANE || (l) == TLS_LEV_DANE_ONLY)
 
 extern const NAME_CODE tls_level_table[];
 
@@ -104,6 +106,10 @@ extern const NAME_CODE tls_level_table[];
 #include <vstream.h>
 #include <name_mask.h>
 #include <name_code.h>
+
+ /*
+  * TLS library.
+  */
 #include <dns.h>
 
  /*
@@ -266,7 +272,6 @@ extern int tls_log_mask(const char *, const char *);
 #define TLS_LOG_DEBUG			(1<<7)
 #define TLS_LOG_TLSPKTS			(1<<8)
 #define TLS_LOG_ALLPKTS			(1<<9)
-#define TLS_LOG_SESSTKT			(1<<10)
 
  /*
   * Client and Server application contexts
@@ -297,23 +302,61 @@ extern void tls_param_init(void);
   * Protocol selection.
   */
 #define TLS_PROTOCOL_INVALID	(~0)	/* All protocol bits masked */
+
+#ifdef SSL_TXT_SSLV2
 #define TLS_PROTOCOL_SSLv2	(1<<0)	/* SSLv2 */
+#else
+#define SSL_TXT_SSLV2		"SSLv2"
+#define TLS_PROTOCOL_SSLv2	0	/* Unknown */
+#undef  SSL_OP_NO_SSLv2
+#define SSL_OP_NO_SSLv2		0L	/* Noop */
+#endif
+
+#ifdef SSL_TXT_SSLV3
 #define TLS_PROTOCOL_SSLv3	(1<<1)	/* SSLv3 */
+#else
+#define SSL_TXT_SSLV3		"SSLv3"
+#define TLS_PROTOCOL_SSLv3	0	/* Unknown */
+#undef  SSL_OP_NO_SSLv3
+#define SSL_OP_NO_SSLv3		0L	/* Noop */
+#endif
+
+#ifdef SSL_TXT_TLSV1
 #define TLS_PROTOCOL_TLSv1	(1<<2)	/* TLSv1 */
+#else
+#define SSL_TXT_TLSV1		"TLSv1"
+#define TLS_PROTOCOL_TLSv1	0	/* Unknown */
+#undef  SSL_OP_NO_TLSv1
+#define SSL_OP_NO_TLSv1		0L	/* Noop */
+#endif
+
 #ifdef SSL_TXT_TLSV1_1
 #define TLS_PROTOCOL_TLSv1_1	(1<<3)	/* TLSv1_1 */
 #else
+#define SSL_TXT_TLSV1_1		"TLSv1.1"
 #define TLS_PROTOCOL_TLSv1_1	0	/* Unknown */
 #undef  SSL_OP_NO_TLSv1_1
 #define SSL_OP_NO_TLSv1_1	0L	/* Noop */
 #endif
+
 #ifdef SSL_TXT_TLSV1_2
 #define TLS_PROTOCOL_TLSv1_2	(1<<4)	/* TLSv1_2 */
 #else
+#define SSL_TXT_TLSV1_2		"TLSv1.2"
 #define TLS_PROTOCOL_TLSv1_2	0	/* Unknown */
 #undef  SSL_OP_NO_TLSv1_2
 #define SSL_OP_NO_TLSv1_2	0L	/* Noop */
 #endif
+
+#ifdef SSL_TXT_TLSV1_3
+#define TLS_PROTOCOL_TLSv1_3	(1<<5)	/* TLSv1_3 */
+#else
+#define SSL_TXT_TLSV1_3		"TLSv1.3"
+#define TLS_PROTOCOL_TLSv1_3	0	/* Unknown */
+#undef  SSL_OP_NO_TLSv1_3
+#define SSL_OP_NO_TLSv1_3	0L	/* Noop */
+#endif
+
 #define TLS_KNOWN_PROTOCOLS \
 	( TLS_PROTOCOL_SSLv2 | TLS_PROTOCOL_SSLv3 | TLS_PROTOCOL_TLSv1 \
 	   | TLS_PROTOCOL_TLSv1_1 | TLS_PROTOCOL_TLSv1_2 )
@@ -322,7 +365,8 @@ extern void tls_param_init(void);
 	     | (((m) & TLS_PROTOCOL_SSLv3) ? SSL_OP_NO_SSLv3 : 0L) \
 	     | (((m) & TLS_PROTOCOL_TLSv1) ? SSL_OP_NO_TLSv1 : 0L) \
 	     | (((m) & TLS_PROTOCOL_TLSv1_1) ? SSL_OP_NO_TLSv1_1 : 0L) \
-	     | (((m) & TLS_PROTOCOL_TLSv1_2) ? SSL_OP_NO_TLSv1_2 : 0L))
+	     | (((m) & TLS_PROTOCOL_TLSv1_2) ? SSL_OP_NO_TLSv1_2 : 0L) \
+	     | (((m) & TLS_PROTOCOL_TLSv1_3) ? SSL_OP_NO_TLSv1_3 : 0L))
 
 /*
  * SSL options that are managed via dedicated Postfix features, rather than
@@ -591,12 +635,12 @@ extern int tls_ext_seed(int);
 /* LICENSE
 /* .ad
 /* .fi
-/*      The Secure Mailer license must be distributed with this software.
+/*	The Secure Mailer license must be distributed with this software.
 /* AUTHOR(S)
-/*      Wietse Venema
-/*      IBM T.J. Watson Research
-/*      P.O. Box 704
-/*      Yorktown Heights, NY 10598, USA
+/*	Wietse Venema
+/*	IBM T.J. Watson Research
+/*	P.O. Box 704
+/*	Yorktown Heights, NY 10598, USA
 /*
 /*	Victor Duchovni
 /*	Morgan Stanley

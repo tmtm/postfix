@@ -100,8 +100,8 @@ POSTSCREEN(8)                                                    POSTSCREEN(8)
 
        NOTE:  Some  <a href="postscreen.8.html"><b>postscreen</b>(8)</a> parameters implement stress-dependent behav-
        ior.  This is supported  only  when  the  default  parameter  value  is
-       stress-dependent  (that is, it looks like ${stress?X}${stress:Y}, or it
-       is the $<i>name</i> of an smtpd parameter with  a  stress-dependent  default).
+       stress-dependent  (that  is,  it looks like ${stress?{X}:{Y}}, or it is
+       the $<i>name</i> of an  smtpd  parameter  with  a  stress-dependent  default).
        Other  parameters  always  evaluate as if the <b>stress</b> parameter value is
        the empty string.
 
@@ -138,8 +138,8 @@ POSTSCREEN(8)                                                    POSTSCREEN(8)
        Available in Postfix version 2.10 and later:
 
        <b><a href="postconf.5.html#postscreen_upstream_proxy_protocol">postscreen_upstream_proxy_protocol</a> (empty)</b>
-              The name of the proxy  protocol  used  by  an  optional  before-
-              postscreen proxy agent.
+              The  name  of  the  proxy   protocol   used   by   an   optional
+              before-postscreen proxy agent.
 
        <b><a href="postconf.5.html#postscreen_upstream_proxy_timeout">postscreen_upstream_proxy_timeout</a> (5s)</b>
               The  time  limit  for  the  proxy  protocol  specified  with the
@@ -167,9 +167,9 @@ POSTSCREEN(8)                                                    POSTSCREEN(8)
        introduce a common point of failure.
 
        <b><a href="postconf.5.html#postscreen_whitelist_interfaces">postscreen_whitelist_interfaces</a> (<a href="DATABASE_README.html#types">static</a>:all)</b>
-              A  list  of local <a href="postscreen.8.html"><b>postscreen</b>(8)</a> server IP addresses where a non-
-              whitelisted remote SMTP client can obtain <a href="postscreen.8.html"><b>postscreen</b>(8)</a>'s tempo-
-              rary whitelist status.
+              A  list  of  local  <a href="postscreen.8.html"><b>postscreen</b>(8)</a>  server  IP  addresses where a
+              non-whitelisted remote SMTP client  can  obtain  <a href="postscreen.8.html"><b>postscreen</b>(8)</a>'s
+              temporary whitelist status.
 
 <b>BEFORE 220 GREETING TESTS</b>
        These  tests  are  executed  before the remote SMTP client receives the
@@ -211,7 +211,7 @@ POSTSCREEN(8)                                                    POSTSCREEN(8)
               text..." response, in an attempt to confuse bad SMTP clients  so
               that they speak before their turn (pre-greet).
 
-       <b><a href="postconf.5.html#postscreen_greet_wait">postscreen_greet_wait</a> (${stress?2}${stress:6}s)</b>
+       <b><a href="postconf.5.html#postscreen_greet_wait">postscreen_greet_wait</a> (normal: 6s, overload: 2s)</b>
               The  amount  of  time  that  <a href="postscreen.8.html"><b>postscreen</b>(8)</a> will wait for an SMTP
               client to send a command before its turn, and for DNS  blocklist
               lookup results to arrive (default: up to 2 seconds under stress,
@@ -227,6 +227,11 @@ POSTSCREEN(8)                                                    POSTSCREEN(8)
               Allow  a  remote  SMTP  client  to  skip "before" and "after 220
               greeting" protocol tests, based on its combined DNSBL  score  as
               defined with the <a href="postconf.5.html#postscreen_dnsbl_sites">postscreen_dnsbl_sites</a> parameter.
+
+       Available in Postfix version 2.11 and later:
+
+       <b><a href="postconf.5.html#postscreen_dnsbl_timeout">postscreen_dnsbl_timeout</a> (10s)</b>
+              The time limit for DNSBL or DNSWL lookups.
 
 <b>AFTER 220 GREETING TESTS</b>
        These tests are executed after the remote SMTP client receives the "220
@@ -317,7 +322,7 @@ POSTSCREEN(8)                                                    POSTSCREEN(8)
               The  limit  on the total number of commands per SMTP session for
               <a href="postscreen.8.html"><b>postscreen</b>(8)</a>'s built-in SMTP protocol engine.
 
-       <b><a href="postconf.5.html#postscreen_command_time_limit">postscreen_command_time_limit</a> (${stress?10}${stress:300}s)</b>
+       <b><a href="postconf.5.html#postscreen_command_time_limit">postscreen_command_time_limit</a> (normal: 300s, overload: 10s)</b>
               The  time  limit  to  read   an   entire   command   line   with
               <a href="postscreen.8.html"><b>postscreen</b>(8)</a>'s built-in SMTP protocol engine.
 

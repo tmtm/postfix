@@ -164,18 +164,20 @@ char   *var_cleanup_milters;		/* non-SMTP mail */
 char   *var_milt_head_checks;		/* post-Milter header checks */
 int     var_auto_8bit_enc_hdr;		/* auto-detect 8bit encoding header */
 int     var_always_add_hdrs;		/* always add missing headers */
+int     var_virt_addrlen_limit;		/* stop exponential growth */
 
-CONFIG_INT_TABLE cleanup_int_table[] = {
+const CONFIG_INT_TABLE cleanup_int_table[] = {
     VAR_HOPCOUNT_LIMIT, DEF_HOPCOUNT_LIMIT, &var_hopcount_limit, 1, 0,
     VAR_DUP_FILTER_LIMIT, DEF_DUP_FILTER_LIMIT, &var_dup_filter_limit, 0, 0,
     VAR_QATTR_COUNT_LIMIT, DEF_QATTR_COUNT_LIMIT, &var_qattr_count_limit, 1, 0,
     VAR_VIRT_RECUR_LIMIT, DEF_VIRT_RECUR_LIMIT, &var_virt_recur_limit, 1, 0,
     VAR_VIRT_EXPAN_LIMIT, DEF_VIRT_EXPAN_LIMIT, &var_virt_expan_limit, 1, 0,
+    VAR_VIRT_ADDRLEN_LIMIT, DEF_VIRT_ADDRLEN_LIMIT, &var_virt_addrlen_limit, 1, 0,
     VAR_BODY_CHECK_LEN, DEF_BODY_CHECK_LEN, &var_body_check_len, 0, 0,
     0,
 };
 
-CONFIG_BOOL_TABLE cleanup_bool_table[] = {
+const CONFIG_BOOL_TABLE cleanup_bool_table[] = {
     VAR_ENABLE_ORCPT, DEF_ENABLE_ORCPT, &var_enable_orcpt,
     VAR_VERP_BOUNCE_OFF, DEF_VERP_BOUNCE_OFF, &var_verp_bounce_off,
     VAR_AUTO_8BIT_ENC_HDR, DEF_AUTO_8BIT_ENC_HDR, &var_auto_8bit_enc_hdr,
@@ -183,7 +185,7 @@ CONFIG_BOOL_TABLE cleanup_bool_table[] = {
     0,
 };
 
-CONFIG_TIME_TABLE cleanup_time_table[] = {
+const CONFIG_TIME_TABLE cleanup_time_table[] = {
     VAR_DELAY_WARN_TIME, DEF_DELAY_WARN_TIME, &var_delay_warn_time, 0, 0,
     VAR_MILT_CONN_TIME, DEF_MILT_CONN_TIME, &var_milt_conn_time, 1, 0,
     VAR_MILT_CMD_TIME, DEF_MILT_CMD_TIME, &var_milt_cmd_time, 1, 0,
@@ -191,7 +193,7 @@ CONFIG_TIME_TABLE cleanup_time_table[] = {
     0,
 };
 
-CONFIG_STR_TABLE cleanup_str_table[] = {
+const CONFIG_STR_TABLE cleanup_str_table[] = {
     VAR_CANONICAL_MAPS, DEF_CANONICAL_MAPS, &var_canonical_maps, 0, 0,
     VAR_SEND_CANON_MAPS, DEF_SEND_CANON_MAPS, &var_send_canon_maps, 0, 0,
     VAR_RCPT_CANON_MAPS, DEF_RCPT_CANON_MAPS, &var_rcpt_canon_maps, 0, 0,
@@ -333,20 +335,24 @@ void    cleanup_pre_jail(char *unused_name, char **unused_argv)
     if (*var_canonical_maps)
 	cleanup_comm_canon_maps =
 	    maps_create(VAR_CANONICAL_MAPS, var_canonical_maps,
-			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX);
+			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX
+			| DICT_FLAG_UTF8_REQUEST);
     if (*var_send_canon_maps)
 	cleanup_send_canon_maps =
 	    maps_create(VAR_SEND_CANON_MAPS, var_send_canon_maps,
-			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX);
+			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX
+			| DICT_FLAG_UTF8_REQUEST);
     if (*var_rcpt_canon_maps)
 	cleanup_rcpt_canon_maps =
 	    maps_create(VAR_RCPT_CANON_MAPS, var_rcpt_canon_maps,
-			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX);
+			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX
+			| DICT_FLAG_UTF8_REQUEST);
     if (*var_virt_alias_maps)
 	cleanup_virt_alias_maps = maps_create(VAR_VIRT_ALIAS_MAPS,
 					      var_virt_alias_maps,
 					      DICT_FLAG_LOCK
-					      | DICT_FLAG_FOLD_FIX);
+					      | DICT_FLAG_FOLD_FIX
+					      | DICT_FLAG_UTF8_REQUEST);
     if (*var_canon_classes)
 	cleanup_comm_canon_flags =
 	    name_mask(VAR_CANON_CLASSES, canon_class_table,
@@ -360,7 +366,7 @@ void    cleanup_pre_jail(char *unused_name, char **unused_argv)
 	    name_mask(VAR_CANON_CLASSES, rcpt_canon_class_table,
 		      var_rcpt_canon_classes);
     if (*var_masq_domains)
-	cleanup_masq_domains = argv_split(var_masq_domains, " ,\t\r\n");
+	cleanup_masq_domains = argv_split(var_masq_domains, CHARS_COMMA_SP);
     if (*var_header_checks)
 	cleanup_header_checks =
 	    maps_create(VAR_HEADER_CHECKS, var_header_checks, DICT_FLAG_LOCK);
@@ -375,18 +381,21 @@ void    cleanup_pre_jail(char *unused_name, char **unused_argv)
 	    maps_create(VAR_BODY_CHECKS, var_body_checks, DICT_FLAG_LOCK);
     if (*var_masq_exceptions)
 	cleanup_masq_exceptions =
-	    string_list_init(MATCH_FLAG_RETURN, var_masq_exceptions);
+	    string_list_init(VAR_MASQ_EXCEPTIONS, MATCH_FLAG_RETURN,
+			     var_masq_exceptions);
     if (*var_masq_classes)
 	cleanup_masq_flags = name_mask(VAR_MASQ_CLASSES, masq_class_table,
 				       var_masq_classes);
     if (*var_send_bcc_maps)
 	cleanup_send_bcc_maps =
 	    maps_create(VAR_SEND_BCC_MAPS, var_send_bcc_maps,
-			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX);
+			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX
+			| DICT_FLAG_UTF8_REQUEST);
     if (*var_rcpt_bcc_maps)
 	cleanup_rcpt_bcc_maps =
 	    maps_create(VAR_RCPT_BCC_MAPS, var_rcpt_bcc_maps,
-			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX);
+			DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX
+			| DICT_FLAG_UTF8_REQUEST);
     if (*var_cleanup_milters)
 	cleanup_milters = milter_create(var_cleanup_milters,
 					var_milt_conn_time,

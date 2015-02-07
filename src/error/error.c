@@ -40,8 +40,8 @@
 /* .ad
 /* .fi
 /*	Changes to \fBmain.cf\fR are picked up automatically as \fBerror\fR(8)
-/*      processes run for only a limited amount of time. Use the command
-/*      "\fBpostfix reload\fR" to speed up a change.
+/*	processes run for only a limited amount of time. Use the command
+/*	"\fBpostfix reload\fR" to speed up a change.
 /*
 /*	The text below provides only a parameter summary. See
 /*	\fBpostconf\fR(5) for more details including examples.
@@ -250,6 +250,6 @@ int     main(int argc, char **argv)
     MAIL_VERSION_STAMP_ALLOCATE;
 
     single_server_main(argc, argv, error_service,
-		       MAIL_SERVER_PRE_INIT, pre_init,
+		       CA_MAIL_SERVER_PRE_INIT(pre_init),
 		       0);
 }

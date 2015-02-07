@@ -290,6 +290,11 @@
 /* .IP "\fBsyslog_name (see 'postconf -d' output)\fR"
 /*	The mail system name that is prepended to the process name in syslog
 /*	records, so that "smtpd" becomes, for example, "postfix/smtpd".
+/* .PP
+/*	Available in Postfix version 3.0 and later:
+/* .IP "\fBconfirm_delay_cleared (no)\fR"
+/*	After sending a "your message is delayed" notification, inform
+/*	the sender when the delay clears up.
 /* FILES
 /*	/var/spool/postfix/incoming, incoming queue
 /*	/var/spool/postfix/active, active queue
@@ -385,6 +390,7 @@ int     var_dest_rate_delay;
 char   *var_def_filter_nexthop;
 int     var_qmgr_daemon_timeout;
 int     var_qmgr_ipc_timeout;
+int     var_dsn_delay_cleared;
 
 static QMGR_SCAN *qmgr_scans[2];
 
@@ -394,7 +400,7 @@ static QMGR_SCAN *qmgr_scans[2];
 
 /* qmgr_deferred_run_event - queue manager heartbeat */
 
-static void qmgr_deferred_run_event(int unused_event, char *dummy)
+static void qmgr_deferred_run_event(int unused_event, void *dummy)
 {
 
     /*
@@ -407,7 +413,7 @@ static void qmgr_deferred_run_event(int unused_event, char *dummy)
 
 /* qmgr_trigger_event - respond to external trigger(s) */
 
-static void qmgr_trigger_event(char *buf, int len,
+static void qmgr_trigger_event(char *buf, ssize_t len,
 			               char *unused_service, char **argv)
 {
     int     incoming_flag = 0;
@@ -471,7 +477,7 @@ static void qmgr_trigger_event(char *buf, int len,
 static int qmgr_loop(char *unused_name, char **unused_argv)
 {
     char   *path;
-    int     token_count;
+    ssize_t token_count;
     int     feed = 0;
     int     scan_idx;			/* Priority order scan index */
     static int first_scan_idx = QMGR_SCAN_IDX_INCOMING;
@@ -604,7 +610,7 @@ static void qmgr_post_init(char *unused_name, char **unused_argv)
     qmgr_scans[QMGR_SCAN_IDX_INCOMING] = qmgr_scan_create(MAIL_QUEUE_INCOMING);
     qmgr_scans[QMGR_SCAN_IDX_DEFERRED] = qmgr_scan_create(MAIL_QUEUE_DEFERRED);
     qmgr_scan_request(qmgr_scans[QMGR_SCAN_IDX_INCOMING], QMGR_SCAN_START);
-    qmgr_deferred_run_event(0, (char *) 0);
+    qmgr_deferred_run_event(0, (void *) 0);
 }
 
 MAIL_VERSION_STAMP_DECLARE;
@@ -648,6 +654,7 @@ int     main(int argc, char **argv)
     static const CONFIG_BOOL_TABLE bool_table[] = {
 	VAR_VERP_BOUNCE_OFF, DEF_VERP_BOUNCE_OFF, &var_verp_bounce_off,
 	VAR_CONC_FDBACK_DEBUG, DEF_CONC_FDBACK_DEBUG, &var_conc_feedback_debug,
+	VAR_DSN_DELAY_CLEARED, DEF_DSN_DELAY_CLEARED, &var_dsn_delay_cleared,
 	0,
     };
 
@@ -662,15 +669,15 @@ int     main(int argc, char **argv)
      * not talk back to the client.
      */
     trigger_server_main(argc, argv, qmgr_trigger_event,
-			MAIL_SERVER_INT_TABLE, int_table,
-			MAIL_SERVER_STR_TABLE, str_table,
-			MAIL_SERVER_BOOL_TABLE, bool_table,
-			MAIL_SERVER_TIME_TABLE, time_table,
-			MAIL_SERVER_PRE_INIT, qmgr_pre_init,
-			MAIL_SERVER_POST_INIT, qmgr_post_init,
-			MAIL_SERVER_LOOP, qmgr_loop,
-			MAIL_SERVER_PRE_ACCEPT, pre_accept,
-			MAIL_SERVER_SOLITARY,
-			MAIL_SERVER_WATCHDOG, &var_qmgr_daemon_timeout,
+			CA_MAIL_SERVER_INT_TABLE(int_table),
+			CA_MAIL_SERVER_STR_TABLE(str_table),
+			CA_MAIL_SERVER_BOOL_TABLE(bool_table),
+			CA_MAIL_SERVER_TIME_TABLE(time_table),
+			CA_MAIL_SERVER_PRE_INIT(qmgr_pre_init),
+			CA_MAIL_SERVER_POST_INIT(qmgr_post_init),
+			CA_MAIL_SERVER_LOOP(qmgr_loop),
+			CA_MAIL_SERVER_PRE_ACCEPT(pre_accept),
+			CA_MAIL_SERVER_SOLITARY,
+			CA_MAIL_SERVER_WATCHDOG(&var_qmgr_daemon_timeout),
 			0);
 }

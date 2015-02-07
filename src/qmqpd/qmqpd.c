@@ -50,6 +50,16 @@
 /* .IP "\fBreceive_override_options (empty)\fR"
 /*	Enable or disable recipient validation, built-in content
 /*	filtering, or address mapping.
+/* SMTPUTF8 CONTROLS
+/* .ad
+/* .fi
+/*	Preliminary SMTPUTF8 support is introduced with Postfix 3.0.
+/* .IP "\fBsmtputf8_enable (yes)\fR"
+/*	Enable preliminary SMTPUTF8 support for the protocols described
+/*	in RFC 6531..6533.
+/* .IP "\fBsmtputf8_autodetect_classes (sendmail, verify)\fR"
+/*	Detect that a message requires SMTPUTF8 support for the specified
+/*	mail origin classes.
 /* RESOURCE AND RATE CONTROLS
 /* .ad
 /* .fi
@@ -187,6 +197,7 @@
 #include <lex_822.h>
 #include <verp_sender.h>
 #include <input_transp.h>
+#include <smtputf8.h>
 
 /* Single-threaded server skeleton. */
 
@@ -241,10 +252,11 @@ static void qmqpd_open_file(QMQPD_STATE *state)
      */
     cleanup_flags = input_transp_cleanup(CLEANUP_FLAG_MASK_EXTERNAL,
 					 qmqpd_input_transp_mask);
+    cleanup_flags |= smtputf8_autodetect(MAIL_SRC_MASK_QMQPD);
     state->dest = mail_stream_service(MAIL_CLASS_PUBLIC, var_cleanup_service);
     if (state->dest == 0
 	|| attr_print(state->dest->stream, ATTR_FLAG_NONE,
-		      ATTR_TYPE_INT, MAIL_ATTR_FLAGS, cleanup_flags,
+		      SEND_ATTR_INT(MAIL_ATTR_FLAGS, cleanup_flags),
 		      ATTR_TYPE_END) != 0)
 	msg_fatal("unable to connect to the %s %s service",
 		  MAIL_CLASS_PUBLIC, var_cleanup_service);
@@ -776,7 +788,7 @@ static void pre_jail_init(char *unused_name, char **unused_argv)
 {
     debug_peer_init();
     qmqpd_clients =
-	namadr_list_init(MATCH_FLAG_RETURN
+	namadr_list_init(VAR_QMQPD_CLIENTS, MATCH_FLAG_RETURN
 			 | match_parent_style(VAR_QMQPD_CLIENTS),
 			 var_qmqpd_clients);
 }
@@ -825,11 +837,11 @@ int     main(int argc, char **argv)
      * Pass control to the single-threaded service skeleton.
      */
     single_server_main(argc, argv, qmqpd_service,
-		       MAIL_SERVER_TIME_TABLE, time_table,
-		       MAIL_SERVER_STR_TABLE, str_table,
-		       MAIL_SERVER_BOOL_TABLE, bool_table,
-		       MAIL_SERVER_PRE_INIT, pre_jail_init,
-		       MAIL_SERVER_PRE_ACCEPT, pre_accept,
-		       MAIL_SERVER_POST_INIT, post_jail_init,
+		       CA_MAIL_SERVER_TIME_TABLE(time_table),
+		       CA_MAIL_SERVER_STR_TABLE(str_table),
+		       CA_MAIL_SERVER_BOOL_TABLE(bool_table),
+		       CA_MAIL_SERVER_PRE_INIT(pre_jail_init),
+		       CA_MAIL_SERVER_PRE_ACCEPT(pre_accept),
+		       CA_MAIL_SERVER_POST_INIT(post_jail_init),
 		       0);
 }

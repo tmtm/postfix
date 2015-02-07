@@ -103,7 +103,7 @@
 /*	NOTE: Some \fBpostscreen\fR(8) parameters implement
 /*	stress-dependent behavior.  This is supported only when the
 /*	default parameter value is stress-dependent (that is, it
-/*	looks like ${stress?X}${stress:Y}, or it is the $\fIname\fR
+/*	looks like ${stress?{X}:{Y}}, or it is the $\fIname\fR
 /*	of an smtpd parameter with a stress-dependent default).
 /*	Other parameters always evaluate as if the \fBstress\fR
 /*	parameter value is the empty string.
@@ -206,7 +206,7 @@
 /*	\fBpostscreen\fR(8) sends ahead of the real Postfix SMTP server's "220
 /*	text..." response, in an attempt to confuse bad SMTP clients so
 /*	that they speak before their turn (pre-greet).
-/* .IP "\fBpostscreen_greet_wait (${stress?2}${stress:6}s)\fR"
+/* .IP "\fBpostscreen_greet_wait (normal: 6s, overload: 2s)\fR"
 /*	The amount of time that \fBpostscreen\fR(8) will wait for an SMTP
 /*	client to send a command before its turn, and for DNS blocklist
 /*	lookup results to arrive (default: up to 2 seconds under stress,
@@ -220,6 +220,10 @@
 /*	Allow a remote SMTP client to skip "before" and "after 220
 /*	greeting" protocol tests, based on its combined DNSBL score as
 /*	defined with the postscreen_dnsbl_sites parameter.
+/* .PP
+/*	Available in Postfix version 2.11 and later:
+/* .IP "\fBpostscreen_dnsbl_timeout (10s)\fR"
+/*	The time limit for DNSBL or DNSWL lookups.
 /* AFTER 220 GREETING TESTS
 /* .ad
 /* .fi
@@ -296,7 +300,7 @@
 /* .IP "\fBpostscreen_command_count_limit (20)\fR"
 /*	The limit on the total number of commands per SMTP session for
 /*	\fBpostscreen\fR(8)'s built-in SMTP protocol engine.
-/* .IP "\fBpostscreen_command_time_limit (${stress?10}${stress:300}s)\fR"
+/* .IP "\fBpostscreen_command_time_limit (normal: 300s, overload: 10s)\fR"
 /*	The time limit to read an entire command line with \fBpostscreen\fR(8)'s
 /*	built-in SMTP protocol engine.
 /* .IP "\fBpostscreen_post_queue_limit ($default_process_limit)\fR"
@@ -473,6 +477,7 @@ int     var_psc_dnsbl_thresh;
 int     var_psc_dnsbl_wthresh;
 char   *var_psc_dnsbl_action;
 int     var_psc_dnsbl_ttl;
+int     var_psc_dnsbl_tmout;
 
 bool    var_psc_pipel_enable;
 char   *var_psc_pipel_action;
@@ -544,7 +549,7 @@ static void psc_endpt_lookup_done(int, VSTREAM *,
 
 /* psc_dump - dump some statistics before exit */
 
-static void psc_dump(void)
+static void psc_dump(char *unused_service, char **unused_argv)
 {
 
     /*
@@ -582,7 +587,8 @@ static void psc_drain(char *unused_service, char **unused_argv)
      * XXX Some Berkeley DB versions break with close-after-fork. Every new
      * version is an improvement over its predecessor.
      */
-    if (psc_cache_map != 0 /* XXX && psc_cache_map requires locking */) {
+    if (psc_cache_map != 0			/* XXX && psc_cache_map
+	    requires locking */ ) {
 	dict_cache_close(psc_cache_map);
 	psc_cache_map = 0;
     }
@@ -815,7 +821,7 @@ static void psc_endpt_lookup_done(int endpt_status,
 
 static int psc_cache_validator(const char *client_addr,
 			               const char *stamp_str,
-			               char *unused_context)
+			               void *unused_context)
 {
     PSC_STATE dummy;
 
@@ -846,7 +852,8 @@ static void pre_jail_init(char *unused_name, char **unused_argv)
 	psc_acl = psc_acl_parse(var_psc_acl, VAR_PSC_ACL);
     /* Ignore smtpd_forbid_cmds lookup errors. Non-critical feature. */
     if (*var_psc_forbid_cmds)
-	psc_forbid_cmds = string_list_init(MATCH_FLAG_RETURN,
+	psc_forbid_cmds = string_list_init(VAR_PSC_FORBID_CMDS,
+					   MATCH_FLAG_RETURN,
 					   var_psc_forbid_cmds);
     if (*var_psc_dnsbl_reply)
 	psc_dnsbl_reply = dict_open(var_psc_dnsbl_reply, O_RDONLY,
@@ -992,7 +999,8 @@ static void post_jail_init(char *unused_name, char **unused_argv)
 	msg_fatal("bad %s value: %s", VAR_PSC_BARLF_ACTION,
 		  var_psc_barlf_action);
     /* Fail "closed" on error. */
-    psc_wlist_if = addr_match_list_init(MATCH_FLAG_RETURN, var_psc_wlist_if);
+    psc_wlist_if = addr_match_list_init(VAR_PSC_WLIST_IF, MATCH_FLAG_RETURN,
+					var_psc_wlist_if);
 
     /*
      * Start the cache maintenance pseudo thread last. Early cleanup makes
@@ -1004,11 +1012,11 @@ static void post_jail_init(char *unused_name, char **unused_argv)
 	cache_flags |= DICT_CACHE_FLAG_VERBOSE;
     if (psc_cache_map != 0 && var_psc_cache_scan > 0)
 	dict_cache_control(psc_cache_map,
-			   DICT_CACHE_CTL_FLAGS, cache_flags,
-			   DICT_CACHE_CTL_INTERVAL, var_psc_cache_scan,
-			   DICT_CACHE_CTL_VALIDATOR, psc_cache_validator,
-			   DICT_CACHE_CTL_CONTEXT, (char *) 0,
-			   DICT_CACHE_CTL_END);
+			   CA_DICT_CACHE_CTL_FLAGS(cache_flags),
+			   CA_DICT_CACHE_CTL_INTERVAL(var_psc_cache_scan),
+			   CA_DICT_CACHE_CTL_VALIDATOR(psc_cache_validator),
+			   CA_DICT_CACHE_CTL_CONTEXT((void *) 0),
+			   CA_DICT_CACHE_CTL_END);
 
     /*
      * Pre-compute the minimal and maximal TTL.
@@ -1122,6 +1130,8 @@ int     main(int argc, char **argv)
 	VAR_PSC_CACHE_SCAN, DEF_PSC_CACHE_SCAN, &var_psc_cache_scan, 0, 0,
 	VAR_PSC_WATCHDOG, DEF_PSC_WATCHDOG, &var_psc_watchdog, 10, 0,
 	VAR_PSC_UPROXY_TMOUT, DEF_PSC_UPROXY_TMOUT, &var_psc_uproxy_tmout, 1, 0,
+	VAR_PSC_DNSBL_TMOUT, DEF_PSC_DNSBL_TMOUT, &var_psc_dnsbl_tmout, 1, 0,
+
 	0,
     };
     static const CONFIG_BOOL_TABLE bool_table[] = {
@@ -1156,19 +1166,19 @@ int     main(int argc, char **argv)
     MAIL_VERSION_STAMP_ALLOCATE;
 
     event_server_main(argc, argv, psc_service,
-		      MAIL_SERVER_STR_TABLE, str_table,
-		      MAIL_SERVER_INT_TABLE, int_table,
-		      MAIL_SERVER_NINT_TABLE, nint_table,
-		      MAIL_SERVER_TIME_TABLE, time_table,
-		      MAIL_SERVER_BOOL_TABLE, bool_table,
-		      MAIL_SERVER_RAW_TABLE, raw_table,
-		      MAIL_SERVER_NBOOL_TABLE, nbool_table,
-		      MAIL_SERVER_PRE_INIT, pre_jail_init,
-		      MAIL_SERVER_POST_INIT, post_jail_init,
-		      MAIL_SERVER_PRE_ACCEPT, pre_accept,
-		      MAIL_SERVER_SOLITARY,
-		      MAIL_SERVER_SLOW_EXIT, psc_drain,
-		      MAIL_SERVER_EXIT, psc_dump,
-		      MAIL_SERVER_WATCHDOG, &var_psc_watchdog,
+		      CA_MAIL_SERVER_STR_TABLE(str_table),
+		      CA_MAIL_SERVER_INT_TABLE(int_table),
+		      CA_MAIL_SERVER_NINT_TABLE(nint_table),
+		      CA_MAIL_SERVER_TIME_TABLE(time_table),
+		      CA_MAIL_SERVER_BOOL_TABLE(bool_table),
+		      CA_MAIL_SERVER_RAW_TABLE(raw_table),
+		      CA_MAIL_SERVER_NBOOL_TABLE(nbool_table),
+		      CA_MAIL_SERVER_PRE_INIT(pre_jail_init),
+		      CA_MAIL_SERVER_POST_INIT(post_jail_init),
+		      CA_MAIL_SERVER_PRE_ACCEPT(pre_accept),
+		      CA_MAIL_SERVER_SOLITARY,
+		      CA_MAIL_SERVER_SLOW_EXIT(psc_drain),
+		      CA_MAIL_SERVER_EXIT(psc_dump),
+		      CA_MAIL_SERVER_WATCHDOG(&var_psc_watchdog),
 		      0);
 }

@@ -86,7 +86,6 @@
  /*
   * Talking to the DNSBLOG service.
   */
-#define DNSBLOG_TIMEOUT			10
 static char *psc_dnsbl_service;
 
  /*
@@ -134,8 +133,8 @@ typedef struct PSC_DNSBL_SITE {
 static HTABLE *dnsbl_score_cache;	/* indexed by client address */
 
 typedef struct {
-    void    (*callback) (int, char *);	/* generic call-back routine */
-    char   *context;			/* generic call-back argument */
+    void    (*callback) (int, void *);	/* generic call-back routine */
+    void   *context;			/* generic call-back argument */
 } PSC_CALL_BACK_ENTRY;
 
 typedef struct {
@@ -172,7 +171,7 @@ typedef struct {
 #define PSC_CALL_BACK_EXTEND(hp, sp) do { \
 	if ((sp)->index >= (sp)->limit) { \
 	    int _count_ = ((sp)->limit ? (sp)->limit * 2 : 5); \
-	    (hp)->value = myrealloc((char *) (sp), sizeof(*(sp)) + \
+	    (hp)->value = myrealloc((void *) (sp), sizeof(*(sp)) + \
 				    _count_ * sizeof((sp)->table)); \
 	    (sp) = (PSC_DNSBL_SCORE *) (hp)->value; \
 	    (sp)->limit = _count_; \
@@ -257,7 +256,7 @@ static void psc_dnsbl_add_site(const char *site)
     if ((head = (PSC_DNSBL_HEAD *)
 	 htable_find(dnsbl_site_cache, saved_site)) == 0) {
 	head = (PSC_DNSBL_HEAD *) mymalloc(sizeof(*head));
-	ht = htable_enter(dnsbl_site_cache, saved_site, (char *) head);
+	ht = htable_enter(dnsbl_site_cache, saved_site, (void *) head);
 	/* Translate the DNSBL name into a safe name if available. */
 	if (psc_dnsbl_reply == 0
 	 || (head->safe_dnsbl = dict_get(psc_dnsbl_reply, saved_site)) == 0)
@@ -341,7 +340,7 @@ int     psc_dnsbl_retrieve(const char *client_addr, const char **dnsbl_name,
 
 /* psc_dnsbl_receive - receive DNSBL reply, update blocklist score */
 
-static void psc_dnsbl_receive(int event, char *context)
+static void psc_dnsbl_receive(int event, void *context)
 {
     const char *myname = "psc_dnsbl_receive";
     VSTREAM *stream = (VSTREAM *) context;
@@ -371,10 +370,10 @@ static void psc_dnsbl_receive(int event, char *context)
     if (event == EVENT_READ
 	&& attr_scan(stream,
 		     ATTR_FLAG_STRICT,
-		     ATTR_TYPE_STR, MAIL_ATTR_RBL_DOMAIN, reply_dnsbl,
-		     ATTR_TYPE_STR, MAIL_ATTR_ACT_CLIENT_ADDR, reply_client,
-		     ATTR_TYPE_INT, MAIL_ATTR_LABEL, &request_id,
-		     ATTR_TYPE_STR, MAIL_ATTR_RBL_ADDR, reply_addr,
+		     RECV_ATTR_STR(MAIL_ATTR_RBL_DOMAIN, reply_dnsbl),
+		     RECV_ATTR_STR(MAIL_ATTR_ACT_CLIENT_ADDR, reply_client),
+		     RECV_ATTR_INT(MAIL_ATTR_LABEL, &request_id),
+		     RECV_ATTR_STR(MAIL_ATTR_RBL_ADDR, reply_addr),
 		     ATTR_TYPE_END) == 4
 	&& (score = (PSC_DNSBL_SCORE *)
 	    htable_find(dnsbl_score_cache, STR(reply_client))) != 0
@@ -425,7 +424,7 @@ static void psc_dnsbl_receive(int event, char *context)
 	    PSC_CALL_BACK_NOTIFY(score, PSC_NULL_EVENT);
     } else if (event == EVENT_TIME) {
 	msg_warn("dnsblog reply timeout %ds for %s",
-		 DNSBLOG_TIMEOUT, (char *) vstream_context(stream));
+		 var_psc_dnsbl_tmout, (char *) vstream_context(stream));
     }
     /* Here, score may be a null pointer. */
     vstream_fclose(stream);
@@ -434,8 +433,8 @@ static void psc_dnsbl_receive(int event, char *context)
 /* psc_dnsbl_request  - send dnsbl query, increment reference count */
 
 int     psc_dnsbl_request(const char *client_addr,
-			          void (*callback) (int, char *),
-			          char *context)
+			          void (*callback) (int, void *),
+			          void *context)
 {
     const char *myname = "psc_dnsbl_request";
     int     fd;
@@ -491,7 +490,7 @@ int     psc_dnsbl_request(const char *client_addr,
     score->pending_lookups = 0;
     PSC_CALL_BACK_INIT(score);
     PSC_CALL_BACK_ENTER(score, callback, context);
-    (void) htable_enter(dnsbl_score_cache, client_addr, (char *) score);
+    (void) htable_enter(dnsbl_score_cache, client_addr, (void *) score);
 
     /*
      * Send a query to all DNSBL servers. Later, DNSBL lookup will be done
@@ -507,12 +506,12 @@ int     psc_dnsbl_request(const char *client_addr,
 	}
 	stream = vstream_fdopen(fd, O_RDWR);
 	vstream_control(stream,
-			VSTREAM_CTL_CONTEXT, ht[0]->key,
-			VSTREAM_CTL_END);
+			CA_VSTREAM_CTL_CONTEXT(ht[0]->key),
+			CA_VSTREAM_CTL_END);
 	attr_print(stream, ATTR_FLAG_NONE,
-		   ATTR_TYPE_STR, MAIL_ATTR_RBL_DOMAIN, ht[0]->key,
-		   ATTR_TYPE_STR, MAIL_ATTR_ACT_CLIENT_ADDR, client_addr,
-		   ATTR_TYPE_INT, MAIL_ATTR_LABEL, score->request_id,
+		   SEND_ATTR_STR(MAIL_ATTR_RBL_DOMAIN, ht[0]->key),
+		   SEND_ATTR_STR(MAIL_ATTR_ACT_CLIENT_ADDR, client_addr),
+		   SEND_ATTR_INT(MAIL_ATTR_LABEL, score->request_id),
 		   ATTR_TYPE_END);
 	if (vstream_fflush(stream) != 0) {
 	    msg_warn("%s: error sending to %s service: %m",
@@ -521,7 +520,7 @@ int     psc_dnsbl_request(const char *client_addr,
 	    continue;
 	}
 	PSC_READ_EVENT_REQUEST(vstream_fileno(stream), psc_dnsbl_receive,
-			       (char *) stream, DNSBLOG_TIMEOUT);
+			       (void *) stream, var_psc_dnsbl_tmout);
 	score->pending_lookups += 1;
     }
     return (PSC_CALL_BACK_INDEX_OF_LAST(score));
@@ -532,7 +531,7 @@ int     psc_dnsbl_request(const char *client_addr,
 void    psc_dnsbl_init(void)
 {
     const char *myname = "psc_dnsbl_init";
-    ARGV   *dnsbl_site = argv_split(var_psc_dnsbl_sites, ", \t\r\n");
+    ARGV   *dnsbl_site = argv_split(var_psc_dnsbl_sites, CHARS_COMMA_SP);
     char  **cpp;
 
     /*

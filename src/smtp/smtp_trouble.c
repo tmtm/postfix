@@ -98,6 +98,10 @@
 /*	The policy is: non-final server: log an informational record
 /*	with the reason why the host is being skipped; final server:
 /*	defer delivery of all remaining recipients.
+/*	Retry plaintext delivery after TLS post-handshake session
+/*	failure, provided that at least one recipient was not
+/*	deferred or rejected during the TLS phase, and that global
+/*	preconditions for plaintext fallback are met.
 /*	The session is marked as "do not cache".
 /*	The result is non-zero.
 /*
@@ -156,6 +160,7 @@
 /* Application-specific. */
 
 #include "smtp.h"
+#include "smtp_sasl.h"
 
 #define SMTP_THROTTLE	1
 #define SMTP_NOTHROTTLE	0
@@ -190,6 +195,7 @@ static int smtp_bulk_fail(SMTP_STATE *state, int throttle_queue)
     DSN_BUF *why = state->why;
     RECIPIENT *rcpt;
     int     status;
+    int     aggregate_status;
     int     soft_error = (STR(why->status)[0] == '4');
     int     soft_bounce_error = (STR(why->status)[0] == '5' && var_soft_bounce);
     int     nrcpt;
@@ -234,6 +240,7 @@ static int smtp_bulk_fail(SMTP_STATE *state, int throttle_queue)
 	    GETTIMEOFDAY(&request->msg_stats.deliver_done);
 
 	(void) DSN_FROM_DSN_BUF(why);
+	aggregate_status = 0;
 	for (nrcpt = 0; nrcpt < SMTP_RCPT_LEFT(state); nrcpt++) {
 	    rcpt = request->rcpt_list.info + nrcpt;
 	    if (SMTP_RCPT_ISMARKED(rcpt))
@@ -245,10 +252,11 @@ static int smtp_bulk_fail(SMTP_STATE *state, int throttle_queue)
 	    if (status == 0)
 		deliver_completed(state->src, rcpt->offset);
 	    SMTP_RCPT_DROP(state, rcpt);
-	    state->status |= status;
+	    aggregate_status |= status;
 	}
+	state->status |= aggregate_status;
 	if ((state->misc_flags & SMTP_MISC_FLAG_COMPLETE_SESSION) == 0
-	    && throttle_queue && (soft_error || soft_bounce_error)
+	    && throttle_queue && aggregate_status
 	    && request->hop_status == 0)
 	    request->hop_status = DSN_COPY(&why->dsn);
     }
@@ -257,7 +265,7 @@ static int smtp_bulk_fail(SMTP_STATE *state, int throttle_queue)
      * Don't cache this session. We can't talk to this server.
      */
     if (throttle_queue && session)
-	DONT_CACHE_BAD_SESSION;
+	DONT_CACHE_THROTTLED_SESSION;
 
     return (-1);
 }
@@ -433,15 +441,29 @@ int     smtp_stream_except(SMTP_STATE *state, int code, const char *description)
     case SMTP_ERR_EOF:
 	dsb_simple(why, "4.4.2", "lost connection with %s while %s",
 		   session->namaddr, description);
+#ifdef USE_TLS
+	if (PLAINTEXT_FALLBACK_OK_AFTER_TLS_SESSION_FAILURE)
+	    RETRY_AS_PLAINTEXT;
+#endif
 	break;
     case SMTP_ERR_TIME:
 	dsb_simple(why, "4.4.2", "conversation with %s timed out while %s",
 		   session->namaddr, description);
+#ifdef USE_TLS
+	if (PLAINTEXT_FALLBACK_OK_AFTER_TLS_SESSION_FAILURE)
+	    RETRY_AS_PLAINTEXT;
+#endif
 	break;
     case SMTP_ERR_DATA:
 	session->error_mask |= MAIL_ERROR_DATA;
 	dsb_simple(why, "4.3.0", "local data error while talking to %s",
 		   session->namaddr);
     }
+
+    /*
+     * The smtp_bulk_fail() call below will not throttle the destination when
+     * falling back to plaintext, because RETRY_AS_PLAINTEXT clears the
+     * FINAL_SERVER flag.
+     */
     return (smtp_bulk_fail(state, SMTP_THROTTLE));
 }

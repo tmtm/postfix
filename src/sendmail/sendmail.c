@@ -360,12 +360,6 @@
 /* .IP "\fBdelay_warning_time (0h)\fR"
 /*	The time after which the sender receives a copy of the message
 /*	headers of mail that is still queued.
-/* .IP "\fBenable_errors_to (no)\fR"
-/*	Report mail delivery errors to the address specified with the
-/*	non-standard Errors-To: message header, instead of the envelope
-/*	sender address (this feature is removed with Postfix version 2.2, is
-/*	turned off by default with Postfix version 2.1, and is always turned on
-/*	with older Postfix versions).
 /* .IP "\fBmail_owner (postfix)\fR"
 /*	The UNIX system account that owns the Postfix queue and most Postfix
 /*	daemon processes.
@@ -582,7 +576,7 @@ static void output_header(void *context, int header_class,
 	    tok822_internalize(state->temp, tpp[0]->head, TOK822_STR_DEFL);
 	    argv_add(rcpt, STR(state->temp), (char *) 0);
 	}
-	myfree((char *) addr_list);
+	myfree((void *) addr_list);
 	tok822_free_tree(tree);
     }
 
@@ -652,7 +646,8 @@ static void enqueue(const int flags, const char *encoding,
      * Access control is enforced in the postdrop command. The code here
      * merely produces a more user-friendly interface.
      */
-    if ((errstr = check_user_acl_byuid(var_submit_acl, uid)) != 0)
+    if ((errstr = check_user_acl_byuid(VAR_SUBMIT_ACL,
+				       var_submit_acl, uid)) != 0)
 	msg_fatal_status(EX_NOPERM,
 	  "User %s(%ld) is not allowed to submit mail", errstr, (long) uid);
 
@@ -906,7 +901,7 @@ static void enqueue(const int flags, const char *encoding,
     if (rcpt_count == 0)
 	msg_fatal_status(EX_USAGE, (flags & SM_FLAG_XRCPT) ?
 		 "%s(%ld): No recipient addresses found in message header" :
-			 "Recipient addresses must be specified on"
+			 "%s(%ld): Recipient addresses must be specified on"
 			 " the command line or via the -t option",
 			 saved_sender, (long) uid);
 
@@ -1401,7 +1396,7 @@ int     main(int argc, char **argv)
 	argv_add(ext_argv, "postalias", (char *) 0);
 	for (n = 0; n < msg_verbose; n++)
 	    argv_add(ext_argv, "-v", (char *) 0);
-	argv_split_append(ext_argv, var_alias_db_map, ", \t\r\n");
+	argv_split_append(ext_argv, var_alias_db_map, CHARS_COMMA_SP);
 	argv_terminate(ext_argv);
 	mail_run_replace(var_command_dir, ext_argv->argv);
 	/* NOTREACHED */
@@ -1410,7 +1405,8 @@ int     main(int argc, char **argv)
 	    msg_fatal_status(EX_USAGE,
 			     "stand-alone mode requires no recipient");
 	/* The actual enforcement happens in the postdrop command. */
-	if ((errstr = check_user_acl_byuid(var_submit_acl, uid = getuid())) != 0)
+	if ((errstr = check_user_acl_byuid(VAR_SUBMIT_ACL, var_submit_acl,
+					   uid = getuid())) != 0)
 	    msg_fatal_status(EX_NOPERM,
 			     "User %s(%ld) is not allowed to submit mail",
 			     errstr, (long) uid);

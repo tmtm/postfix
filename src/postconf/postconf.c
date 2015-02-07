@@ -62,7 +62,7 @@
 /*
 /*	\fBManaging other configuration:\fR
 /*
-/*      \fBpostconf\fR \fB-a\fR|\fB-A\fR|\fB-l\fR|\fB-m\fR [\fB-v\fR]
+/*	\fBpostconf\fR \fB-a\fR|\fB-A\fR|\fB-l\fR|\fB-m\fR [\fB-v\fR]
 /*	[\fB-c \fIconfig_dir\fR]
 /* DESCRIPTION
 /*	By default, the \fBpostconf\fR(1) command displays the
@@ -246,6 +246,14 @@
 /* .IP \fBhash\fR
 /*	An indexed file type based on hashing.  Available on systems
 /*	with support for Berkeley DB databases.
+/* .IP "\fBinline\fR (read-only)"
+/*	A non-shared, in-memory lookup table. Example: "\fBinline:{
+/*	\fIkey\fB=\fIvalue\fB, { \fIkey\fB = \fItext with whitespace
+/*	or comma\fB }}\fR". Key-value pairs are separated by
+/*	whitespace or comma; whitespace after "\fB{\fR" and before "\fB}\fR"
+/*	is ignored. Inline tables eliminate the need to create a
+/*	database file for just a few fixed elements.  See also the
+/*	\fIstatic:\fR map type.
 /* .IP \fBinternal\fR
 /*	A non-shared, in-memory hash table. Its content are lost
 /*	when a process terminates.
@@ -267,9 +275,27 @@
 /* .IP "\fBpgsql\fR (read-only)"
 /*	PostgreSQL database client. This is described in
 /*	\fBpgsql_table\fR(5).
+/* .IP "\fBpipemap\fR (read-only)"
+/*	A lookup table that constructs a pipeline of tables.  Example:
+/*	"\fBpipemap:{\fItype_1:name_1,  ..., type_n:name_n\fB}\fR".
+/*	Each "pipemap:" query is given to the first table.  Each
+/*	lookup result becomes the query for the next table in the
+/*	pipeline, and the last table produces the final result.
+/*	When any table lookup produces no result, the pipeline
+/*	produces no result. The first and last characters of the
+/*	"pipemap:" table name must be "\fB{\fR" and "\fB}\fR".
+/*	Within these, individual maps are separated with comma or
+/*	whitespace.
 /* .IP "\fBproxy\fR"
 /*	Postfix \fBproxymap\fR(8) client for shared access to Postfix
 /*	databases. The table name syntax is \fItype\fB:\fIname\fR.
+/* .IP "\fBrandmap\fR (read-only)"
+/*	An in-memory table that performs random selection. Example:
+/*	"\fBrandmap:{\fIresult_1, ..., result_n\fB}\fR". Each table query
+/*	returns a random choice from the specified results. The first
+/*	and last characters of the "randmap:" table name must be
+/*	"\fB{\fR" and "\fB}\fR".  Within these, individual maps are
+/*	separated with comma or whitespace.
 /* .IP "\fBregexp\fR (read-only)"
 /*	A lookup table based on regular expressions. The file format
 /*	is described in \fBregexp_table\fR(5).
@@ -286,7 +312,10 @@
 /* .IP "\fBstatic\fR (read-only)"
 /*	A table that always returns its name as lookup result. For
 /*	example, \fBstatic:foobar\fR always returns the string
-/*	\fBfoobar\fR as lookup result.
+/*	\fBfoobar\fR as lookup result. Specify "\fBstatic:{ \fItext
+/*	with whitespace\fB }\fR" when the result contains whitespace;
+/*	this form ignores whitespace after "\fB{\fR" and before
+/*	"\fB}\fR". See also the \fIinline:\fR map.
 /* .IP "\fBtcp\fR (read-only)"
 /*	TCP/IP client. The protocol is described in \fBtcp_table\fR(5).
 /* .IP "\fBtexthash\fR (read-only)"
@@ -294,6 +323,10 @@
 /*	don't need to run the \fBpostmap\fR(1) command before you
 /*	can use the file, and that it does not detect changes after
 /*	the file is read.
+/* .IP "\fBunionmap\fR (read-only)"
+/*	A table that sends each query to multiple lookup tables and
+/*	that concatenates all found results, separated by comma.
+/*	The table name syntax is the same as for \fBpipemap\fR.
 /* .IP "\fBunix\fR (read-only)"
 /*	A limited view of the UNIX authentication database. The
 /*	following tables are implemented:
@@ -639,7 +672,7 @@ static void pcf_check_exclusive_options(int optval)
 
     for (op = pcf_incompat_options; (oval = *op) != 0; op++) {
 	oval &= optval;
-	for (mask = ~0; (mask & oval) != 0; mask >>= 1) {
+	for (mask = ~0U; (mask & oval) != 0; mask >>= 1) {
 	    if ((mask & oval) != oval)
 		msg_fatal("specify one of %s",
 			  str_name_mask(myname, pcf_compat_names, oval));
@@ -849,6 +882,7 @@ int     main(int argc, char **argv)
      * If showing map types, show them and exit
      */
     if (pcf_cmd_mode & PCF_SHOW_MAPS) {
+	mail_conf_read();
 	mail_dict_init();
 	pcf_show_maps();
     }

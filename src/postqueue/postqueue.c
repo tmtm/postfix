@@ -204,6 +204,7 @@
 #include <user_acl.h>
 #include <valid_mailhost_addr.h>
 #include <mail_dict.h>
+#include <mail_parm_split.h>
 
 /* Application-specific. */
 
@@ -269,7 +270,8 @@ static void show_queue(void)
     uid_t   uid = getuid();
 
     if (uid != 0 && uid != var_owner_uid
-	&& (errstr = check_user_acl_byuid(var_showq_acl, uid)) != 0)
+	&& (errstr = check_user_acl_byuid(VAR_SHOWQ_ACL, var_showq_acl,
+					  uid)) != 0)
 	msg_fatal_status(EX_NOPERM,
 		       "User %s(%ld) is not allowed to view the mail queue",
 			 errstr, (long) uid);
@@ -317,6 +319,10 @@ static void show_queue(void)
 	argv_terminate(argv);
 	stat = mail_run_foreground(var_daemon_dir, argv->argv);
 	argv_free(argv);
+	if (stat != 0)
+	    msg_fatal_status(stat < 0 ? EX_OSERR : EX_SOFTWARE,
+			     "Error running %s/%s",
+			     var_daemon_dir, argv->argv[0]);
     }
 
     /*
@@ -339,7 +345,8 @@ static void flush_queue(void)
     uid_t   uid = getuid();
 
     if (uid != 0 && uid != var_owner_uid
-	&& (errstr = check_user_acl_byuid(var_flush_acl, uid)) != 0)
+	&& (errstr = check_user_acl_byuid(VAR_FLUSH_ACL, var_flush_acl,
+					  uid)) != 0)
 	msg_fatal_status(EX_NOPERM,
 		      "User %s(%ld) is not allowed to flush the mail queue",
 			 errstr, (long) uid);
@@ -365,7 +372,8 @@ static void flush_site(const char *site)
     uid_t   uid = getuid();
 
     if (uid != 0 && uid != var_owner_uid
-	&& (errstr = check_user_acl_byuid(var_flush_acl, uid)) != 0)
+	&& (errstr = check_user_acl_byuid(VAR_FLUSH_ACL, var_flush_acl,
+					  uid)) != 0)
 	msg_fatal_status(EX_NOPERM,
 		      "User %s(%ld) is not allowed to flush the mail queue",
 			 errstr, (long) uid);
@@ -399,7 +407,8 @@ static void flush_file(const char *queue_id)
     uid_t   uid = getuid();
 
     if (uid != 0 && uid != var_owner_uid
-	&& (errstr = check_user_acl_byuid(var_flush_acl, uid)) != 0)
+	&& (errstr = check_user_acl_byuid(VAR_FLUSH_ACL, var_flush_acl,
+					  uid)) != 0)
 	msg_fatal_status(EX_NOPERM,
 		      "User %s(%ld) is not allowed to flush the mail queue",
 			 errstr, (long) uid);
@@ -547,7 +556,7 @@ int     main(int argc, char **argv)
      * directory info when the mail system is down.
      */
     if (geteuid() != 0) {
-	import_env = argv_split(var_import_environ, ", \t\r\n");
+	import_env = mail_parm_split(VAR_IMPORT_ENVIRON, var_import_environ);
 	clean_env(import_env->argv);
 	argv_free(import_env);
     }
