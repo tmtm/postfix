@@ -36,7 +36,7 @@
 /* .IP \fB-v\fR
 /*	Increase verbosity. Specify \fB-v -v\fR to see some of the QMQP
 /*	conversation.
-/* .IP "\fB-x \fItime\fR
+/* .IP "\fB-x \fItime\fR"
 /*	Terminate after \fItime\fR seconds. This is to facilitate memory
 /*	leak testing.
 /* SEE ALSO
@@ -50,6 +50,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -135,7 +140,7 @@ static void read_data(int unused_event, void *context)
 	    send_reply(state);
 	    return;
 	}
-	vstream_fseek(state->stream, 0L, 0);
+	vstream_fpurge(state->stream, VSTREAM_PURGE_BOTH);
     }
 
     /*

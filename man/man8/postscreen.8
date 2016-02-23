@@ -36,11 +36,11 @@ off the connection immediately to a Postfix SMTP server
 process. This minimizes the overhead for legitimate mail.
 
 By default, \fBpostscreen\fR(8) logs statistics and hands
-off every connection to a Postfix SMTP server process, while
+off each connection to a Postfix SMTP server process, while
 excluding clients in mynetworks from all tests (primarily,
 to avoid problems with non\-standard SMTP implementations
-in network appliances).  This mode is useful for non\-destructive
-testing.
+in network appliances).  This default mode blocks no clients,
+and is useful for non\-destructive testing.
 
 In a typical production setting, \fBpostscreen\fR(8) is
 configured to reject mail from clients that fail one or
@@ -139,6 +139,10 @@ to a remote SMTP client.
 A case insensitive list of EHLO keywords (pipelining, starttls,
 auth, etc.) that the \fBpostscreen\fR(8) server will not send in the EHLO
 response to a remote SMTP client.
+.PP
+Available in Postfix version 3.1 and later:
+.IP "\fBdns_ncache_ttl_fix_enable (no)\fR"
+Enable a workaround for future libc incompatibility.
 .SH "TROUBLE SHOOTING CONTROLS"
 .na
 .nf
@@ -307,9 +311,14 @@ temporary whitelist entry before it is removed.
 .IP "\fBpostscreen_bare_newline_ttl (30d)\fR"
 The amount of time that \fBpostscreen\fR(8) will use the result from
 a successful "bare newline" SMTP protocol test.
-.IP "\fBpostscreen_dnsbl_ttl (1h)\fR"
-The amount of time that \fBpostscreen\fR(8) will use the result from
-a successful DNS blocklist test.
+.IP "\fBpostscreen_dnsbl_max_ttl (${postscreen_dnsbl_ttl?{$postscreen_dnsbl_ttl}:{1}}h)\fR"
+The maximum amount of time that \fBpostscreen\fR(8) will use the
+result from a successful DNS\-based reputation test before a
+client IP address is required to pass that test again.
+.IP "\fBpostscreen_dnsbl_min_ttl (60s)\fR"
+The minimum amount of time that \fBpostscreen\fR(8) will use the
+result from a successful DNS\-based reputation test before a
+client IP address is required to pass that test again.
 .IP "\fBpostscreen_greet_ttl (1d)\fR"
 The amount of time that \fBpostscreen\fR(8) will use the result from
 a successful PREGREET test.
@@ -438,3 +447,8 @@ Wietse Venema
 IBM T.J. Watson Research
 P.O. Box 704
 Yorktown Heights, NY 10598, USA
+
+Wietse Venema
+Google, Inc.
+111 8th Avenue
+New York, NY 10011, USA

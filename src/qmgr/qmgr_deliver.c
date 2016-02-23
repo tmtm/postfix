@@ -45,6 +45,11 @@
 /*	Patrik Rak
 /*	Modra 6
 /*	155 00, Prague, Czech Republic
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -81,6 +86,14 @@
 /* Application-specific. */
 
 #include "qmgr.h"
+
+ /*
+  * Important note on the _transport_rate_delay implementation: after
+  * qmgr_transport_alloc() sets the QMGR_TRANSPORT_STAT_RATE_LOCK flag, all
+  * code paths must directly or indirectly invoke qmgr_transport_unthrottle()
+  * or qmgr_transport_throttle(). Otherwise, transports with non-zero
+  * _transport_rate_delay will become stuck.
+  */
 
 int     qmgr_deliver_concurrency;
 
@@ -346,9 +359,10 @@ static void qmgr_deliver_update(int unused_event, void *context)
      * No problems detected. Mark the transport and queue as alive. The queue
      * itself won't go away before we dispose of the current queue entry.
      */
-    if (status != DELIVER_STAT_CRASH && VSTRING_LEN(dsb->reason) == 0) {
+    if (status != DELIVER_STAT_CRASH) {
 	qmgr_transport_unthrottle(transport);
-	qmgr_queue_unthrottle(queue);
+	if (VSTRING_LEN(dsb->reason) == 0)
+	    qmgr_queue_unthrottle(queue);
     }
 
     /*

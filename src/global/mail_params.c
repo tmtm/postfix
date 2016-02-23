@@ -327,6 +327,7 @@ char   *var_multi_name;
 bool    var_multi_enable;
 bool    var_long_queue_ids;
 bool    var_daemon_open_fatal;
+bool    var_dns_ncache_ttl_fix;
 char   *var_dsn_filter;
 int     var_smtputf8_enable;
 int     var_strict_smtputf8;
@@ -367,13 +368,21 @@ static const char *check_myhostname(void)
     /*
      * If the local machine name is not in FQDN form, try to append the
      * contents of $mydomain. Use a default domain as a final workaround.
+     * 
+     * DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - IT MAKES EVERY POSTFIX
+     * PROGRAM HANG WHEN DNS SERVICE IS UNAVAILABLE. IF YOU DON'T LIKE THE
+     * DEFAULT, THEN EDIT MAIN.CF.
      */
     name = get_hostname();
+    /* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
     if ((dot = strchr(name, '.')) == 0) {
+	/* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
 	if ((domain = mail_conf_lookup_eval(VAR_MYDOMAIN)) == 0)
 	    domain = DEF_MYDOMAIN;
+	/* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
 	name = concatenate(name, ".", domain, (char *) 0);
     }
+    /* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
     return (name);
 }
 
@@ -385,9 +394,16 @@ static const char *check_mydomainname(void)
 
     /*
      * Use a default domain when the hostname is not a FQDN ("foo").
+     * 
+     * DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - IT MAKES EVERY POSTFIX
+     * PROGRAM HANG WHEN DNS SERVICE IS UNAVAILABLE. IF YOU DON'T LIKE THE
+     * DEFAULT, THEN EDIT MAIN.CF.
      */
+    /* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
     if ((dot = strchr(var_myhostname, '.')) == 0)
+	/* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
 	return (DEF_MYDOMAIN);
+    /* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
     return (dot + 1);
 }
 
@@ -567,7 +583,7 @@ static void check_legacy_defaults(void)
      * 
      * To turn off further warnings and deploy the new default settings, the
      * system administrator should update the compatibility_level setting as
-     * recommended in the RELASE_NOTES file.
+     * recommended in the RELEASE_NOTES file.
      * 
      * Each incompatible change has its own flag variable, instead of bit in a
      * shared variable. We don't want to rip up code when we need more flag
@@ -630,6 +646,7 @@ void    mail_params_init()
     static const CONFIG_BOOL_TABLE first_bool_defaults[] = {
 	/* read and process the following before opening tables. */
 	VAR_DAEMON_OPEN_FATAL, DEF_DAEMON_OPEN_FATAL, &var_daemon_open_fatal,
+	VAR_DNS_NCACHE_TTL_FIX, DEF_DNS_NCACHE_TTL_FIX, &var_dns_ncache_ttl_fix,
 	0,
     };
     static const CONFIG_NBOOL_TABLE first_nbool_defaults[] = {

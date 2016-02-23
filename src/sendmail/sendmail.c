@@ -110,7 +110,7 @@
 /*	With all Postfix versions, you can specify a directory pathname
 /*	with the MAIL_CONFIG environment variable to override the
 /*	location of configuration files.
-/* .IP "\fB-F \fIfull_name\fR
+/* .IP "\fB-F \fIfull_name\fR"
 /*	Set the sender full name. This overrides the NAME environment
 /*	variable, and is used only with messages that
 /*	have no \fBFrom:\fR message header.
@@ -407,6 +407,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -1073,8 +1078,8 @@ int     main(int argc, char **argv)
     }
     optind = saved_optind;
     mail_conf_read();
-    if (strcmp(var_syslog_name, DEF_SYSLOG_NAME) != 0)
-	msg_syslog_init(mail_task("sendmail"), LOG_PID, LOG_FACILITY);
+    /* Re-evaluate mail_task() after reading main.cf. */
+    msg_syslog_init(mail_task("sendmail"), LOG_PID, LOG_FACILITY);
     get_mail_conf_str_table(str_table);
 
     if (chdir(var_queue_dir))

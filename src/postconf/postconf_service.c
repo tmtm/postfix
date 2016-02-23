@@ -28,6 +28,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -134,6 +139,7 @@ void    pcf_register_service_parameters(void)
 	_CONC_NEG_FDBACK, VAR_CONC_NEG_FDBACK,
 	_CONC_COHORT_LIM, VAR_CONC_COHORT_LIM,
 	_DEST_RATE_DELAY, VAR_DEST_RATE_DELAY,
+	_XPORT_RATE_DELAY, VAR_XPORT_RATE_DELAY,
 	0,
     };
     static const PCF_STRING_NV spawn_params[] = {

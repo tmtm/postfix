@@ -462,6 +462,7 @@ double  smtpd_space_multf = 1.5;
 typedef struct {
     ATTR_CLNT *client;			/* client handle */
     char   *def_action;			/* default action */
+    char   *policy_context;		/* context of policy request */
 } SMTPD_POLICY_CLNT;
 
  /*
@@ -483,6 +484,7 @@ static ATTR_OVER_INT int_table[] = {
 };
 static ATTR_OVER_STR str_table[] = {
     21 + VAR_SMTPD_POLICY_DEF_ACTION, 0, 1, 0,
+    21 + VAR_SMTPD_POLICY_CONTEXT, 0, 1, 0,
     0,
 };
 
@@ -498,6 +500,7 @@ static ATTR_OVER_STR str_table[] = {
 #define smtpd_policy_try_limit_offset	1
 
 #define smtpd_policy_def_action_offset	0
+#define smtpd_policy_context_offset	1
 
 /* policy_client_register - register policy service endpoint */
 
@@ -527,6 +530,7 @@ static void policy_client_register(const char *name)
 	int     smtpd_policy_req_limit = var_smtpd_policy_req_limit;
 	int     smtpd_policy_try_limit = var_smtpd_policy_try_limit;
 	const char *smtpd_policy_def_action = var_smtpd_policy_def_action;
+	const char *smtpd_policy_context = var_smtpd_policy_context;
 
 	link_override_table_to_variable(time_table, smtpd_policy_tmout);
 	link_override_table_to_variable(time_table, smtpd_policy_idle);
@@ -535,6 +539,7 @@ static void policy_client_register(const char *name)
 	link_override_table_to_variable(int_table, smtpd_policy_req_limit);
 	link_override_table_to_variable(int_table, smtpd_policy_try_limit);
 	link_override_table_to_variable(str_table, smtpd_policy_def_action);
+	link_override_table_to_variable(str_table, smtpd_policy_context);
 
 	if (*name == parens[0]) {
 	    cp = saved_name = mystrdup(name);
@@ -553,11 +558,12 @@ static void policy_client_register(const char *name)
 	if (msg_verbose)
 	    msg_info("%s: name=\"%s\" default_action=\"%s\" max_idle=%d "
 		     "max_ttl=%d request_limit=%d retry_delay=%d "
-		     "timeout=%d try_limit=%d",
+		     "timeout=%d try_limit=%d policy_context=\"%s\"",
 		     myname, policy_name, smtpd_policy_def_action,
 		     smtpd_policy_idle, smtpd_policy_ttl,
 		     smtpd_policy_req_limit, smtpd_policy_try_delay,
-		     smtpd_policy_tmout, smtpd_policy_try_limit);
+		     smtpd_policy_tmout, smtpd_policy_try_limit,
+		     smtpd_policy_context);
 
 	/*
 	 * Create the client.
@@ -574,6 +580,7 @@ static void policy_client_register(const char *name)
 			  ATTR_CLNT_CTL_TRY_DELAY, smtpd_policy_try_delay,
 			  ATTR_CLNT_CTL_END);
 	policy_client->def_action = mystrdup(smtpd_policy_def_action);
+	policy_client->policy_context = mystrdup(smtpd_policy_context);
 	htable_enter(policy_clnt_table, name, (void *) policy_client);
 	if (saved_name)
 	    myfree(saved_name);
@@ -927,6 +934,7 @@ static int PRINTFLIKE(5, 6) smtpd_acl_permit(SMTPD_STATE *state,
 					             const char *reply_name,
 					             const char *format,...)
 {
+    const char myname[] = "smtpd_acl_permit";
     va_list ap;
     const char *whatsup;
 
@@ -939,6 +947,9 @@ static int PRINTFLIKE(5, 6) smtpd_acl_permit(SMTPD_STATE *state,
     /*
      * First, find out if (and how) this permit action should be logged.
      */
+    if (msg_verbose)
+	msg_info("%s: checking %s settings", myname, VAR_SMTPD_ACL_PERM_LOG);
+
     if (state->defer_if_permit.active) {
 	/* This action is overruled. Do not log. */
 	whatsup = 0;
@@ -959,6 +970,9 @@ static int PRINTFLIKE(5, 6) smtpd_acl_permit(SMTPD_STATE *state,
 	    va_end(ap);
 	}
 	log_whatsup(state, whatsup, STR(error_text));
+    } else {
+	if (msg_verbose)
+	    msg_info("%s: %s: no match", myname, VAR_SMTPD_ACL_PERM_LOG);
     }
     return (SMTPD_CHECK_OK);
 }
@@ -2944,6 +2958,9 @@ static int check_server_access(SMTPD_STATE *state, const char *table,
      * 
      * If the domain name exists but no NS record exists, look up parent domain
      * NS records.
+     * 
+     * XXX 20150707 Work around broken DNS servers that reply with NXDOMAIN
+     * instead of "no data".
      */
     if (type == T_A
 #ifdef HAS_IPV6
@@ -2962,12 +2979,12 @@ static int check_server_access(SMTPD_STATE *state, const char *table,
 		server_list = dns_rr_create(domain, domain, type, C_IN, 0, 0,
 					    domain, strlen(domain) + 1);
 		dns_status = DNS_OK;
-	    } else if (type == T_NS && h_errno == NO_DATA) {
+	    } else if (type == T_NS /* && h_errno == NO_DATA */ ) {
 		while ((domain = strchr(domain, '.')) != 0 && domain[1]) {
 		    domain += 1;
 		    dns_status = dns_lookup(domain, type, 0, &server_list,
 					    (VSTRING *) 0, (VSTRING *) 0);
-		    if (dns_status != DNS_NOTFOUND || h_errno != NO_DATA)
+		    if (dns_status != DNS_NOTFOUND /* || h_errno != NO_DATA */)
 			break;
 		}
 	    }
@@ -3947,6 +3964,8 @@ static int check_policy_service(SMTPD_STATE *state, const char *server,
 			  SEND_ATTR_INT(MAIL_ATTR_CRYPTO_KEYSIZE,
 		       IF_ENCRYPTED(state->tls_context->cipher_usebits, 0)),
 #endif
+			  SEND_ATTR_STR(MAIL_ATTR_POL_CONTEXT,
+					policy_clnt->policy_context),
 			  ATTR_TYPE_END,
 			  ATTR_FLAG_MISSING,	/* Reply attributes. */
 			  RECV_ATTR_STR(MAIL_ATTR_ACTION, action),
@@ -5444,6 +5463,7 @@ char   *var_relay_ccerts = "";
 char   *var_mynetworks = "";
 char   *var_notify_classes = "";
 char   *var_smtpd_policy_def_action = "";
+char   *var_smtpd_policy_context = "";
 
  /*
   * String-valued configuration parameters.

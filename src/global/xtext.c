@@ -163,6 +163,17 @@ int     main(int unused_argc, char **unused_argv)
     VSTRING *quoted = vstring_alloc(100);
     ssize_t len;
 
+    /*
+     * Negative tests.
+     */
+    if (xtext_unquote(unquoted, "++1") != 0)
+	msg_warn("undetected error pattern 1");
+    if (xtext_unquote(unquoted, "+2+") != 0)
+	msg_warn("undetected error pattern 2");
+
+    /*
+     * Positive tests.
+     */
     while ((len = read_buf(VSTREAM_IN, unquoted)) > 0) {
 	xtext_quote(quoted, STR(unquoted), "+=");
 	if (xtext_unquote(unquoted, STR(quoted)) == 0)

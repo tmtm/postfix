@@ -85,7 +85,7 @@ of new mail.
 .IP "\fBslow start\fR"
 This strategy eliminates "thundering herd" problems by slowly
 adjusting the number of parallel deliveries to the same destination.
-.IP "\fBround robin\fR
+.IP "\fBround robin\fR"
 The queue manager sorts delivery requests by destination.
 Round\-robin selection prevents one destination from dominating
 deliveries to other destinations.
@@ -335,7 +335,15 @@ Available in Postfix version 2.5 and later:
 The default amount of delay that is inserted between individual
 deliveries to the same destination; the resulting behavior depends
 on the value of the corresponding per\-destination recipient limit.
-.IP "\fItransport\fB_destination_rate_delay $default_destination_rate_delay
+.IP "\fItransport\fB_destination_rate_delay $default_destination_rate_delay\fR"
+Idem, for delivery via the named message \fItransport\fR.
+.PP
+Available in Postfix version 3.1 and later:
+.IP "\fBdefault_transport_rate_delay (0s)\fR"
+The default amount of delay that is inserted between individual
+deliveries over the same message delivery transport, regardless of
+destination.
+.IP "\fItransport\fB_transport_rate_delay $default_transport_rate_delay\fR"
 Idem, for delivery via the named message \fItransport\fR.
 .SH "SAFETY CONTROLS"
 .na
@@ -348,6 +356,11 @@ a request before it is terminated by a built\-in watchdog timer.
 .IP "\fBqmgr_ipc_timeout (60s)\fR"
 The time limit for the queue manager to send or receive information
 over an internal communication channel.
+.PP
+Available in Postfix version 3.1 and later:
+.IP "\fBaddress_verify_pending_request_limit (see 'postconf -d' output)\fR"
+A safety limit that prevents address verification requests from
+overwhelming the Postfix queue.
 .SH "MISCELLANEOUS CONTROLS"
 .na
 .nf
@@ -428,3 +441,8 @@ Preemptive scheduler enhancements:
 Patrik Rak
 Modra 6
 155 00, Prague, Czech Republic
+
+Wietse Venema
+Google, Inc.
+111 8th Avenue
+New York, NY 10011, USA

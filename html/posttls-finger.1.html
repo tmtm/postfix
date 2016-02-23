@@ -4,7 +4,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
 <title> Postfix manual - posttls-finger(1) </title>
 </head> <body> <pre>
-POSTTLS-FINGER(1)                                            POSTTLS-FINGER(1)
+POSTTLS-FINGER(1)           General Commands Manual          POSTTLS-FINGER(1)
 
 <b>NAME</b>
        posttls-finger - Probe the TLS properties of an ESMTP or LMTP server.
@@ -231,31 +231,37 @@ POSTTLS-FINGER(1)                                            POSTTLS-FINGER(1)
               with  these servers there will never be more than 1 reconnection
               attempt.
 
+       <b>-M</b> <i>insecure</i><b>_</b><i>mx</i><b>_</b><i>policy</i> (default: <b>dane</b>)
+              The TLS policy for MX hosts with "secure" TLSA records when  the
+              nexthop  destination  security  level is <b>dane</b>, but the MX record
+              was found via an "insecure" MX lookup.  See the <a href="postconf.5.html">main.cf</a> documen-
+              tation for smtp_tls_insecure_mx_policy for details.
+
        <b>-o</b> <i>name=value</i>
-              Specify zero or more times to override the value of the  <a href="postconf.5.html">main.cf</a>
-              parameter  <i>name</i> with <i>value</i>.  Possible use-cases include overrid-
-              ing the values of TLS library  parameters,  or  "<a href="postconf.5.html#myhostname">myhostname</a>"  to
+              Specify  zero or more times to override the value of the <a href="postconf.5.html">main.cf</a>
+              parameter <i>name</i> with <i>value</i>.  Possible use-cases include  overrid-
+              ing  the  values  of  TLS library parameters, or "<a href="postconf.5.html#myhostname">myhostname</a>" to
               configure the SMTP EHLO name sent to the remote server.
 
        <b>-p</b> <i>protocols</i> (default: !SSLv2)
-              List  of  TLS  protocols  that  posttls-finger  will  exclude or
+              List of  TLS  protocols  that  posttls-finger  will  exclude  or
               include.  See <a href="postconf.5.html#smtp_tls_mandatory_protocols">smtp_tls_mandatory_protocols</a> for details.
 
        <b>-P</b> <i>CApath/</i> (default: none)
-              The OpenSSL CApath/  directory  (indexed  via  c_rehash(1))  for
+              The  OpenSSL  CApath/  directory  (indexed  via c_rehash(1)) for
               remote SMTP server certificate verification.  By default no CAp-
               ath is used and no public CAs are trusted.
 
        <b>-r</b> <i>delay</i>
-              With a cacheable TLS session,  disconnect  and  reconnect  after
+              With  a  cacheable  TLS  session, disconnect and reconnect after
               <i>delay</i> seconds. Report whether the session is re-used. Retry if a
-              new server is encountered, up to 5 times or  as  specified  with
-              the  <b>-m</b>  option.  By default reconnection is disabled, specify a
+              new  server  is  encountered, up to 5 times or as specified with
+              the <b>-m</b> option.  By default reconnection is disabled,  specify  a
               positive delay to enable this behavior.
 
-       <b>-S</b>     Disable SMTP; that is, connect to an LMTP  server.  The  default
-              port  for  LMTP over TCP is 24.  Alternative ports can specified
-              by appending "<i>:servicename</i>" or ":<i>portnumber</i>" to the  destination
+       <b>-S</b>     Disable  SMTP;  that  is, connect to an LMTP server. The default
+              port for LMTP over TCP is 24.  Alternative ports  can  specified
+              by  appending "<i>:servicename</i>" or ":<i>portnumber</i>" to the destination
               argument.
 
        <b>-t</b> <i>timeout</i> (default: <b>30</b>)
@@ -263,7 +269,7 @@ POSTTLS-FINGER(1)                                            POSTTLS-FINGER(1)
               reading the remote server's 220 banner.
 
        <b>-T</b> <i>timeout</i> (default: <b>30</b>)
-              The SMTP/LMTP command timeout for EHLO/LHLO, STARTTLS and  QUIT.
+              The SMTP/LMTP command timeout for EHLO/LHLO, STARTTLS and QUIT.
 
        <b>-v</b>     Enable  verbose  Postfix  logging.   Specify  more  than once to
               increase the level of verbose logging.

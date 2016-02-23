@@ -73,7 +73,7 @@
 /* .IP "\fBslow start\fR"
 /*	This strategy eliminates "thundering herd" problems by slowly
 /*	adjusting the number of parallel deliveries to the same destination.
-/* .IP "\fBround robin\fR
+/* .IP "\fBround robin\fR"
 /*	The queue manager sorts delivery requests by destination.
 /*	Round-robin selection prevents one destination from dominating
 /*	deliveries to other destinations.
@@ -253,7 +253,15 @@
 /*	The default amount of delay that is inserted between individual
 /*	deliveries to the same destination; the resulting behavior depends
 /*	on the value of the corresponding per-destination recipient limit.
-/* .IP "\fItransport\fB_destination_rate_delay $default_destination_rate_delay
+/* .IP "\fItransport\fB_destination_rate_delay $default_destination_rate_delay\fR"
+/*	Idem, for delivery via the named message \fItransport\fR.
+/* .PP
+/*	Available in Postfix version 3.1 and later:
+/* .IP "\fBdefault_transport_rate_delay (0s)\fR"
+/*	The default amount of delay that is inserted between individual
+/*	deliveries over the same message delivery transport, regardless of
+/*	destination.
+/* .IP "\fItransport\fB_transport_rate_delay $default_transport_rate_delay\fR"
 /*	Idem, for delivery via the named message \fItransport\fR.
 /* SAFETY CONTROLS
 /* .ad
@@ -264,6 +272,11 @@
 /* .IP "\fBqmgr_ipc_timeout (60s)\fR"
 /*	The time limit for the queue manager to send or receive information
 /*	over an internal communication channel.
+/* .PP
+/*	Available in Postfix version 3.1 and later:
+/* .IP "\fBaddress_verify_pending_request_limit (see 'postconf -d' output)\fR"
+/*	A safety limit that prevents address verification requests from
+/*	overwhelming the Postfix queue.
 /* MISCELLANEOUS CONTROLS
 /* .ad
 /* .fi
@@ -326,6 +339,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -386,11 +404,13 @@ char   *var_conc_pos_feedback;
 char   *var_conc_neg_feedback;
 int     var_conc_cohort_limit;
 int     var_conc_feedback_debug;
+int     var_xport_rate_delay;
 int     var_dest_rate_delay;
 char   *var_def_filter_nexthop;
 int     var_qmgr_daemon_timeout;
 int     var_qmgr_ipc_timeout;
 int     var_dsn_delay_cleared;
+int     var_vrfy_pend_limit;
 
 static QMGR_SCAN *qmgr_scans[2];
 
@@ -634,6 +654,7 @@ int     main(int argc, char **argv)
 	VAR_DSN_QUEUE_TIME, DEF_DSN_QUEUE_TIME, &var_dsn_queue_time, 0, 8640000,
 	VAR_XPORT_RETRY_TIME, DEF_XPORT_RETRY_TIME, &var_transport_retry_time, 1, 0,
 	VAR_QMGR_CLOG_WARN_TIME, DEF_QMGR_CLOG_WARN_TIME, &var_qmgr_clog_warn_time, 0, 0,
+	VAR_XPORT_RATE_DELAY, DEF_XPORT_RATE_DELAY, &var_xport_rate_delay, 0, 0,
 	VAR_DEST_RATE_DELAY, DEF_DEST_RATE_DELAY, &var_dest_rate_delay, 0, 0,
 	VAR_QMGR_DAEMON_TIMEOUT, DEF_QMGR_DAEMON_TIMEOUT, &var_qmgr_daemon_timeout, 1, 0,
 	VAR_QMGR_IPC_TIMEOUT, DEF_QMGR_IPC_TIMEOUT, &var_qmgr_ipc_timeout, 1, 0,
@@ -649,6 +670,7 @@ int     main(int argc, char **argv)
 	VAR_LOCAL_RCPT_LIMIT, DEF_LOCAL_RCPT_LIMIT, &var_local_rcpt_lim, 0, 0,
 	VAR_LOCAL_CON_LIMIT, DEF_LOCAL_CON_LIMIT, &var_local_con_lim, 0, 0,
 	VAR_CONC_COHORT_LIM, DEF_CONC_COHORT_LIM, &var_conc_cohort_limit, 0, 0,
+	VAR_VRFY_PEND_LIMIT, DEF_VRFY_PEND_LIMIT, &var_vrfy_pend_limit, 1, 0,
 	0,
     };
     static const CONFIG_BOOL_TABLE bool_table[] = {

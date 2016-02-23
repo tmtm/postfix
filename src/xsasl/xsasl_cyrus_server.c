@@ -47,6 +47,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -474,7 +479,13 @@ static int xsasl_cyrus_server_auth_response(int sasl_status,
 	if (sasl_status == SASL_NOUSER)		/* privacy */
 	    sasl_status = SASL_BADAUTH;
 	vstring_strcpy(reply, xsasl_cyrus_strerror(sasl_status));
-	return (XSASL_AUTH_FAIL);
+	switch (sasl_status) {
+	case SASL_TRYAGAIN:
+	case SASL_UNAVAIL:
+	    return XSASL_AUTH_TEMP;
+	default:
+	    return (XSASL_AUTH_FAIL);
+	}
     }
 }
 

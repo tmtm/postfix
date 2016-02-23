@@ -25,6 +25,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -70,14 +75,6 @@ const char *smtpd_milter_eval(const char *name, void *ptr)
      */
     if (state->expand_buf == 0)
 	state->expand_buf = vstring_alloc(10);
-
-    /*
-     * Canonicalize the name.
-     */
-    if (*name != '{') {				/* } */
-	vstring_sprintf(state->expand_buf, "{%s}", name);
-	name = STR(state->expand_buf);
-    }
 
     /*
      * System macros.
@@ -143,7 +140,7 @@ const char *smtpd_milter_eval(const char *name, void *ptr)
     /*
      * MAIL FROM macros.
      */
-#define IF_SASL_ENABLED(s) (smtpd_sasl_is_active(state) && (s) ? (s) : 0)
+#define IF_SASL_ENABLED(s) ((s) ? (s) : 0)
 
     if (strcmp(name, S8_MAC_I) == 0)
 	return (state->queue_id);

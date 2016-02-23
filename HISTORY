@@ -21594,16 +21594,53 @@ Apologies for any names omitted.
 	part of the stable release. Files: smtpd/smtpd_check.c,
 	proto/acces.
 
+20150210
+
+	Cleanup: socketmap documentation. File: proto/socketmap_table.
+
 20150211
 
 	Cleanup: strncasecmp_utf8() streamlining. Files: util/stringops.h,
 	util/allascii.c, util/strcasecmp_utf8.c.
 
+20150212
+
+	Cleanup: in code after reading main.cf, removed bogus guard
+	before re-evaluating the mail_task() syslog prefix.  File:
+	postlog/postlog.c.
+
 20150214
 
 	Bugfix (introduced: Postfix 3.0): missing #ifdef USE_TLS
-	inside #ifdef USE_SASL_AUTH.  Viktor Dukhovni. File:
-	smtpd/smtpd.c.
+	inside #ifdef USE_SASL_AUTH broke the build. Viktor Dukhovni.
+	File: smtpd/smtpd.c.
+
+	Cleanup: missing errno logging in bounce daemon clients.
+	This made troubleshooting significantly more difficult.
+	File: global/mail_command_client.c.
+
+20150216
+
+	Cleanup: documented that mail_connect() produces no errno
+	logging.  The functions that call it should log the error
+	(and the majority does). File: global/mail_connect.c.
+
+	Cleanup: added errno logging after mail_connect() failure.
+	Files: global/post_mail.c, local/forward.c.
+
+	Cleanup: in code after reading main.cf, removed bogus guard
+	before re-evaluating the mail_task() syslog prefix. Files:
+	postalias/postalias.c, postdrop/postdrop.c, postmap/postmap.c,
+	postqueue/postqueue.c, postsuper/postsuper.c, sendmail/sendmail.c.
+
+20150218
+
+	Documentation: header/body_checks additional text about whether
+	an action stops further inspection of the input stream.  File:
+	proto/header_checks.
+
+	Robustness: reject installation pathnames with whitespace.
+	File: postfix-install.
 
 20150217
 
@@ -21622,6 +21659,15 @@ Apologies for any names omitted.
 	postscreen_dnsbl_timeout. Quanah Gibson-Mount. File:
 	postscreen/postscreen.c.
 
+20150320
+
+	Cleanup: better sorting order for the default tls_*_cipherlist
+	settings. OpenSSL does not order "ALL" quite right: some
+	MEDIUM ciphers (SEED and IDEA) sneak up above some 128-bit
+	HIGH ciphers.  Also previously, when we prefer "aNULL" we
+	moved MEDIUM with aNULL above same bit-length HIGH but not
+	aNULL.  Viktor Dukhovni.  File: global/mail_params.h.
+
 20150324
 
 	Bugfix (introduced: Postfix 2.6): sender_dependent_relayhost_maps
@@ -21632,6 +21678,15 @@ Apologies for any names omitted.
 	relayhost, and the recipient domain, and put that code
 	together in once place so that it is easier to maintain.
 	File: trivial-rewrite/resolve.c.
+
+20150326
+
+	Feature: lmtp_fallback_relay, limited to TCP destinations
+	only.  Viktor Dukhovni. Wietse updated the postlink, smtp.c,
+	and smtp-only files, and added a warning when lmtp_fallback_relay
+	is specified for a non-TCP destination. Files: mantools/postlink,
+	smtp/smtp.c, smtp/smtp-only, smtp/smtp_connect.c,
+	smtp/smtp_params.c, global/mail_params.h, proto/postconf.proto.
 
 20150328
 
@@ -21646,10 +21701,142 @@ Apologies for any names omitted.
 	Bitrot: prepare for future changes in OpenSSL API. Viktor
 	Dukhovni. File: tls_dane.c.
 
+	Safety: instead of bouncing mail, report a soft error when
+	SASL infrastucture breaks.  Viktor Dukhovni, Emmanuel Fuste.
+	Files: smtpd/smtpd_sasl_glue.c, xsasl/xsasl.h,
+	xsasl/xsasl_cyrus_server.c, xsasl/xsasl_dovecot_server.c.
+
+20150401
+
+	Documentation: update the mydestination default value in
+	the stock main.cf file.  File: conf/main.cf.
+
+20150404
+
+	Documentation: add "postconf -m" output to problem reports. File:
+	proto/DEBUG_README.html.
+
+20150418
+
+	Portability: use the icu-config utility to locate the ICU
+	include and library files. With this, Postfix builds out
+	of the box on MacOS X. File: makedefs.
+
+20150421
+
+	Bugfix (introduced: 19970309): reset errno before calling
+	readdir(), in order to distinguish between end-of-directory and
+	an error condition. File: scandir.c.
+
+20150426
+
+	Cleanup: when transmitting an attribute-value sequence
+	between Postfix processes, a hash table may now appear at
+	any position instead of only at the end.  Files:
+	util/attr_scan{0,64,plain}.c, util/attr_print{0,64,plain}.c,
+	util/attr_scan{0,64,plain}.ref.
+
+	Feature: milter_macro_defaults, an optional list of macro
+	name=value pairs that specify default values for Milter
+	macros.  When a macro is to be sent to a Milter application,
+	Postfix will send its default value when no value is available
+	from the mail delivery context. For example, with
+	"milter_macro_defaults = auth_type=TLS", Postfix will send
+	an auth_type of "TLS" unless a remote client authenticates
+	with SASL. Files: mantools/postlink, proto/MILTER_README.html,
+	proto/postconf.proto, cleanup/cleanup.c, cleanup/cleanup_init.c,
+	cleanup/cleanup_milter.c, global/mail_params.h, milter/milter.c,
+	milter/milter.h, smtpd/smtpd.c, smtpd/smtpd_milter.c.
+
 20150501
 
 	Support for Linux 4.*, and some simplification for future
 	makedefs files. Files: makedefs, util/sys_defs.h.
+
+20150502
+
+	Cleanup: updated the examples in MILTER_README.  File:
+	proto/MILTER_README.html
+
+20150529
+
+	Support for DNS reply TTL values in dnsblog and postscreen.
+	Files: dnsblog/dnsblog.c, postscreen/postscreen_early.c,
+	postscreen/postscreen_dnsbl.c.
+
+20150607
+
+	Support for DNS reply TTL values for "not found" responses
+	(negative reply caching).  The postscreen daemon needs this to
+	accurately whitelist an SMTP client that is not found on any
+	DNSBL. Files: dns/dns_lookup.c, dns/dns_strrecord.c, dns/dns.h,
+	dns/test_dns_lookup.c.
+
+20150615
+
+	Two new parameters to limit how long a DNSBL or DNSWL lookup
+	result remains valid: postscreen_dnsbl_max_ttl is an upper
+	limit for the TTL from a DNS query, and postscreen_dnsbl_min_ttl
+	is a lower limit. The old postscreen_dnsbl_ttl provides a
+	backwards-compatible default for postscreen_dnsbl_max_ttl.
+	Files: global/mail_params.h, postscreen/postscreen.c,
+	postscreen/postscreen_early.c, mantools/postlink,
+	proto/postconf.proto.
+
+20150616
+
+	Refinement: the postscreen daemon now computes two combined
+	DNS reply TTLs: one combined TTL for replies that the client
+	should be blocked, and one combined TTL for replies that the
+	client should be allowed. This is more conservative than
+	simply combining all reply TTLs into one number.  File:
+	postscreen/postscreen_dnsbl.c.
+
+20150621
+
+	Feature: default_transport_rate_delay (and the transport-specific
+	*transport*_transport_rate_delay) to enforce a destination-
+	independent rate limit on deliveries.  Files: mantools/postlink,
+	proto/postconf.proto, *qmgr/qmgr.h, *qmgr/qmgr_transport.c,
+	*qmgr/qmgr_deliver.c, *qmgr/qmgr.c.
+
+20150707
+
+	Workaround: some DNS servers reply with NXDOMAIN for type
+	NS queries with names that actually have an A record. This
+	broke check_mumble_ns_access.  File: smtpd/smtpd_check.c.
+
+20150711
+
+	Workaround: conditional time default value can result in
+	multiple time unit suffixes. Files: global/conv_time.c
+	global/mail_conf_time.c.
+
+20150712
+
+	Cleanup: configurable workaround (dns_ncache_ttl_fix_enable)
+	in case some future libc change breaks a promise made by
+	current resolver(3) documentation. Files: global/mail_params.[hc].
+
+	Cleanup: removed unused libdns dependencies. No-one remembers
+	why they were introduced. Files: postscreen/Makefile.in,
+	qmqpd/Makefile.in, smtpd/Makefile.in, tlsmgr/Makefile.in.
+
+	Cleanup: code indentation. Viktor Dukhovni. File:
+	smtp/smtp_addr.c.
+
+	Workaround: With Solaris10, write_wait() hangs in poll()
+	until timeout, when invoked after peekfd() has received an
+	ECONNRESET error indication. This happens when a client
+	sends QUIT and closes the connection immediately. File:
+	util/peekfd.c.
+
+20150715
+
+	Security: updated default Diffie-Hellman export (512 bit)
+	primes and non-export (from 1024 to 2048 bit) primes, and
+	updated text on non-export DH primes. Viktor Dukhovni.
+	Files: tls/tls_dh.c, proto/FORWARD_SECRECY_README.html.
 
 20150718
 
@@ -21668,8 +21855,31 @@ Apologies for any names omitted.
 
 20150722
 
-	The COMPATIBILITY_README text and HTML files were not
-	installed.  File: conf/postfix-files.
+	Cleanup: the COMPATIBILITY_README* files were not installed.
+	File: conf/postfix-files.
+
+20150726
+
+	Cleanup: some lost edits for the SASL_README file. File:
+	proto/SASL_README.html.
+
+20150816
+
+	Workaround: updated the 20150707 fix for DNS servers that
+	reply with NXDOMAIN for type NS queries instead of (NOERROR,
+	zero answers).  File: smtpd/smtpd_check.c.
+
+20150829
+
+	Documentation: TLS session tickets are preferred over the
+	local server-side smtpd_tls_session_cache_database storage.
+	TLS session tickets are supported as of OpenSSL 0.9.8h (May
+	2008).  Files: mantools/postlink, proto/TLS_README.html,
+	proto/postconf.proto.
+
+20150831
+
+	Cleanup: obsolete comments in Makefile.init.
 
 20150903
 
@@ -21677,6 +21887,40 @@ Apologies for any names omitted.
 	The AIX 6/7 resolver(5) API defines RES_USE_DNSSEC without
 	defining the "ad" bit.  Viktor Dukhovni.  Files: makedefs,
 	proto/INSTALL.html, dns/dns.h.
+
+20150912
+
+	Future-proofing and code cleanup: exploit GCC and Clang
+	"warn_unused_result" feature to flag missing error checks.
+	Files: util/sys_defs.h, util/attr.h, util/edit_file.h,
+	util/listen.h, util/lstat_as.h, util/mac_expand.h,
+	util/mac_parse.h, util/myaddrinfo.h, util/myflock.h,
+	util/sane_fsops.h, util/sane_socketpair.h, util/stat_as.h,
+	util/base32_code.h, util/base64_code.h, util/hex_code.h,
+	util/timed_wait.h, util/vstream.h, src/util/vstring_vstream.h.
+
+	Cleanup: incomplete error check. Found with WARN_UNUSED_RESULT
+	check. File: util/recv_pass_attr.c.
+
+	Future-proofing: added type mis-match detection for
+	ATTR_TYPE_FUNC function-pointer arguments. File: util/attr.h.
+
+	Cleanup: don't ignore seek-to-end-of-file errors.  File:
+	global/record.c.
+
+	Cleanup: use vstream_fpurge() to purge VSTREAM buffers,
+	instead of calling vstream_fseek() and ignoring ESPIPE
+	errors.  File: smtpstone/qmqp-sink.c.
+
+20150913
+
+	Feature: SMTPD policy service "policy_context" attribute
+	and smtpd_policy_service_policy_context main.cf parameter.
+	Originally, to share the same SMTPD policy service endpoint
+	among multiple check_policy_service clients. Markus Benning.
+	Files: mantools/postlink, proto/SMTPD_POLICY_README.html,
+	proto/postconf.proto, global/mail_params.h, global/mail_proto.h,
+	smtpd/smtpd.c, smtpd/smtpd_check.c.
 
 20150923
 
@@ -21688,6 +21932,11 @@ Apologies for any names omitted.
 
 20150924
 
+	Cleanup (introduced: 20060510, exposed 20150912): eliminated
+	a harmless warning message "seek error after reading END
+	record: Illegal seek" from the cleanup server after a
+	check_sender_access DISCARD action.  File: cleanup/cleanup.c.
+
 	Bugfix (introduced: 20090216-24): incorrect postmulti error
 	message. Reported by Patrik Koetter. Fix by Viktor Dukhovni.
 	File: postmulti/postmulti.c.
@@ -21695,13 +21944,6 @@ Apologies for any names omitted.
 	Workaround: don't create a new instance when the template
 	main.cf and master.cf files are missing, as happens on
 	Debian-like systems. Viktor Dukhovni. File: conf/postmulti-script.
-
-20150925
-
-	Bugfix (introduced: 19970309, fixed 20150421 in development
-	release): reset errno before calling readdir(), in order
-	to distinguish between an end-of-directory and an error
-	condition. File: scandir.c.
 
 20150930
 
@@ -21712,7 +21954,7 @@ Apologies for any names omitted.
 
 	Bugfix (introduced: 20031128): xtext_unquote() did not
 	propagate error reports from xtext_unquote_append(), causing
-	the decoder to return partial ouput, instead of rejecting
+	the decoder to return partial output, instead of rejecting
 	malformed input. Fix by Krzysztof Wojta.  File: global/xtext.c.
 
 20151003
@@ -21723,19 +21965,224 @@ Apologies for any names omitted.
 	malformed input.  Found by searching the code for similar
 	error patterns as with xtext_unquote().  File: global/uxtext.c.
 
-	Bugfix (introduced: 20141130, fixed around 20150607 in
-	development release): the DNS multi-query clients forgot
-	to save and restore h_errno when evaluating the aggregate
-	result. File: dns/dns_lookup.c.
+	Cleanup: added missing "negative" unit tests. Files:
+	global/xtext.c, global/uxtext.c.
+
+20151004
+
+	Future proofing: use a real VSTRING in the 20150930 header
+	PREPEND fix. File: cleanup/cleanup_message.c.
+
+	Future proofing: make vstring_import() consistent with
+	vstring_alloc(). The alternative would be to remove the
+	function as it is unused and exists only for symmetry with
+	vstring_export(). File: usr/vstring.c.
+
+20151010
+
+	Cleanup: the 20150903 workaround for AIX DNSSEC used the
+	wrong name in #ifdef. File: dns/dns.h.
+
+20151011
+
+	Cleanup: in the PCRE client, turn fatal lookup errors into
+	warnings, and skip the failing pattern as in dict_regexp.c.
+	Also, fixed the error text when running into the matcher's
+	backtracking limit. File: util/dict_pcre.c.
+
+20151017
+
+	Feature: smtpd_client_auth_rate_limit enforces a rate
+	limit on the number of AUTH commands per client IP address.
+	mantools/postlink, proto/postconf.proto, anvil/anvil.c,
+	global/anvil_clnt.c, global/anvil_clnt.h, global/mail_params.h,
+	smtpd/smtpd.c.
+
+20151018
+
+	Added RFC 7672 (SMTP security via opportunistic DANE TLS)
+	and RFC 7505 ("Null MX" No Service Resource Record) to the
+	lists of supported RFCs in manpages. Viktor Dukhovni. Files:
+	smtp/smtp.c, smtpd/smtpd.c.
+
+20151031
+
+	Bitrot: OpenSSL API cleanups. Viktor Dukhovni. Files:
+	.indent.pro, tls/tls.h, tls/tls_dane.c, tls/tls_fprint.c,
+	tls/tls_misc.c, tls/tls_server.c, tls/tls_verify.c.
 
 20151124
 
 	Bugfix (introduced: Postfix 3.0): don't throttle a destination
-	after opportunistic TLS failure. Viktor Dukhovni. File:
-	smtp/smtp_proto.c.
+	after opportunistic TLS failure. Viktor Dukhovni and Wietse.
+	Files: smtp/smtp_proto.c, smtp/smtp.h, smtp/smtp_trouble.c.
 
-20160204
+20151128
 
-	Documentation (introduced: Postfix 3.0): wrong paramester
-	name in lmtp_address_verify_target description. File:
-	proto/posconf.proto
+	Feature: JSON-formatted queue listing with "postqueue -j".
+	Output is a stream of JSON objects, one per queue file.  To
+	simplify stream-mode parsing, each JSON object is followed by
+	a newline character. Files: postqueue/postqueue.c,
+	postqueue/postqueue.h, postqueue/showq_compat.c,
+	postqueue/showq_json.c, showq/showq.c.
+
+20151216
+
+	Bugfix (introduced: 20151128) bogus queue file parsing error.
+	File: showq/showq.c.
+
+20151226
+
+	Cleanup: postlog(1) now pauses for 1s after reporting a
+	fatal or panic error. This makes behavior of scripts such
+	as postfix-script consistent with built-in error messages.
+	File: postlog/postlog.c.
+
+20151227
+
+	Robustness: don't allow for whitespace in command-line
+	arguments.  Files; postfix-install, conf/post-install.
+
+	Robustness: added a comment to discourage people who keep
+	adding code that calls gethostbyname() to determine the
+	default myhostname setting.  This is a mistake: all Postfix
+	programs will hang when the DNS is unavailable.  File:
+	global/mail_params.c.
+
+	Safety: a limit on the number of address verification probes
+	in the active queue (address_verify_pending_request_limit),
+	by default 1/4 of the active queue maximum size. The queue
+	manager tempfails probe messages that exceed the limit.
+	Files: mantools/postlink, proto/postconf.proto, cleanup/cleanup.h,
+	cleanup/cleanup_envelope.c, cleanup/cleanup_out_recipient.c,
+	cleanup/cleanup_state.c, global/mail_params.h, global/post_mail.c,
+	global/post_mail.h, global/verify.c, oqmgr/qmgr.c, oqmgr/qmgr.h,
+	oqmgr/qmgr_message.c, qmgr/qmgr.c, qmgr/qmgr.h,
+	qmgr/qmgr_message.c, verify/verify.c.
+
+20160102
+
+	Workaround: MacOS/X 10.11.x /bin/sh unsets DYLD_LIBRARY_PATH,
+	which breaks the build and install.  Viktor Dukhovni and
+	Wietse.  Files: makedefs, postfix-install, Makefile.in.
+
+	Bitrot: OpenSSL 1.1.0-dev drops support for EXPORT ciphers
+	and ephemeral RSA.  Viktor Dukhovni. Files: tls/tls_client.c,
+	tls/tls_rsa.c, tls/tls_server.c.
+
+	Bugfix: memory leak in tls_set_eecdh_curve(). Viktor Dukhovni.
+	File: tls/tls_dh.c.
+
+	Bugfix (introduced 20150326): when lmtp_fallback_relay
+	support was added, the code that generates lmtp_mumble
+	parameters from smtp_mumble parameters wasn't updated. File:
+	smtp/smtp-only.
+
+	Bugfix (introduced 20151017): the smtpd_client_auth_rate_limit
+	implementation was not guarded with #ifdef USE_SASL_AUTH.
+	File: smtpd/smtpd.c.
+
+20160103
+
+	Feature: enable DANE policies when an MX host has a secure
+	TLSA DNS record, even if the MX DNS record was obtained
+	with insecure lookups. The existence of a secure TLSA record
+	implies that the host wants to talk TLS and not plaintext.
+	This behavior is controlled with smtp_tls_dane_insecure_mx_policy
+	(default: "dane", other settings: "encrypt" and "may"; the
+	latter is backwards-compatible with earlier Postfix releases).
+	Viktor Dukhovni.  Files: mantools/postlink, proto/postconf.proto,
+	src/global/mail_params.h, src/posttls-finger/posttls-finger.c,
+	src/smtp/smtp-only, src/smtp/smtp.c, src/smtp/smtp.h,
+	src/smtp/smtp_addr.c, src/smtp/smtp_params.c,
+	src/smtp/smtp_tls_policy.c, src/tls/tls.h, src/tls/tls_client.c.
+
+20160104
+
+	Cleanup: distinct TLS levels for "full" DANE and for DANE
+	with insecure MX records.  Viktor Dukhovni. Files:
+	posttls-finger/posttls-finger.c, smtp/smtp_tls_policy.c,
+	tls/tls.h, tls/tls_client.c, tls/tls_level.c.
+
+20160108
+
+	Cleanup: smtp_reply_footer() now restores state in case of
+	input error; unit tests that cover most if not all error
+	and non-error cases.  Files: global/smtp_reply_footer.c,
+	global/smtp_reply_footer.ref.
+
+20160110
+
+	Bitrot: const-ification for OpenSSL 1.1.0. Viktor Dukhovni.
+	File: tls/tls_misc.c.
+
+20160116
+
+	"postconf -H" support (show names without the =value).
+	Initial use case: mass reversal of TLS-related main.cf
+	parameters (postconf -nH | grep _tls_ | xargs postconf -X).
+	This flag also works with "postconf -F" and "postconf -P".
+	Added missing documentation that -h works with "postconf
+	-F" and "postconf -P".  Files: postconf.c, postconf.h,
+	postconf_master.c, postconf_main.c.
+
+	Robustness: force html2text to produce ASCII output.  File:
+	mantools/html2readme.
+
+	Feature: "postfix tls" commands to enable opportunistic TLS
+	in the Postfix SMTP client or server, or generate or replace
+	Postfix SMTP server TLS private keys and server certificates.
+	Viktor Dukhovni, Wietse. Files: conf/postfix-files,
+	conf/postfix-script, conf/postfix-tls-script, makedefs,
+	proto/INSTALL.html, proto/postconf.proto, global/mail_params.h,
+	postfix/postfix.c, tls/tls_misc.c.
+
+	Portability: added a tls_random_source default setting for
+	MacOS X. Viktor Dukhovni. File: util/sys_defs.h.
+
+20150118
+
+	Bitrot: OpenSSL 1.1.0-dev (aka the "master" branch) has new
+	security levels ranging from 0 to 5. Level "0" is backwards
+	compatible, and other levels are increasingly restrictive.
+	Viktor Dukhovni. Files: tls/tls_server.c, tls/tls_client.c.
+
+20161205
+
+	Portability: Postfix TLS support uses /dev/urandom if
+	available and no system-specific setting exists in sys_defs.h.
+	Files: makedefs, util/sys_defs.h.
+
+20160208
+
+	Cleanup: building the INSTALL file had failed, added
+	hyperlinks for "postfix tls". Files: mantools/postlink.
+
+20160210
+
+	Feature: all-default-client and all-default-server subcommands.
+	Eray Aslan. File: conf/postfix-tls-script.
+
+	Bugfix: the postqueue(1) JSON formatter wrote a spurious
+	comma after the delay reason. Reported by Christian Roessner.
+	File: postqueue/showq_json.c.
+
+20160212
+
+	Cleanup: Bold/Italic cleanup in manpages.
+
+20160213
+
+	Added Google credits to external manpages.
+
+20160214
+
+	More manpage cleanups. Viktor, Wietse.
+
+20160215
+
+	Cleanup: "match_list_match: permit_mynetworks: no match" after
+	a SUCCESSFUL permit_mynetworks match of a client IP address was
+	complicating troubleshooting.  The fix is to log additional
+	context to clarify that this "no match" condition is for
+	smtpd_log_access_permit_actions. File: smtpd/smtpd_check.c.

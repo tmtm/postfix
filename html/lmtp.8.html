@@ -109,6 +109,7 @@ SMTP(8)                                                                SMTP(8)
        <a href="http://tools.ietf.org/html/rfc5321">RFC 5321</a> (SMTP protocol)
        <a href="http://tools.ietf.org/html/rfc6531">RFC 6531</a> (Internationalized SMTP)
        <a href="http://tools.ietf.org/html/rfc6533">RFC 6533</a> (Internationalized Delivery Status Notifications)
+       <a href="http://tools.ietf.org/html/rfc7672">RFC 7672</a> (SMTP security via opportunistic DANE TLS)
 
 <b>DIAGNOSTICS</b>
        Problems and transactions are logged to <b>syslogd</b>(8).  Corrupted  message
@@ -327,8 +328,8 @@ SMTP(8)                                                                SMTP(8)
 
        <b><a href="postconf.5.html#smtp_sasl_password_maps">smtp_sasl_password_maps</a> (empty)</b>
               Optional Postfix  SMTP  client  lookup  tables  with  one  user-
-              name:password  entry  per  remote  hostname or domain, or sender
-              address when sender-dependent authentication is enabled.
+              name:password  entry  per  sender,  remote  hostname or next-hop
+              domain.
 
        <b><a href="postconf.5.html#smtp_sasl_security_options">smtp_sasl_security_options</a> (noplaintext, noanonymous)</b>
               Postfix SMTP client SASL security options; as of Postfix 2.3 the
@@ -473,17 +474,17 @@ SMTP(8)                                                                SMTP(8)
               process requests from the <a href="tlsmgr.8.html"><b>tlsmgr</b>(8)</a> server in order to seed  its
               internal pseudo random number generator (PRNG).
 
-       <b><a href="postconf.5.html#tls_high_cipherlist">tls_high_cipherlist</a> (ALL:!EXPORT:!LOW:!MEDIUM:+RC4:@STRENGTH)</b>
-              The OpenSSL cipherlist for "HIGH" grade ciphers.
+       <b><a href="postconf.5.html#tls_high_cipherlist">tls_high_cipherlist</a> (see 'postconf -d' output)</b>
+              The OpenSSL cipherlist for "high" grade ciphers.
 
-       <b><a href="postconf.5.html#tls_medium_cipherlist">tls_medium_cipherlist</a> (ALL:!EXPORT:!LOW:+RC4:@STRENGTH)</b>
-              The OpenSSL cipherlist for "MEDIUM" or higher grade ciphers.
+       <b><a href="postconf.5.html#tls_medium_cipherlist">tls_medium_cipherlist</a> (see 'postconf -d' output)</b>
+              The OpenSSL cipherlist for "medium" or higher grade ciphers.
 
-       <b><a href="postconf.5.html#tls_low_cipherlist">tls_low_cipherlist</a> (ALL:!EXPORT:+RC4:@STRENGTH)</b>
-              The OpenSSL cipherlist for "LOW" or higher grade ciphers.
+       <b><a href="postconf.5.html#tls_low_cipherlist">tls_low_cipherlist</a> (see 'postconf -d' output)</b>
+              The OpenSSL cipherlist for "low" or higher grade ciphers.
 
-       <b><a href="postconf.5.html#tls_export_cipherlist">tls_export_cipherlist</a> (ALL:+RC4:@STRENGTH)</b>
-              The OpenSSL cipherlist for "EXPORT" or higher grade ciphers.
+       <b><a href="postconf.5.html#tls_export_cipherlist">tls_export_cipherlist</a> (see 'postconf -d' output)</b>
+              The OpenSSL cipherlist for "export" or higher grade ciphers.
 
        <b><a href="postconf.5.html#tls_null_cipherlist">tls_null_cipherlist</a> (eNULL:!aNULL)</b>
               The  OpenSSL  cipherlist  for  "NULL" grade ciphers that provide
@@ -560,6 +561,13 @@ SMTP(8)                                                                SMTP(8)
        <b><a href="postconf.5.html#smtp_tls_wrappermode">smtp_tls_wrappermode</a> (no)</b>
               Request  that  the Postfix SMTP client connects using the legacy
               SMTPS protocol instead of using the STARTTLS command.
+
+       Available in Postfix version 3.1 and later:
+
+       <b><a href="postconf.5.html#smtp_tls_dane_insecure_mx_policy">smtp_tls_dane_insecure_mx_policy</a> (dane)</b>
+              The TLS policy for MX hosts with "secure" TLSA records when  the
+              nexthop  destination  security  level is <b>dane</b>, but the MX record
+              was found via an "insecure" MX lookup.
 
 <b>OBSOLETE STARTTLS CONTROLS</b>
        The following configuration parameters  exist  for  compatibility  with
@@ -845,6 +853,12 @@ SMTP(8)                                                                SMTP(8)
               In the context of email address verification, the SMTP  protocol
               stage that determines whether an email address is deliverable.
 
+       Available with Postfix 3.1 and later:
+
+       <b><a href="postconf.5.html#lmtp_fallback_relay">lmtp_fallback_relay</a> (empty)</b>
+              Optional list of relay hosts for LMTP destinations that can't be
+              found or that are unreachable.
+
 <b>SEE ALSO</b>
        <a href="generic.5.html">generic(5)</a>, output address rewriting
        <a href="header_checks.5.html">header_checks(5)</a>, message header content inspection
@@ -870,6 +884,11 @@ SMTP(8)                                                                SMTP(8)
        IBM T.J. Watson Research
        P.O. Box 704
        Yorktown Heights, NY 10598, USA
+
+       Wietse Venema
+       Google, Inc.
+       111 8th Avenue
+       New York, NY 10011, USA
 
        Command pipelining in cooperation with:
        Jon Ribbens

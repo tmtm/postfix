@@ -140,7 +140,7 @@
 #	data_directory default_database_type html_directory
 #	mail_spool_directory mailq_path manpage_directory meta_directory
 #	newaliases_path queue_directory readme_directory sendmail_path
-#	shlib_directory
+#	shlib_directory openssl_path
 #
 #	See the postconf(5) manpage for a description of these
 #	parameters.
@@ -158,6 +158,11 @@
 #	IBM T.J. Watson Research
 #	P.O. Box 704
 #	Yorktown Heights, NY 10598, USA
+#
+#	Wietse Venema
+#	Google, Inc.
+#	111 8th Avenue
+#	New York, NY 10011, USA
 #--
 
 # Emit system-dependent Makefile macro definitions to standard output.
@@ -412,6 +417,7 @@ case "$SYSTEM.$RELEASE" in
 			CCARGS="$CCARGS -D_ALL_SOURCE -DHAS_POSIX_REGEXP"
 			;;
 		3)	SYSTYPE=AIX3
+			CCARGS="$CCARGS -DNO_DNSSEC"
 			# How embarrassing...
 			case "$CC" in
 			cc|*/cc|xlc|*/xlc) OPT=; CCARGS="$CCARGS -w";;
@@ -658,7 +664,9 @@ ReliantUNIX-?.5.43) SYSTYPE=ReliantUnix543
 		: ${SHLIB_SUFFIX=.dylib}
 		: ${SHLIB_LD='cc -shared -Wl,-flat_namespace -Wl,-undefined,dynamic_lookup -Wl,-install_name,@rpath/${LIB}'}
 		: ${SHLIB_RPATH='-Wl,-rpath,${SHLIB_DIR}'}
-		: ${SHLIB_ENV="DYLD_LIBRARY_PATH=`pwd`/lib"}
+                # In MacOS/X 10.11.x /bin/sh unsets DYLD_LIBRARY_PATH, so we
+                # have export it into postfix-install indirectly!
+		: ${SHLIB_ENV="DYLD_LIBRARY_PATH=`pwd`/lib SHLIB_ENV_VAR=DYLD_LIBRARY_PATH SHLIB_ENV_VAL=`pwd`/lib"}
 		: ${PLUGIN_LD='cc -shared -Wl,-flat_namespace -Wl,-undefined,dynamic_lookup'}
 		;;
     dcosx.1*)	SYSTYPE=DCOSX1
@@ -739,9 +747,11 @@ esac
 # Look for the ICU library and enable unicode email if available.
 #
 case "$CCARGS" in
- *-DNO_EAI*) ;;
-          *) trap 'rm -f makedefs.test makedefs.test.[co]' 1 2 3 15
-             cat >makedefs.test.c <<'EOF'
+*-DNO_EAI*) ;;
+	 *) icu_cppflags=`(icu-config --cppflags) 2>/dev/null` && {
+		icu_ldflags=`(icu-config --ldflags) 2>/dev/null` && {
+		    trap 'rm -f makedefs.test makedefs.test.[co]' 1 2 3 15
+		    cat >makedefs.test.c <<'EOF'
 #include <unicode/uidna.h>
 #include <stdlib.h>
 
@@ -761,14 +771,17 @@ int main(int argc, char **argv)
 				  &error) != 14);
 }
 EOF
-             ${CC-gcc} -o makedefs.test makedefs.test.c -I/usr/local/include \
-		-L/usr/local/lib -licuuc >/dev/null 2>&1
-             if ./makedefs.test 2>/dev/null ; then
-                 SYSLIBS="$SYSLIBS -L/usr/local/lib -licuuc"
-             else
-                 CCARGS="$CCARGS -DNO_EAI"
-             fi
-             rm -f makedefs.test makedefs.test.[co]
+		    ${CC-gcc} -o makedefs.test makedefs.test.c $icu_cppflags \
+			$icu_ldflags >/dev/null 2>&1
+		    if ./makedefs.test 2>/dev/null ; then
+			CCARGS="$CCARGS $icu_cppflags"
+			SYSLIBS="$SYSLIBS $icu_ldflags"
+		    else
+			CCARGS="$CCARGS -DNO_EAI"
+		    fi
+		    rm -f makedefs.test makedefs.test.[co]
+		}
+	    } || CCARGS="$CCARGS -DNO_EAI"
 esac
 
 #
@@ -784,6 +797,11 @@ esac
 #		AUXLIBS="$AUXLIBS -lssl -lcrypto"
 #		;;
 #esac
+
+#
+# We don't know all systems that have /dev/urandom, so we probe.
+#
+test -r /dev/urandom && CCARGS="$CCARGS -DHAS_DEV_URANDOM"
 
 #
 # PCRE 3.x has a pcre-config utility so we don't have to guess.
@@ -912,13 +930,15 @@ newaliases_path_macro=DEF_NEWALIAS_PATH
 queue_directory_macro=DEF_QUEUE_DIR
 sendmail_path_macro=DEF_SENDMAIL_PATH
 shlib_directory_macro=DEF_SHLIB_DIR
+openssl_path_macro=DEF_OPENSSL_PATH
 
 # shlib_directory is checked here because "no" is not a good answer.
 # Instead, build with "dynamicmaps=no" and "shared=no" as appropriate.
 
 for parm_name in command_directory config_directory daemon_directory \
 	data_directory mail_spool_directory mailq_path meta_directory \
-	newaliases_path queue_directory sendmail_path shlib_directory
+	newaliases_path queue_directory sendmail_path shlib_directory \
+	openssl_path
 do
     eval parm_val=\"\$$parm_name\"
     eval parm_macro=\"\$${parm_name}_macro\"

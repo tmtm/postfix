@@ -44,22 +44,23 @@
 #define TLS_LEV_MAY		1	/* wildcard */
 #define TLS_LEV_ENCRYPT		2	/* encrypted connection */
 #define TLS_LEV_FPRINT		3	/* "peer" CA-less verification */
-#define TLS_LEV_DANE		4	/* Opportunistic TLSA policy */
-#define TLS_LEV_DANE_ONLY	5	/* Required TLSA policy */
-#define TLS_LEV_VERIFY		6	/* certificate verified */
-#define TLS_LEV_SECURE		7	/* "secure" verification */
+#define TLS_LEV_HALF_DANE	4	/* DANE TLSA MX host, insecure MX RR */
+#define TLS_LEV_DANE		5	/* Opportunistic TLSA policy */
+#define TLS_LEV_DANE_ONLY	6	/* Required TLSA policy */
+#define TLS_LEV_VERIFY		7	/* certificate verified */
+#define TLS_LEV_SECURE		8	/* "secure" verification */
 
 #define TLS_REQUIRED(l)		((l) > TLS_LEV_MAY)
 #define TLS_MUST_MATCH(l)	((l) > TLS_LEV_ENCRYPT)
-#define TLS_MUST_TRUST(l)	((l) >= TLS_LEV_DANE)
+#define TLS_MUST_TRUST(l)	((l) >= TLS_LEV_HALF_DANE)
 #define TLS_MUST_PKIX(l)	((l) >= TLS_LEV_VERIFY)
 #define TLS_OPPORTUNISTIC(l)	((l) == TLS_LEV_MAY || (l) == TLS_LEV_DANE)
-#define TLS_DANE_BASED(l)	((l) == TLS_LEV_DANE || (l) == TLS_LEV_DANE_ONLY)
+#define TLS_DANE_BASED(l)	\
+	((l) >= TLS_LEV_HALF_DANE && (l) <= TLS_LEV_DANE_ONLY)
+#define TLS_NEVER_SECURED(l)	((l) == TLS_LEV_HALF_DANE)
 
-extern const NAME_CODE tls_level_table[];
-
-#define tls_level_lookup(s) name_code(tls_level_table, NAME_CODE_FLAG_NONE, (s))
-#define str_tls_level(l) str_name_code(tls_level_table, (l))
+extern int tls_level_lookup(const char *);
+extern const char *str_tls_level(int);
 
 #ifdef USE_TLS
 
@@ -73,17 +74,26 @@ extern const NAME_CODE tls_level_table[];
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <openssl/rand.h>
+#include <openssl/crypto.h>		/* Legacy SSLEAY_VERSION_NUMBER */
+#include <openssl/opensslv.h>		/* OPENSSL_VERSION_NUMBER */
 #include <openssl/ssl.h>
 
  /* Appease indent(1) */
 #define x509_stack_t STACK_OF(X509)
-#define x509_extension_stack_t STACK_OF(X509_EXTENSION)
 #define general_name_stack_t STACK_OF(GENERAL_NAME)
 #define ssl_cipher_stack_t STACK_OF(SSL_CIPHER)
 #define ssl_comp_stack_t STACK_OF(SSL_COMP)
 
 #if (OPENSSL_VERSION_NUMBER < 0x00090700f)
 #error "need OpenSSL version 0.9.7 or later"
+#endif
+
+ /* Backwards compatibility with OpenSSL < 1.1.0 */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define OpenSSL_version_num SSLeay
+#define OpenSSL_version SSLeay_version
+#define OPENSSL_VERSION SSLEAY_VERSION
+#define X509_up_ref(x) CRYPTO_add(&((x)->references), 1, CRYPTO_LOCK_X509)
 #endif
 
 /* SSL_CIPHER_get_name() got constified in 0.9.7g */
@@ -171,7 +181,7 @@ typedef struct TLS_DANE {
     TLS_CERTS *certs;			/* Full trust-anchor certificates */
     TLS_PKEYS *pkeys;			/* Full trust-anchor public keys */
     char   *base_domain;		/* Base domain of TLSA RRset */
-    int     flags;			/* Conflate cert and pkey digests */
+    int     flags;			/* Lookup status */
     time_t  expires;			/* Expiration time of this record */
     int     refs;			/* Reference count */
 } TLS_DANE;
@@ -241,11 +251,13 @@ typedef struct {
 #define TLS_CERT_FLAG_ALTNAME		(1<<1)
 #define TLS_CERT_FLAG_TRUSTED		(1<<2)
 #define TLS_CERT_FLAG_MATCHED		(1<<3)
+#define TLS_CERT_FLAG_SECURED		(1<<4)
 
 #define TLS_CERT_IS_PRESENT(c) ((c) && ((c)->peer_status&TLS_CERT_FLAG_PRESENT))
 #define TLS_CERT_IS_ALTNAME(c) ((c) && ((c)->peer_status&TLS_CERT_FLAG_ALTNAME))
 #define TLS_CERT_IS_TRUSTED(c) ((c) && ((c)->peer_status&TLS_CERT_FLAG_TRUSTED))
 #define TLS_CERT_IS_MATCHED(c) ((c) && ((c)->peer_status&TLS_CERT_FLAG_MATCHED))
+#define TLS_CERT_IS_SECURED(c) ((c) && ((c)->peer_status&TLS_CERT_FLAG_SECURED))
 
  /*
   * Opaque client context handle.
@@ -295,7 +307,6 @@ extern void tls_free_app_context(TLS_APPL_STATE *);
  /*
   * tls_misc.c
   */
-
 extern void tls_param_init(void);
 
  /*
@@ -521,6 +532,13 @@ extern TLS_SESS_STATE *tls_server_post_accept(TLS_SESS_STATE *);
   * tls_session.c
   */
 extern void tls_session_stop(TLS_APPL_STATE *, VSTREAM *, int, int, TLS_SESS_STATE *);
+
+ /*
+  * tls_misc.c
+  */
+extern const char *tls_compile_version(void);
+extern const char *tls_run_version(void);
+extern const char **tls_pkey_algorithms(void);
 
 #ifdef TLS_INTERNAL
 

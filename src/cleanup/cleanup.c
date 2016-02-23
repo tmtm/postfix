@@ -189,6 +189,12 @@
 /* .IP "\fBmilter_header_checks (empty)\fR"
 /*	Optional lookup tables for content inspection of message headers
 /*	that are produced by Milter applications.
+/* .PP
+/*	Available in Postfix version 3.1 and later:
+/* .IP "\fBmilter_macro_defaults (empty)\fR"
+/*	Optional list of \fIname=value\fR pairs that specify default
+/*	values for arbitrary macros that Postfix may send to Milter
+/*	applications.
 /* MIME PROCESSING CONTROLS
 /* .ad
 /* .fi
@@ -413,6 +419,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -512,7 +523,7 @@ static void cleanup_service(VSTREAM *src, char *unused_service, char **argv)
      */
     if (CLEANUP_OUT_OK(state) == 0 && type > 0) {
 	while (type != REC_TYPE_END
-	       && (type = rec_get(src, buf, 0)) > 0) {
+	       && (type = rec_get_raw(src, buf, 0, REC_FLAG_NONE)) > 0) {
 	    if (type == REC_TYPE_MILT_COUNT) {
 		int     milter_count = atoi(vstring_str(buf));
 

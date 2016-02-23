@@ -193,7 +193,7 @@ static SSL_SESSION *get_server_session_cb(SSL *ssl, unsigned char *session_id,
 	buf = vstring_alloc(2 * (len + strlen(service))); \
 	hex_encode(buf, (char *) (id), (len)); \
 	vstring_sprintf_append(buf, "&s=%s", (service)); \
-	vstring_sprintf_append(buf, "&l=%ld", (long) SSLeay()); \
+	vstring_sprintf_append(buf, "&l=%ld", (long) OpenSSL_version_num()); \
     } while (0)
 
 
@@ -429,13 +429,27 @@ TLS_APPL_STATE *tls_server_init(const TLS_SERVER_INIT_PROPS *props)
      * SSLv2), so we need to have the SSLv23 server here. If we want to limit
      * the protocol level, we can add an option to not use SSLv2/v3/TLSv1
      * later.
+     * 
+     * OpenSSL 1.1.0-dev deprecates SSLv23_server_method() in favour of
+     * TLS_client_method(), with the change in question signalled via a new
+     * TLS_ANY_VERSION macro.
      */
     ERR_clear_error();
-    if ((server_ctx = SSL_CTX_new(SSLv23_server_method())) == 0) {
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && defined(TLS_ANY_VERSION)
+    server_ctx = SSL_CTX_new(TLS_server_method());
+#else
+    server_ctx = SSL_CTX_new(SSLv23_server_method());
+#endif
+    if (server_ctx == 0) {
 	msg_warn("cannot allocate server SSL_CTX: disabling TLS support");
 	tls_print_errors();
 	return (0);
     }
+
+#ifdef SSL_SECOP_PEER
+    /* Backwards compatible security as a base for opportunistic TLS. */
+    SSL_CTX_set_security_level(server_ctx, 0);
+#endif
 
     /*
      * See the verify callback in tls_verify.c
@@ -561,11 +575,17 @@ TLS_APPL_STATE *tls_server_init(const TLS_SERVER_INIT_PROPS *props)
     }
 
     /*
+     * 2015-12-05: Ephemeral RSA removed from OpenSSL 1.1.0-dev
+     */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+
+    /*
      * According to OpenSSL documentation, a temporary RSA key is needed when
      * export ciphers are in use, because the certified key cannot be
      * directly used.
      */
     SSL_CTX_set_tmp_rsa_callback(server_ctx, tls_tmp_rsa_cb);
+#endif
 
     /*
      * Diffie-Hellman key generation parameters can either be loaded from
@@ -739,6 +759,12 @@ TLS_SESS_STATE *tls_server_start(const TLS_SERVER_START_PROPS *props)
 	return (0);
     }
 
+#ifdef SSL_SECOP_PEER
+    /* When authenticating the peer, use 80-bit plus OpenSSL security level */
+    if (props->requirecert)
+	SSL_set_security_level(TLScontext->con, 1);
+#endif
+
     /*
      * Before really starting anything, try to seed the PRNG a little bit
      * more.
@@ -868,6 +894,22 @@ TLS_SESS_STATE *tls_server_post_accept(TLS_SESS_STATE *TLScontext)
 		     TLScontext->peer_pkey_fprint);
 	}
 	X509_free(peer);
+
+	/*
+	 * Give them a clue. Problems with trust chain verification are logged
+	 * when the session is first negotiated, before the session is stored
+	 * into the cache. We don't want mystery failures, so log the fact the
+	 * real problem is to be found in the past.
+	 */
+	if (!TLS_CERT_IS_TRUSTED(TLScontext)
+	    && (TLScontext->log_mask & TLS_LOG_UNTRUSTED)) {
+	    if (TLScontext->session_reused == 0)
+		tls_log_verify_error(TLScontext);
+	    else
+		msg_info("%s: re-using session with untrusted certificate, "
+			 "look for details earlier in the log",
+			 TLScontext->namaddr);
+	}
     } else {
 	TLScontext->peer_CN = mystrdup("");
 	TLScontext->issuer_CN = mystrdup("");

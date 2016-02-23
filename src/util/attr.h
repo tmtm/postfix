@@ -26,6 +26,14 @@
 #include <check_arg.h>
 
  /*
+  * Delegation for better data abstraction.
+  */
+typedef int (*ATTR_SCAN_MASTER_FN) (VSTREAM *, int,...);
+typedef int (*ATTR_SCAN_SLAVE_FN) (ATTR_SCAN_MASTER_FN, VSTREAM *, int, void *);
+typedef int (*ATTR_PRINT_MASTER_FN) (VSTREAM *, int,...);
+typedef int (*ATTR_PRINT_SLAVE_FN) (ATTR_PRINT_MASTER_FN, VSTREAM *, int, void *);
+
+ /*
   * Attribute types. See attr_scan(3) for documentation.
   */
 #define ATTR_TYPE_END		0	/* end of data */
@@ -37,6 +45,14 @@
 #define ATTR_TYPE_LONG		4	/* Unsigned long */
 #define ATTR_TYPE_DATA		5	/* Binary data */
 #define ATTR_TYPE_FUNC		6	/* Function pointer */
+
+ /*
+  * Optional sender-specified grouping for hash or nameval tables.
+  */
+#define ATTR_TYPE_OPEN		'{'
+#define ATTR_TYPE_CLOSE		'}'
+#define ATTR_NAME_OPEN		"{"
+#define ATTR_NAME_CLOSE		"}"
 
 #define ATTR_HASH_LIMIT		1024	/* Size of hash table */
 
@@ -50,7 +66,7 @@
 #define SEND_ATTR_NV(val)		ATTR_TYPE_NV, CHECK_CPTR(ATTR, NVTABLE, (val))
 #define SEND_ATTR_LONG(name, val)	ATTR_TYPE_LONG, CHECK_CPTR(ATTR, char, (name)), CHECK_VAL(ATTR, long, (val))
 #define SEND_ATTR_DATA(name, len, val)	ATTR_TYPE_DATA, CHECK_CPTR(ATTR, char, (name)), CHECK_VAL(ATTR, ssize_t, (len)), CHECK_CPTR(ATTR, void, (val))
-#define SEND_ATTR_FUNC(func, val)	ATTR_TYPE_FUNC, (func), CHECK_CPTR(ATTR, void, (val))
+#define SEND_ATTR_FUNC(func, val)	ATTR_TYPE_FUNC, CHECK_VAL(ATTR, ATTR_PRINT_SLAVE_FN, (func)), CHECK_CPTR(ATTR, void, (val))
 
 #define RECV_ATTR_INT(name, val)	ATTR_TYPE_INT, CHECK_CPTR(ATTR, char, (name)), CHECK_PTR(ATTR, int, (val))
 #define RECV_ATTR_STR(name, val)	ATTR_TYPE_STR, CHECK_CPTR(ATTR, char, (name)), CHECK_PTR(ATTR, VSTRING, (val))
@@ -58,7 +74,7 @@
 #define RECV_ATTR_NV(val)		ATTR_TYPE_NV, CHECK_PTR(ATTR, NVTABLE, (val))
 #define RECV_ATTR_LONG(name, val)	ATTR_TYPE_LONG, CHECK_CPTR(ATTR, char, (name)), CHECK_PTR(ATTR, long, (val))
 #define RECV_ATTR_DATA(name, val)	ATTR_TYPE_DATA, CHECK_CPTR(ATTR, char, (name)), CHECK_PTR(ATTR, VSTRING, (val))
-#define RECV_ATTR_FUNC(func, val)	ATTR_TYPE_FUNC, (func), CHECK_PTR(ATTR, void, (val))
+#define RECV_ATTR_FUNC(func, val)	ATTR_TYPE_FUNC, CHECK_VAL(ATTR, ATTR_SCAN_SLAVE_FN, (func)), CHECK_PTR(ATTR, void, (val))
 
 CHECK_VAL_HELPER_DCL(ATTR, ssize_t);
 CHECK_VAL_HELPER_DCL(ATTR, long);
@@ -73,6 +89,8 @@ CHECK_CPTR_HELPER_DCL(ATTR, void);
 CHECK_CPTR_HELPER_DCL(ATTR, char);
 CHECK_CPTR_HELPER_DCL(ATTR, NVTABLE);
 CHECK_CPTR_HELPER_DCL(ATTR, HTABLE);
+CHECK_VAL_HELPER_DCL(ATTR, ATTR_PRINT_SLAVE_FN);
+CHECK_VAL_HELPER_DCL(ATTR, ATTR_SCAN_SLAVE_FN);
 
  /*
   * Flags that control processing. See attr_scan(3) for documentation.
@@ -86,20 +104,13 @@ CHECK_CPTR_HELPER_DCL(ATTR, HTABLE);
 #define ATTR_FLAG_ALL		(07)
 
  /*
-  * Delegation for better data abstraction.
-  */
-typedef int (*ATTR_SCAN_MASTER_FN) (VSTREAM *, int,...);
-typedef int (*ATTR_SCAN_SLAVE_FN) (ATTR_SCAN_MASTER_FN, VSTREAM *, int, void *);
-typedef int (*ATTR_PRINT_MASTER_FN) (VSTREAM *, int,...);
-typedef int (*ATTR_PRINT_SLAVE_FN) (ATTR_PRINT_MASTER_FN, VSTREAM *, int, void *);
-
- /*
   * Default to null-terminated, as opposed to base64-encoded.
   */
 #define attr_print	attr_print0
 #define attr_vprint	attr_vprint0
 #define attr_scan	attr_scan0
 #define attr_vscan	attr_vscan0
+#define attr_scan_more	attr_scan_more0
 
  /*
   * attr_print64.c.
@@ -110,8 +121,9 @@ extern int attr_vprint64(VSTREAM *, int, va_list);
  /*
   * attr_scan64.c.
   */
-extern int attr_scan64(VSTREAM *, int,...);
-extern int attr_vscan64(VSTREAM *, int, va_list);
+extern int WARN_UNUSED_RESULT attr_scan64(VSTREAM *, int,...);
+extern int WARN_UNUSED_RESULT attr_vscan64(VSTREAM *, int, va_list);
+extern int WARN_UNUSED_RESULT attr_scan_more64(VSTREAM *);
 
  /*
   * attr_print0.c.
@@ -122,21 +134,22 @@ extern int attr_vprint0(VSTREAM *, int, va_list);
  /*
   * attr_scan0.c.
   */
-extern int attr_scan0(VSTREAM *, int,...);
-extern int attr_vscan0(VSTREAM *, int, va_list);
+extern int WARN_UNUSED_RESULT attr_scan0(VSTREAM *, int,...);
+extern int WARN_UNUSED_RESULT attr_vscan0(VSTREAM *, int, va_list);
+extern int WARN_UNUSED_RESULT attr_scan_more0(VSTREAM *);
 
  /*
   * attr_scan_plain.c.
   */
 extern int attr_print_plain(VSTREAM *, int,...);
 extern int attr_vprint_plain(VSTREAM *, int, va_list);
+extern int attr_scan_more_plain(VSTREAM *);
 
  /*
   * attr_print_plain.c.
   */
-extern int attr_scan_plain(VSTREAM *, int,...);
-extern int attr_vscan_plain(VSTREAM *, int, va_list);
-
+extern int WARN_UNUSED_RESULT attr_scan_plain(VSTREAM *, int,...);
+extern int WARN_UNUSED_RESULT attr_vscan_plain(VSTREAM *, int, va_list);
 
  /*
   * Attribute names for testing the compatibility of the read and write

@@ -943,15 +943,11 @@ static int smtp_start_tls(SMTP_STATE *state)
 	 */
 	if (PLAINTEXT_FALLBACK_OK_AFTER_STARTTLS_FAILURE)
 	    RETRY_AS_PLAINTEXT;
-	if (state->tls->level == TLS_LEV_MAY) {
-	    return (smtp_mesg_fail(state, DSN_BY_LOCAL_MTA,
-				   SMTP_RESP_FAKE(&fake, "4.7.5"),
-				   "Cannot start TLS: handshake failure"));
-	} else {
-	    return (smtp_site_fail(state, DSN_BY_LOCAL_MTA,
-				   SMTP_RESP_FAKE(&fake, "4.7.5"),
-				   "Cannot start TLS: handshake failure"));
-	}
+	return (smtp_misc_fail(state, state->tls->level == TLS_LEV_MAY ?
+			       SMTP_NOTHROTTLE : SMTP_THROTTLE,
+			       DSN_BY_LOCAL_MTA,
+			       SMTP_RESP_FAKE(&fake, "4.7.5"),
+			       "Cannot start TLS: handshake failure"));
     }
 
     /*

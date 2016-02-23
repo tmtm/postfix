@@ -260,6 +260,7 @@
 #define HAVE_POSIX_GETPW_R
 #endif
 #define HAS_DLOPEN
+#define PREFERRED_RAND_SOURCE	"dev:/dev/urandom"
 #endif
 
  /*
@@ -1377,6 +1378,14 @@ extern int inet_pton(int, const char *, void *);
 #endif
 
  /*
+  * If we don't have defined a preferred random device above, but the system
+  * has /dev/urandom, then we use that.
+  */
+#if !defined(PREFERRED_RAND_SOURCE) && defined(HAS_DEV_URANDOM)
+#define PREFERRED_RAND_SOURCE	"dev:/dev/urandom"
+#endif
+
+ /*
   * Defaults for systems without kqueue, /dev/poll or epoll support.
   * master/multi-server.c and *qmgr/qmgr_transport.c depend on this.
   */
@@ -1645,6 +1654,28 @@ typedef int pid_t;
 #define EXPECTED(x)	(x)
 #define UNEXPECTED(x)	(x)
 #endif
+#endif
+
+ /*
+  * Warn about ignored function result values that must never be ignored.
+  * Typically, this is for error results from "read" functions that normally
+  * write to output parameters (for example, stat- or scanf-like functions)
+  * or from functions that have other useful side effects (for example,
+  * fseek- or rename-like functions).
+  * 
+  * DO NOT use this for functions that write to a stream; it is entirely
+  * legitimate to detect write errors with fflush() or fclose() only. On the
+  * other hand most (but not all) functions that read from a stream must
+  * never ignore result values.
+  * 
+  * XXX Prepending "(void)" won't shut up GCC. Clang behaves as expected.
+  */
+#if ((__GNUC__ == 3 && __GNUC_MINOR__ >= 4) || __GNUC__ > 3)
+#define WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#elif defined(__clang__) && __has_attribute(warn_unused_result)
+#define WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+#define WARN_UNUSED_RESULT
 #endif
 
  /*

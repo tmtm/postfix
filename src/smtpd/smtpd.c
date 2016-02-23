@@ -55,6 +55,7 @@
 /*	RFC 5321 (SMTP protocol)
 /*	RFC 6531 (Internationalized SMTP)
 /*	RFC 6533 (Internationalized Delivery Status Notifications)
+/*	RFC 7505 ("Null MX" No Service Resource Record)
 /* DIAGNOSTICS
 /*	Problems and transactions are logged to \fBsyslogd\fR(8).
 /*
@@ -79,7 +80,7 @@
 /* .ad
 /* .fi
 /* .IP "\fBbroken_sasl_auth_clients (no)\fR"
-/*	Enable inter-operability with remote SMTP clients that implement an obsolete
+/*	Enable interoperability with remote SMTP clients that implement an obsolete
 /*	version of the AUTH command (RFC 4954).
 /* .IP "\fBdisable_vrfy_command (no)\fR"
 /*	Disable the SMTP VRFY command.
@@ -251,6 +252,12 @@
 /* .IP "\fBmilter_end_of_data_macros (see 'postconf -d' output)\fR"
 /*	The macros that are sent to Milter (mail filter) applications
 /*	after the message end-of-data.
+/* .PP
+/*	Available in Postfix version 3.1 and later:
+/* .IP "\fBmilter_macro_defaults (empty)\fR"
+/*	Optional list of \fIname=value\fR pairs that specify default
+/*	values for arbitrary macros that Postfix may send to Milter
+/*	applications.
 /* GENERAL CONTENT INSPECTION CONTROLS
 /* .ad
 /* .fi
@@ -278,7 +285,7 @@
 /*	Postfix SMTP client to a remote SMTP server.
 /*	See the SASL_README document for details.
 /* .IP "\fBbroken_sasl_auth_clients (no)\fR"
-/*	Enable inter-operability with remote SMTP clients that implement an obsolete
+/*	Enable interoperability with remote SMTP clients that implement an obsolete
 /*	version of the AUTH command (RFC 4954).
 /* .IP "\fBsmtpd_sasl_auth_enable (no)\fR"
 /*	Enable SASL authentication in the Postfix SMTP server.
@@ -291,7 +298,7 @@
 /*	features depends on the SASL server implementation that is selected
 /*	with \fBsmtpd_sasl_type\fR.
 /* .IP "\fBsmtpd_sender_login_maps (empty)\fR"
-/*	Optional lookup table with the SASL login names that own sender
+/*	Optional lookup table with the SASL login names that own the sender
 /*	(MAIL FROM) addresses.
 /* .PP
 /*	Available in Postfix version 2.1 and later:
@@ -404,14 +411,14 @@
 /*	The number of pseudo-random bytes that an \fBsmtp\fR(8) or \fBsmtpd\fR(8)
 /*	process requests from the \fBtlsmgr\fR(8) server in order to seed its
 /*	internal pseudo random number generator (PRNG).
-/* .IP "\fBtls_high_cipherlist (ALL:!EXPORT:!LOW:!MEDIUM:+RC4:@STRENGTH)\fR"
-/*	The OpenSSL cipherlist for "HIGH" grade ciphers.
-/* .IP "\fBtls_medium_cipherlist (ALL:!EXPORT:!LOW:+RC4:@STRENGTH)\fR"
-/*	The OpenSSL cipherlist for "MEDIUM" or higher grade ciphers.
-/* .IP "\fBtls_low_cipherlist (ALL:!EXPORT:+RC4:@STRENGTH)\fR"
-/*	The OpenSSL cipherlist for "LOW" or higher grade ciphers.
-/* .IP "\fBtls_export_cipherlist (ALL:+RC4:@STRENGTH)\fR"
-/*	The OpenSSL cipherlist for "EXPORT" or higher grade ciphers.
+/* .IP "\fBtls_high_cipherlist (see 'postconf -d' output)\fR"
+/*	The OpenSSL cipherlist for "high" grade ciphers.
+/* .IP "\fBtls_medium_cipherlist (see 'postconf -d' output)\fR"
+/*	The OpenSSL cipherlist for "medium" or higher grade ciphers.
+/* .IP "\fBtls_low_cipherlist (see 'postconf -d' output)\fR"
+/*	The OpenSSL cipherlist for "low" or higher grade ciphers.
+/* .IP "\fBtls_export_cipherlist (see 'postconf -d' output)\fR"
+/*	The OpenSSL cipherlist for "export" or higher grade ciphers.
 /* .IP "\fBtls_null_cipherlist (eNULL:!aNULL)\fR"
 /*	The OpenSSL cipherlist for "NULL" grade ciphers that provide
 /*	authentication without encryption.
@@ -693,6 +700,12 @@
 /*	time limit per read or write system call, to a time limit to send
 /*	or receive a complete record (an SMTP command line, SMTP response
 /*	line, SMTP message content line, or TLS protocol message).
+/* .PP
+/*	Available in Postfix version 3.1 and later:
+/* .IP "\fBsmtpd_client_auth_rate_limit (0)\fR"
+/*	The maximal number of AUTH commands that any client is allowed to
+/*	send to this service per time unit, regardless of whether or not
+/*	Postfix actually accepts those commands.
 /* TARPIT CONTROLS
 /* .ad
 /* .fi
@@ -751,6 +764,13 @@
 /* .IP "\fBsmtpd_policy_service_retry_delay (1s)\fR"
 /*	The delay between attempts to resend a failed SMTPD policy
 /*	service request.
+/* .PP
+/*	Available in Postfix version 3.1 and later:
+/* .IP "\fBsmtpd_policy_service_policy_context (empty)\fR"
+/*	Optional information that the Postfix SMTP server specifies in
+/*	the "policy_context" attribute of a policy service request (originally,
+/*	to share the same service endpoint among multiple check_policy_service
+/*	clients).
 /* ACCESS CONTROLS
 /* .ad
 /* .fi
@@ -1053,6 +1073,11 @@
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
 /*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
+/*
 /*	SASL support originally by:
 /*	Till Franke
 /*	SuSE Rhein/Main AG
@@ -1266,6 +1291,7 @@ int     var_smtpd_policy_req_limit;
 int     var_smtpd_policy_try_limit;
 int     var_smtpd_policy_try_delay;
 char   *var_smtpd_policy_def_action;
+char   *var_smtpd_policy_context;
 int     var_smtpd_policy_idle;
 int     var_smtpd_policy_ttl;
 char   *var_xclient_hosts;
@@ -1278,6 +1304,7 @@ int     var_smtpd_cconn_limit;
 int     var_smtpd_cmail_limit;
 int     var_smtpd_crcpt_limit;
 int     var_smtpd_cntls_limit;
+int     var_smtpd_cauth_limit;
 char   *var_smtpd_hoggers;
 char   *var_local_rwr_clients;
 char   *var_smtpd_ehlo_dis_words;
@@ -1343,6 +1370,7 @@ char   *var_milt_data_macros;
 char   *var_milt_eoh_macros;
 char   *var_milt_eod_macros;
 char   *var_milt_unk_macros;
+char   *var_milt_macro_deflts;
 bool    var_smtpd_client_port_log;
 char   *var_stress;
 
@@ -1881,6 +1909,36 @@ static void helo_reset(SMTPD_STATE *state)
 	state->ehlo_buf = 0;
     }
 }
+
+#ifdef USE_SASL_AUTH
+
+/* smtpd_sasl_auth_cmd_wrapper - smtpd_sasl_auth_cmd front-end */
+
+static int smtpd_sasl_auth_cmd_wrapper(SMTPD_STATE *state, int argc,
+				               SMTPD_TOKEN *argv)
+{
+    int     rate;
+
+    if (SMTPD_STAND_ALONE(state) == 0
+	&& !xclient_allowed
+	&& anvil_clnt
+	&& var_smtpd_cauth_limit > 0
+	&& !namadr_list_match(hogger_list, state->name, state->addr)
+	&& anvil_clnt_auth(anvil_clnt, state->service, state->addr,
+			   &rate) == ANVIL_STAT_OK
+	&& rate > var_smtpd_cauth_limit) {
+	state->error_mask |= MAIL_ERROR_POLICY;
+	msg_warn("AUTH command rate limit exceeded: %d from %s for service %s",
+		 rate, state->namaddr, state->service);
+	smtpd_chat_reply(state,
+			 "450 4.7.1 Error: too many AUTH commands from %s",
+			 state->addr);
+	return (-1);
+    }
+    return (smtpd_sasl_auth_cmd(state, argc, argv));
+}
+
+#endif
 
 /* mail_open_stream - open mail queue file or IPC stream */
 
@@ -4341,7 +4399,7 @@ static void smtpd_start_tls(SMTPD_STATE *state)
      * VSTREAMS, so that we don't lose all the user-configurable
      * state->client attributes (such as longjump buffers or timeouts).
      * 
-     * As we implement tlsproy support in the Postfix SMTP client we should
+     * As we implement tlsproxy support in the Postfix SMTP client we should
      * develop a usable abstraction that encapsulates this stream plumbing in
      * a library module.
      */
@@ -4698,7 +4756,7 @@ static SMTPD_CMD smtpd_cmd_table[] = {
     {SMTPD_CMD_STARTTLS, unimpl_cmd, SMTPD_CMD_FLAG_PRE_TLS,},
 #endif
 #ifdef USE_SASL_AUTH
-    {SMTPD_CMD_AUTH, smtpd_sasl_auth_cmd,},
+    {SMTPD_CMD_AUTH, smtpd_sasl_auth_cmd_wrapper,},
 #else
     {SMTPD_CMD_AUTH, unimpl_cmd,},
 #endif
@@ -5538,7 +5596,8 @@ static void post_jail_init(char *unused_name, char **unused_argv)
 					  var_milt_data_macros,
 					  var_milt_eoh_macros,
 					  var_milt_eod_macros,
-					  var_milt_unk_macros);
+					  var_milt_unk_macros,
+					  var_milt_macro_deflts);
 	else
 	    smtpd_input_transp_mask |= INPUT_TRANSP_MILTER;
     }
@@ -5561,7 +5620,7 @@ static void post_jail_init(char *unused_name, char **unused_argv)
      */
     if (var_smtpd_crate_limit || var_smtpd_cconn_limit
 	|| var_smtpd_cmail_limit || var_smtpd_crcpt_limit
-	|| var_smtpd_cntls_limit)
+	|| var_smtpd_cntls_limit || var_smtpd_cauth_limit)
 	anvil_clnt = anvil_clnt_create();
 }
 
@@ -5609,6 +5668,7 @@ int     main(int argc, char **argv)
 	VAR_SMTPD_CMAIL_LIMIT, DEF_SMTPD_CMAIL_LIMIT, &var_smtpd_cmail_limit, 0, 0,
 	VAR_SMTPD_CRCPT_LIMIT, DEF_SMTPD_CRCPT_LIMIT, &var_smtpd_crcpt_limit, 0, 0,
 	VAR_SMTPD_CNTLS_LIMIT, DEF_SMTPD_CNTLS_LIMIT, &var_smtpd_cntls_limit, 0, 0,
+	VAR_SMTPD_CAUTH_LIMIT, DEF_SMTPD_CAUTH_LIMIT, &var_smtpd_cauth_limit, 0, 0,
 #ifdef USE_TLS
 	VAR_SMTPD_TLS_CCERT_VD, DEF_SMTPD_TLS_CCERT_VD, &var_smtpd_tls_ccert_vd, 0, 0,
 #endif
@@ -5750,6 +5810,7 @@ int     main(int argc, char **argv)
 	VAR_MILT_DEF_ACTION, DEF_MILT_DEF_ACTION, &var_milt_def_action, 1, 0,
 	VAR_MILT_DAEMON_NAME, DEF_MILT_DAEMON_NAME, &var_milt_daemon_name, 1, 0,
 	VAR_MILT_V, DEF_MILT_V, &var_milt_v, 1, 0,
+	VAR_MILT_MACRO_DEFLTS, DEF_MILT_MACRO_DEFLTS, &var_milt_macro_deflts, 0, 0,
 	VAR_STRESS, DEF_STRESS, &var_stress, 0, 0,
 	VAR_UNV_FROM_WHY, DEF_UNV_FROM_WHY, &var_unv_from_why, 0, 0,
 	VAR_UNV_RCPT_WHY, DEF_UNV_RCPT_WHY, &var_unv_rcpt_why, 0, 0,
@@ -5765,6 +5826,7 @@ int     main(int argc, char **argv)
 	VAR_SMTPD_ACL_PERM_LOG, DEF_SMTPD_ACL_PERM_LOG, &var_smtpd_acl_perm_log, 0, 0,
 	VAR_SMTPD_UPROXY_PROTO, DEF_SMTPD_UPROXY_PROTO, &var_smtpd_uproxy_proto, 0, 0,
 	VAR_SMTPD_POLICY_DEF_ACTION, DEF_SMTPD_POLICY_DEF_ACTION, &var_smtpd_policy_def_action, 1, 0,
+	VAR_SMTPD_POLICY_CONTEXT, DEF_SMTPD_POLICY_CONTEXT, &var_smtpd_policy_context, 0, 0,
 	VAR_SMTPD_DNS_RE_FILTER, DEF_SMTPD_DNS_RE_FILTER, &var_smtpd_dns_re_filter, 0, 0,
 	0,
     };

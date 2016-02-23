@@ -72,6 +72,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -1800,14 +1805,6 @@ static const char *cleanup_milter_eval(const char *name, void *ptr)
      * Note: if we use XFORWARD attributes here, then consistency requires
      * that we forward all Sendmail macros via XFORWARD.
      */
-
-    /*
-     * Canonicalize the name.
-     */
-    if (*name != '{') {				/* } */
-	vstring_sprintf(state->temp1, "{%s}", name);
-	name = STR(state->temp1);
-    }
 
     /*
      * System macros.

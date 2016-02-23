@@ -30,6 +30,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -136,6 +141,7 @@ static const CONFIG_STR_TABLE pcf_legacy_str_table[] = {
     {"fallback_relay", ""},
     {"authorized_verp_clients", ""},
     {"smtpd_client_connection_limit_exceptions", ""},
+    {"postscreen_dnsbl_ttl", ""},
     0,
 };
 

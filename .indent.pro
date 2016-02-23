@@ -249,6 +249,7 @@
 -TPLMYSQL
 -TPLPGSQL
 -TPOSTMAP_KEY_STATE
+-TPOST_MAIL_FCLOSE_STATE
 -TPOST_MAIL_STATE
 -TPRIVATE_STR_TABLE
 -TPSC_CALL_BACK_ENTRY
@@ -404,5 +405,4 @@
 -Tssl_comp_stack_t
 -Ttime_t
 -Ttlsa_filter
--Tx509_extension_stack_t
 -Tx509_stack_t

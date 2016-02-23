@@ -98,6 +98,7 @@
 /*	RFC 5321 (SMTP protocol)
 /*	RFC 6531 (Internationalized SMTP)
 /*	RFC 6533 (Internationalized Delivery Status Notifications)
+/*	RFC 7672 (SMTP security via opportunistic DANE TLS)
 /* DIAGNOSTICS
 /*	Problems and transactions are logged to \fBsyslogd\fR(8).
 /*	Corrupted message files are marked so that the queue manager can
@@ -286,9 +287,7 @@
 /*	Enable SASL authentication in the Postfix SMTP client.
 /* .IP "\fBsmtp_sasl_password_maps (empty)\fR"
 /*	Optional Postfix SMTP client lookup tables with one username:password
-/*	entry
-/*	per remote hostname or domain, or sender address when sender-dependent
-/*	authentication is enabled.
+/*	entry per sender, remote hostname or next-hop domain.
 /* .IP "\fBsmtp_sasl_security_options (noplaintext, noanonymous)\fR"
 /*	Postfix SMTP client SASL security options; as of Postfix 2.3
 /*	the list of available
@@ -404,14 +403,14 @@
 /*	The number of pseudo-random bytes that an \fBsmtp\fR(8) or \fBsmtpd\fR(8)
 /*	process requests from the \fBtlsmgr\fR(8) server in order to seed its
 /*	internal pseudo random number generator (PRNG).
-/* .IP "\fBtls_high_cipherlist (ALL:!EXPORT:!LOW:!MEDIUM:+RC4:@STRENGTH)\fR"
-/*	The OpenSSL cipherlist for "HIGH" grade ciphers.
-/* .IP "\fBtls_medium_cipherlist (ALL:!EXPORT:!LOW:+RC4:@STRENGTH)\fR"
-/*	The OpenSSL cipherlist for "MEDIUM" or higher grade ciphers.
-/* .IP "\fBtls_low_cipherlist (ALL:!EXPORT:+RC4:@STRENGTH)\fR"
-/*	The OpenSSL cipherlist for "LOW" or higher grade ciphers.
-/* .IP "\fBtls_export_cipherlist (ALL:+RC4:@STRENGTH)\fR"
-/*	The OpenSSL cipherlist for "EXPORT" or higher grade ciphers.
+/* .IP "\fBtls_high_cipherlist (see 'postconf -d' output)\fR"
+/*	The OpenSSL cipherlist for "high" grade ciphers.
+/* .IP "\fBtls_medium_cipherlist (see 'postconf -d' output)\fR"
+/*	The OpenSSL cipherlist for "medium" or higher grade ciphers.
+/* .IP "\fBtls_low_cipherlist (see 'postconf -d' output)\fR"
+/*	The OpenSSL cipherlist for "low" or higher grade ciphers.
+/* .IP "\fBtls_export_cipherlist (see 'postconf -d' output)\fR"
+/*	The OpenSSL cipherlist for "export" or higher grade ciphers.
 /* .IP "\fBtls_null_cipherlist (eNULL:!aNULL)\fR"
 /*	The OpenSSL cipherlist for "NULL" grade ciphers that provide
 /*	authentication without encryption.
@@ -469,6 +468,12 @@
 /* .IP "\fBsmtp_tls_wrappermode (no)\fR"
 /*	Request that the Postfix SMTP client connects using the
 /*	legacy SMTPS protocol instead of using the STARTTLS command.
+/* .PP
+/*	Available in Postfix version 3.1 and later:
+/* .IP "\fBsmtp_tls_dane_insecure_mx_policy (dane)\fR"
+/*	The TLS policy for MX hosts with "secure" TLSA records when the
+/*	nexthop destination security level is \fBdane\fR, but the MX
+/*	record was found via an "insecure" MX lookup.
 /* OBSOLETE STARTTLS CONTROLS
 /* .ad
 /* .fi
@@ -695,6 +700,11 @@
 /* .IP "\fBsmtp_address_verify_target (rcpt)\fR"
 /*	In the context of email address verification, the SMTP protocol
 /*	stage that determines whether an email address is deliverable.
+/* .PP
+/*	Available with Postfix 3.1 and later:
+/* .IP "\fBlmtp_fallback_relay (empty)\fR"
+/*	Optional list of relay hosts for LMTP destinations that can't be
+/*	found or that are unreachable.
 /* SEE ALSO
 /*	generic(5), output address rewriting
 /*	header_checks(5), message header content inspection
@@ -725,6 +735,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*
 /*	Command pipelining in cooperation with:
 /*	Jon Ribbens
@@ -886,6 +901,7 @@ char   *var_smtp_tls_eccert_file;
 char   *var_smtp_tls_eckey_file;
 bool    var_smtp_tls_blk_early_mail_reply;
 bool    var_smtp_tls_force_tlsa;
+char   *var_smtp_tls_insecure_mx_policy;
 
 #endif
 
@@ -938,6 +954,7 @@ HBC_CHECKS *smtp_body_checks;		/* limited body checks */
   * OpenSSL client state (opaque handle)
   */
 TLS_APPL_STATE *smtp_tls_ctx;
+int     smtp_tls_insecure_mx_policy;
 
 #endif
 
@@ -1056,6 +1073,22 @@ static void post_init(char *unused_name, char **unused_argv)
 		      var_smtp_dns_support);
 	var_disable_dns = (smtp_dns_support == SMTP_DNS_DISABLED);
     }
+
+#ifdef USE_TLS
+    if (smtp_mode) {
+	smtp_tls_insecure_mx_policy =
+	    tls_level_lookup(var_smtp_tls_insecure_mx_policy);
+	switch (smtp_tls_insecure_mx_policy) {
+	case TLS_LEV_MAY:
+	case TLS_LEV_ENCRYPT:
+	case TLS_LEV_DANE:
+	    break;
+	default:
+	    msg_fatal("invalid %s: \"%s\"", VAR_SMTP_TLS_INSECURE_MX_POLICY,
+		      var_smtp_tls_insecure_mx_policy);
+	}
+    }
+#endif
 
     /*
      * Select hostname lookup mechanisms.

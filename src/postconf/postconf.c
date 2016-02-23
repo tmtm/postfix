@@ -5,9 +5,10 @@
 /*	Postfix configuration utility
 /* SYNOPSIS
 /* .fi
+/* .ti -4
 /*	\fBManaging main.cf:\fR
 /*
-/*	\fBpostconf\fR [\fB-dfhnopvx\fR] [\fB-c \fIconfig_dir\fR]
+/*	\fBpostconf\fR [\fB-dfhHnopvx\fR] [\fB-c \fIconfig_dir\fR]
 /*	[\fB-C \fIclass,...\fR] [\fIparameter ...\fR]
 /*
 /*	\fBpostconf\fR [\fB-epv\fR] [\fB-c \fIconfig_dir\fR]
@@ -19,6 +20,7 @@
 /*	\fBpostconf\fR \fB-X\fR [\fB-pv\fR] [\fB-c \fIconfig_dir\fR]
 /*	\fIparameter ...\fR
 /*
+/* .ti -4
 /*	\fBManaging master.cf service entries:\fR
 /*
 /*	\fBpostconf\fR \fB-M\fR [\fB-fovx\fR] [\fB-c \fIconfig_dir\fR]
@@ -33,17 +35,19 @@
 /*	\fBpostconf\fR \fB-MX\fR [\fB-v\fR] [\fB-c \fIconfig_dir\fR]
 /*	\fIservice\fB/\fItype ...\fR
 /*
+/* .ti -4
 /*	\fBManaging master.cf service fields:\fR
 /*
-/*	\fBpostconf\fR \fB-F\fR [\fB-fovx\fR] [\fB-c \fIconfig_dir\fR]
+/*	\fBpostconf\fR \fB-F\fR [\fB-fhHovx\fR] [\fB-c \fIconfig_dir\fR]
 /*	[\fIservice\fR[\fB/\fItype\fR[\fB/\fIfield\fR]]\fI ...\fR]
 /*
 /*	\fBpostconf\fR \fB-F\fR [\fB-ev\fR] [\fB-c \fIconfig_dir\fR]
 /*	\fIservice\fB/\fItype\fB/\fIfield\fB=\fIvalue ...\fR
 /*
+/* .ti -4
 /*	\fBManaging master.cf service parameters:\fR
 /*
-/*	\fBpostconf\fR \fB-P\fR [\fB-fovx\fR] [\fB-c \fIconfig_dir\fR]
+/*	\fBpostconf\fR \fB-P\fR [\fB-fhHovx\fR] [\fB-c \fIconfig_dir\fR]
 /*	[\fIservice\fR[\fB/\fItype\fR[\fB/\fIparameter\fR]]\fI ...\fR]
 /*
 /*	\fBpostconf\fR \fB-P\fR [\fB-ev\fR] [\fB-c \fIconfig_dir\fR]
@@ -52,6 +56,7 @@
 /*	\fBpostconf\fR \fB-PX\fR [\fB-v\fR] [\fB-c \fIconfig_dir\fR]
 /*	\fIservice\fB/\fItype\fB/\fIparameter ...\fR
 /*
+/* .ti -4
 /*	\fBManaging bounce message templates:\fR
 /*
 /*	\fBpostconf\fR \fB-b\fR [\fB-v\fR] [\fB-c \fIconfig_dir\fR]
@@ -60,6 +65,12 @@
 /*	\fBpostconf\fR \fB-t\fR [\fB-v\fR] [\fB-c \fIconfig_dir\fR]
 /*	[\fItemplate_file\fR]
 /*
+/* .ti -4
+/*	\fBManaging TLS features:\fR
+/*
+/*	\fBpostconf\fR \fB-T \fImode\fR [\fB-v\fR] [\fB-c \fIconfig_dir\fR]
+/*
+/* .ti -4
 /*	\fBManaging other configuration:\fR
 /*
 /*	\fBpostconf\fR \fB-a\fR|\fB-A\fR|\fB-l\fR|\fB-m\fR [\fB-v\fR]
@@ -183,9 +194,9 @@
 /*	This feature is available with Postfix 2.9 and later.
 /* .IP \fB-F\fR
 /*	Show \fBmaster.cf\fR per-entry field settings (by default
-/*	all services and all fields), formatted as one
-/*	"\fIservice/type/field=value\fR" per line. Specify \fB-Ff\fR
-/*	to fold long lines.
+/*	all services and all fields), formatted as
+/*	"\fIservice/type/field=value\fR", one per line. Specify
+/*	\fB-Ff\fR to fold long lines.
 /*
 /*	Specify one or more "\fIservice/type/field\fR" instances
 /*	on the \fBpostconf\fR(1) command line to limit the output
@@ -197,6 +208,11 @@
 /* .IP \fB-h\fR
 /*	Show parameter or attribute values without the "\fIname\fR
 /*	= " label that normally precedes the value.
+/* .IP \fB-H\fR
+/*	Show parameter or attribute names without the " = \fIvalue\fR"
+/*	that normally follows the name.
+/*
+/*	This feature is available with Postfix 3.1 and later.
 /* .IP \fB-l\fR
 /*	List the names of all supported mailbox locking methods.
 /*	Postfix supports the following methods:
@@ -294,8 +310,9 @@
 /*	"\fBrandmap:{\fIresult_1, ..., result_n\fB}\fR". Each table query
 /*	returns a random choice from the specified results. The first
 /*	and last characters of the "randmap:" table name must be
-/*	"\fB{\fR" and "\fB}\fR".  Within these, individual maps are
-/*	separated with comma or whitespace.
+/*	"\fB{\fR" and "\fB}\fR".  Within these, individual results
+/*	are separated with comma or whitespace. To give a specific
+/*	result more weight, specify it multiple times.
 /* .IP "\fBregexp\fR (read-only)"
 /*	A lookup table based on regular expressions. The file format
 /*	is described in \fBregexp_table\fR(5).
@@ -380,8 +397,8 @@
 /*	This feature is available with Postfix 2.11 and later.
 /* .IP \fB-P\fR
 /*	Show \fBmaster.cf\fR service parameter settings (by default
-/*	all services and all parameters).  formatted as one
-/*	"\fIservice/type/parameter=value\fR" per line.  Specify
+/*	all services and all parameters), formatted as
+/*	"\fIservice/type/parameter=value\fR", one per line.  Specify
 /*	\fB-Pf\fR to fold long lines.
 /*
 /*	Specify one or more "\fIservice/type/parameter\fR" instances
@@ -406,6 +423,25 @@
 /*	line (in shell language: "").
 /*
 /*	This feature is available with Postfix 2.3 and later.
+/* .IP "\fB-T \fImode\fR"
+/*	If Postfix is compiled without TLS support, the \fB-T\fR option
+/*	produces no output.  Otherwise, if an invalid \fImode\fR is specified,
+/*	the \fB-T\fR option reports an error and exits with a non-zero status
+/*	code. The valid modes are:
+/* .RS
+/* .IP \fBcompile-version\fR
+/*	Output the OpenSSL version that Postfix was compiled with
+/*	(i.e. the OpenSSL version in a header file). The output
+/*	format is the same as with the command "\fBopenssl version\fR".
+/* .IP \fBrun-version\fR
+/*	Output the OpenSSL version that Postfix is linked with at
+/*	runtime (i.e. the OpenSSL version in a shared library).
+/* .IP \fBpublic-key-algorithms\fR
+/*	Output the lower-case names of the supported public-key
+/*	algorithms, one per-line.
+/* .RE
+/* .IP
+/*	This feature is available with Postfix 3.1 and later.
 /* .IP \fB-v\fR
 /*	Enable verbose logging for debugging purposes. Multiple
 /*	\fB-v\fR options make the software increasingly verbose.
@@ -505,6 +541,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -564,7 +605,7 @@ static const int pcf_incompat_options[] = {
     /* Major modes. */
     PCF_SHOW_SASL_SERV | PCF_SHOW_SASL_CLNT | PCF_EXP_DSN_TEMPL \
     |PCF_SHOW_LOCKS | PCF_SHOW_MAPS | PCF_DUMP_DSN_TEMPL | PCF_MAIN_PARAM \
-    |PCF_MASTER_ENTRY | PCF_MASTER_FLD | PCF_MASTER_PARAM,
+    |PCF_MASTER_ENTRY | PCF_MASTER_FLD | PCF_MASTER_PARAM | PCF_SHOW_TLS,
     /* Modifiers. */
     PCF_SHOW_DEFS | PCF_EDIT_CONF | PCF_SHOW_NONDEF | PCF_COMMENT_OUT \
     |PCF_EDIT_EXCL,
@@ -572,7 +613,8 @@ static const int pcf_incompat_options[] = {
     PCF_SHOW_EVAL | PCF_EDIT_CONF | PCF_COMMENT_OUT | PCF_EDIT_EXCL,
     PCF_MAIN_OVER | PCF_SHOW_DEFS | PCF_EDIT_CONF | PCF_COMMENT_OUT \
     |PCF_EDIT_EXCL,
-    PCF_HIDE_NAME | PCF_EDIT_CONF | PCF_COMMENT_OUT | PCF_EDIT_EXCL,
+    PCF_HIDE_NAME | PCF_EDIT_CONF | PCF_COMMENT_OUT | PCF_EDIT_EXCL \
+    |PCF_HIDE_VALUE,
     0,
 };
 
@@ -588,17 +630,19 @@ static const int pcf_compat_options[][2] = {
     {PCF_EXP_DSN_TEMPL, 0},
     {PCF_SHOW_LOCKS, 0},
     {PCF_SHOW_MAPS, 0,},
+    {PCF_SHOW_TLS, 0,},
     {PCF_DUMP_DSN_TEMPL, 0},
     {PCF_MAIN_PARAM, (PCF_EDIT_CONF | PCF_EDIT_EXCL | PCF_COMMENT_OUT \
 		      |PCF_FOLD_LINE | PCF_HIDE_NAME | PCF_PARAM_CLASS \
 		      |PCF_SHOW_EVAL | PCF_SHOW_DEFS | PCF_SHOW_NONDEF \
-		      |PCF_MAIN_OVER)},
+		      |PCF_MAIN_OVER | PCF_HIDE_VALUE)},
     {PCF_MASTER_ENTRY, (PCF_EDIT_CONF | PCF_EDIT_EXCL | PCF_COMMENT_OUT \
 			|PCF_FOLD_LINE | PCF_MAIN_OVER | PCF_SHOW_EVAL)},
     {PCF_MASTER_FLD, (PCF_EDIT_CONF | PCF_FOLD_LINE | PCF_HIDE_NAME \
-		      |PCF_MAIN_OVER | PCF_SHOW_EVAL)},
+		      |PCF_MAIN_OVER | PCF_SHOW_EVAL | PCF_HIDE_VALUE)},
     {PCF_MASTER_PARAM, (PCF_EDIT_CONF | PCF_EDIT_EXCL | PCF_FOLD_LINE \
-			|PCF_HIDE_NAME | PCF_MAIN_OVER | PCF_SHOW_EVAL)},
+			|PCF_HIDE_NAME | PCF_MAIN_OVER | PCF_SHOW_EVAL \
+			|PCF_HIDE_VALUE)},
     /* Modifiers. */
     {PCF_PARAM_CLASS, (PCF_MAIN_PARAM | PCF_SHOW_DEFS | PCF_SHOW_NONDEF)},
     0,
@@ -617,6 +661,7 @@ static const NAME_MASK pcf_compat_names[] = {
     "-f", PCF_FOLD_LINE,
     "-F", PCF_MASTER_FLD,
     "-h", PCF_HIDE_NAME,
+    "-H", PCF_HIDE_VALUE,
     "-l", PCF_SHOW_LOCKS,
     "-m", PCF_SHOW_MAPS,
     "-M", PCF_MASTER_ENTRY,
@@ -625,6 +670,7 @@ static const NAME_MASK pcf_compat_names[] = {
     "-p", PCF_MAIN_PARAM,
     "-P", PCF_MASTER_PARAM,
     "-t", PCF_DUMP_DSN_TEMPL,
+    "-T", PCF_SHOW_TLS,
     "-x", PCF_SHOW_EVAL,
     "-X", PCF_EDIT_EXCL,
     "-#", PCF_COMMENT_OUT,
@@ -646,6 +692,7 @@ static void usage(const char *progname)
 	      " [-f (fold lines)]"
 	      " [-F (master.cf fields)]"
 	      " [-h (no names)]"
+	      " [-H (no values)]"
 	      " [-l (lock types)]"
 	      " [-m (map types)]"
 	      " [-M (master.cf)]"
@@ -654,6 +701,7 @@ static void usage(const char *progname)
 	      " [-p (main.cf, default)]"
 	      " [-P (master.cf parameters)]"
 	      " [-t (bounce templates)]"
+	      " [-T compile-version|run-version|public-key-algorithms]"
 	      " [-v (verbose)]"
 	      " [-x (expand parameter values)]"
 	      " [-X (exclude)]"
@@ -720,6 +768,7 @@ int     main(int argc, char **argv)
 	0,
     };
     ARGV   *override_params = 0;
+    const char *pcf_tls_arg = 0;
 
     /*
      * Fingerprint executables and core dumps.
@@ -749,7 +798,7 @@ int     main(int argc, char **argv)
     /*
      * Parse JCL.
      */
-    while ((ch = GETOPT(argc, argv, "aAbc:C:deEfFhlmMno:pPtvxX#")) > 0) {
+    while ((ch = GETOPT(argc, argv, "aAbc:C:deEfFhHlmMno:pPtT:vxX#")) > 0) {
 	switch (ch) {
 	case 'a':
 	    pcf_cmd_mode |= PCF_SHOW_SASL_SERV;
@@ -790,6 +839,9 @@ int     main(int argc, char **argv)
 	case 'h':
 	    pcf_cmd_mode |= PCF_HIDE_NAME;
 	    break;
+	case 'H':
+	    pcf_cmd_mode |= PCF_HIDE_VALUE;
+	    break;
 	case 'l':
 	    pcf_cmd_mode |= PCF_SHOW_LOCKS;
 	    break;
@@ -820,6 +872,12 @@ int     main(int argc, char **argv)
 		msg_fatal("specify one of -b and -t");
 	    ext_argv = argv_alloc(2);
 	    argv_add(ext_argv, "bounce", "-SVndump_templates", (char *) 0);
+	    break;
+	case 'T':
+	    if (pcf_cmd_mode & PCF_SHOW_TLS)
+		msg_fatal("At most one -T <mode> option may be specified");
+	    pcf_cmd_mode |= PCF_SHOW_TLS;
+	    pcf_tls_arg = optarg;
 	    break;
 	case 'x':
 	    pcf_cmd_mode |= PCF_SHOW_EVAL;
@@ -924,6 +982,13 @@ int     main(int argc, char **argv)
 	pcf_show_sasl(PCF_SHOW_SASL_SERV);
     } else if (pcf_cmd_mode & PCF_SHOW_SASL_CLNT) {
 	pcf_show_sasl(PCF_SHOW_SASL_CLNT);
+    }
+
+    /*
+     * Show TLS info and exit.
+     */
+    else if (pcf_cmd_mode & PCF_SHOW_TLS) {
+	pcf_show_tls(pcf_tls_arg);
     }
 
     /*
