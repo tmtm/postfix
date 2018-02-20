@@ -55,6 +55,7 @@ extern int var_compat_level;
 extern int warn_compat_break_app_dot_mydomain;
 extern int warn_compat_break_smtputf8_enable;
 extern int warn_compat_break_chroot;
+extern int warn_compat_break_relay_restrictions;	/* Postfix 2.10. */
 
 extern int warn_compat_break_relay_domains;
 extern int warn_compat_break_flush_domains;
@@ -389,6 +390,16 @@ extern bool var_always_add_hdrs;
 #define VAR_DROP_HDRS		"message_drop_headers"
 #define DEF_DROP_HDRS		"bcc, content-length, resent-bcc, return-path"
 extern char *var_drop_hdrs;
+
+ /*
+  * From: header format: we provide canned versions only, no Sendmail-style
+  * macro expansions.
+  */
+#define HFROM_FORMAT_NAME_STD	"standard"	/* From: name <address> */
+#define HFROM_FORMAT_NAME_OBS	"obsolete"	/* From: address (name) */
+#define VAR_HFROM_FORMAT	"header_from_format"
+#define DEF_HFROM_FORMAT	HFROM_FORMAT_NAME_STD
+extern char *var_hfrom_format;
 
  /*
   * Standards violation: allow/permit RFC 822-style addresses in SMTP
@@ -1704,6 +1715,12 @@ extern char *var_smtp_sasl_tlsv_opts;
 #define DEF_SMTP_DUMMY_MAIL_AUTH	0
 extern bool var_smtp_dummy_mail_auth;
 
+#define VAR_LMTP_BALANCE_INET_PROTO "lmtp_balance_inet_protocols"
+#define DEF_LMTP_BALANCE_INET_PROTO DEF_SMTP_BALANCE_INET_PROTO
+#define VAR_SMTP_BALANCE_INET_PROTO "smtp_balance_inet_protocols"
+#define DEF_SMTP_BALANCE_INET_PROTO 1
+extern bool var_smtp_balance_inet_proto;
+
  /*
   * LMTP server. The soft error limit determines how many errors an LMTP
   * client may make before we start to slow down; the hard error limit
@@ -2066,10 +2083,19 @@ extern char *var_helo_checks;
 extern char *var_mail_checks;
 
 #define VAR_RELAY_CHECKS	"smtpd_relay_restrictions"
-#define DEF_RELAY_CHECKS	PERMIT_MYNETWORKS ", " \
+#define DEF_RELAY_CHECKS	"${{$compatibility_level} < {1} ? " \
+				"{} : {" PERMIT_MYNETWORKS ", " \
 				PERMIT_SASL_AUTH ", " \
-				DEFER_UNAUTH_DEST
+				DEFER_UNAUTH_DEST "}}"
 extern char *var_relay_checks;
+
+ /*
+  * For warn_compat_break_relay_domains check. Same as DEF_RELAY_CHECKS
+  * except that it evaluates to DUNNO instead of REJECT.
+  */
+#define FAKE_RELAY_CHECKS	PERMIT_MYNETWORKS ", " \
+				PERMIT_SASL_AUTH ", " \
+				PERMIT_AUTH_DEST
 
 #define VAR_RCPT_CHECKS		"smtpd_recipient_restrictions"
 #define DEF_RCPT_CHECKS		""
@@ -2363,7 +2389,29 @@ extern int var_local_rcpt_code;
 				" $" VAR_HELO_CHECKS \
 				" $" VAR_MAIL_CHECKS \
 				" $" VAR_RELAY_CHECKS \
-				" $" VAR_RCPT_CHECKS
+				" $" VAR_RCPT_CHECKS \
+				" $" VAR_VRFY_SND_DEF_XPORT_MAPS \
+				" $" VAR_VRFY_RELAY_MAPS \
+				" $" VAR_VRFY_XPORT_MAPS \
+				" $" VAR_FBCK_TRANSP_MAPS \
+				" $" VAR_LMTP_EHLO_DIS_MAPS \
+				" $" VAR_LMTP_PIX_BUG_MAPS \
+				" $" VAR_LMTP_SASL_PASSWD \
+				" $" VAR_LMTP_TLS_POLICY \
+				" $" VAR_MAILBOX_CMD_MAPS \
+				" $" VAR_MBOX_TRANSP_MAPS \
+				" $" VAR_PSC_EHLO_DIS_MAPS \
+				" $" VAR_RBL_REPLY_MAPS \
+				" $" VAR_SND_DEF_XPORT_MAPS \
+				" $" VAR_SND_RELAY_MAPS \
+				" $" VAR_SMTP_EHLO_DIS_MAPS \
+				" $" VAR_SMTP_PIX_BUG_MAPS \
+				" $" VAR_SMTP_SASL_PASSWD \
+				" $" VAR_SMTP_TLS_POLICY \
+				" $" VAR_SMTPD_EHLO_DIS_MAPS \
+				" $" VAR_SMTPD_MILTER_MAPS \
+				" $" VAR_VIRT_GID_MAPS \
+				" $" VAR_VIRT_UID_MAPS
 extern char *var_proxy_read_maps;
 
 #define VAR_PROXY_WRITE_MAPS	"proxy_write_maps"
@@ -2386,6 +2434,9 @@ extern char *var_proxy_write_acl;
   */
 #define VAR_PROCNAME		"process_name"
 extern char *var_procname;
+
+#define VAR_SERVNAME		"service_name"
+extern char *var_servname;
 
 #define VAR_PID			"process_id"
 extern int var_pid;
@@ -3295,6 +3346,7 @@ extern char *var_smtpd_milters;
 #define VAR_SMTPD_MILTER_MAPS		"smtpd_milter_maps"
 #define DEF_SMTPD_MILTER_MAPS		""
 extern char *var_smtpd_milter_maps;
+
 #define SMTPD_MILTERS_DISABLE		"DISABLE"
 
 #define VAR_CLEANUP_MILTERS		"non_smtpd_milters"

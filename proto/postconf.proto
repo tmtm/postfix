@@ -1402,22 +1402,39 @@ for showq(8) queue displays.  </p>
 
 %PARAM enable_original_recipient yes
 
-<p> Enable support for the X-Original-To message header. This header
-is needed for multi-recipient mailboxes.  </p>
+<p> Enable support for the original recipient address after an
+address is rewritten to a different address (for example with
+aliasing or with canonical mapping). </p>
 
-<p> When this parameter is set to yes, the cleanup(8) daemon performs
-duplicate elimination on distinct pairs of (original recipient,
-rewritten recipient), and generates non-empty original recipient
-queue file records.  </p>
+<p> The original recipient address is used as follows: </p>
 
-<p> When this parameter is set to no, the cleanup(8) daemon performs
-duplicate elimination on the rewritten recipient address only, and
-generates empty original recipient queue file records.  </p>
+<dl>
 
-<p> This feature is available in Postfix 2.1 and later. With Postfix
-version 2.0, support for the X-Original-To message header is always turned
-on. Postfix versions before 2.0 have no support for the X-Original-To
-message header.  </p>
+<dt> Final delivery </dt> <dd> With "enable_original_recipient =
+yes", the original recipient address is stored in the <b>X-Original-To</b>
+message header. This header may be used to distinguish between
+different recipients that share the same mailbox.  </dd>
+
+<dt> Recipient deduplication </dt> <dd> With "enable_original_recipient
+= yes", the cleanup(8) daemon performs duplicate recipient elimination
+based on the content of (original recipient, maybe-rewritten
+recipient) pairs.  Otherwise, the cleanup(8) daemon performs duplicate
+recipient elimination based only on the maybe-rewritten recipient
+address.  </dd>
+
+</dl>
+
+<p> Note: with Postfix &le; 3.2 the "setting enable_original_recipient
+= <b>no</b>" breaks address verification for addresses that are
+aliased or otherwise rewritten (Postfix is unable to store the
+address verification result under the original probe destination
+address; instead, it can store the result only under the rewritten
+address).  </p>
+
+<p> This feature is available in Postfix 2.1 and later. Postfix
+version 2.0 behaves as if this parameter is always set to <b>yes</b>.
+Postfix versions before 2.0 have no support for the original recipient
+address. </p>
 
 %PARAM export_environment see "postconf -d" output
 
@@ -6121,8 +6138,9 @@ numerical response code when an address probe failed due to a
 temporary problem (default: 450). <br> The
 unverified_recipient_tempfail_action parameter specifies the action
 after address probe failure due to a temporary problem (default:
-defer_if_permit).  <br>  This feature is available in Postfix 2.1
-and later.  </dd>
+defer_if_permit). <br> This feature breaks for aliased addresses
+with "enable_original_recipient = no" (Postfix &le; 3.2). <br>
+This feature is available in Postfix 2.1 and later. </dd>
 
 </dl>
 
@@ -6590,8 +6608,10 @@ change into 550 when you are confident that it is safe to do so).
 code when an address probe failed due to a temporary problem
 (default: 450).  <br> The unverified_sender_tempfail_action parameter
 specifies the action after address probe failure due to a temporary
-problem (default: defer_if_permit).  <br> This feature is available
-in Postfix 2.1 and later.  </dd>
+problem (default: defer_if_permit).  <br> This feature breaks for
+aliased addresses with "enable_original_recipient = no" (Postfix
+&le; 3.2).  <br> This feature is available in Postfix 2.1 and later.
+</dd>
 
 </dl>
 
@@ -7700,10 +7720,11 @@ This feature is available in Postfix 2.0 and later.
 %PARAM expand_owner_alias no
 
 <p>
-When delivering to an alias "aliasname" that has an "owner-aliasname"
-companion alias, set the envelope sender address to the expansion
-of the "owner-aliasname" alias. Normally, Postfix sets the envelope
-sender address to the name of the "owner-aliasname" alias.
+When delivering to an alias "<i>aliasname</i>" that has an
+"owner-<i>aliasname</i>" companion alias, set the envelope sender
+address to the expansion of the "owner-<i>aliasname</i>" alias.
+Normally, Postfix sets the envelope sender address to the name of
+the "owner-<i>aliasname</i>" alias.
 </p>
 
 %PARAM fallback_transport 
@@ -8047,10 +8068,10 @@ or reject_non_fqdn_recipient restriction.
 %PARAM owner_request_special yes
 
 <p>
-Give special treatment to owner-listname and listname-request
-address localparts: don't split such addresses when the
-recipient_delimiter is set to "-".  This feature is useful for
-mailing lists.
+Enable special treatment for owner-<i>listname</i> entries in the
+aliases(5) file, and don't split owner-<i>listname</i> and
+<i>listname</i>-request address localparts when the recipient_delimiter
+is set to "-".  This feature is useful for mailing lists.
 </p>
 
 %PARAM permit_mx_backup_networks 
@@ -8107,6 +8128,30 @@ prepend_delivered_header = forward
 <p>
 The process name of a Postfix command or daemon process.
 </p>
+
+%PARAM service_name read-only
+
+<p> The master.cf service name of a Postfix daemon process. This
+can be used to distinguish the logging from different services that
+use the same program name. </p>
+
+<p> Example master.cf entries: </p>
+
+<pre>
+# Distinguish inbound MTA logging from submission and smtps logging.
+smtp      inet  n       -       n       -       -       smtpd
+submission inet n       -       n       -       -       smtpd
+    -o syslog_name=postfix/$service_name
+smtps     inet  n       -       n       -       -       smtpd
+    -o syslog_name=postfix/$service_name
+</pre>
+
+<pre>
+# Distinguish outbound MTA logging from inbound relay logging.
+smtp      unix  -       -       n       -       -       smtp
+relay     unix  -       -       n       -       -       smtp
+    -o syslog_name=postfix/$service_name
+</pre>
 
 %PARAM process_id read-only
 
@@ -11044,7 +11089,7 @@ server certificate must match the TLSA records.  RFC 7672 (DANE) TLS
 authentication and DNSSEC support is available with Postfix 2.11
 and later.  </dd>
 
-<dt><b><a href="TLS_README.html#client_tls_fingerprint">fingerprint</a></b></dt>
+<dt><b><a href="TLS_README.html#client_tls_fprint">fingerprint</a></b></dt>
 <dd>Certificate fingerprint
 verification. Available with Postfix 2.5 and later. At this security
 level, there are no trusted Certification Authorities. The certificate
@@ -11443,7 +11488,7 @@ TLSA authentication is required.  There is no fallback to "may" or
 (DANE) TLS authentication is available with Postfix 2.11 and later.
 </dd>
 
-<dt><b><a href="TLS_README.html#client_tls_fingerprint">fingerprint</a></b></dt>
+<dt><b><a href="TLS_README.html#client_tls_fprint">fingerprint</a></b></dt>
 <dd>Certificate fingerprint verification.
 At this security level, there are no trusted Certification Authorities.
 The certificate trust chain, expiration date, etc., are
@@ -14703,7 +14748,8 @@ Postfix releases, the behavior is as if this parameter is set to
 "yes". </p>
 
 <p> As documented in aliases(5), when an alias <i>name</i> has a
-companion alias named owner-<i>name</i>, delivery errors will be
+companion alias named owner-<i>name</i>, this will replace the
+envelope sender address, so that delivery errors will be
 reported to the owner alias instead of the sender. This configuration
 is recommended for mailing lists. <p>
 
@@ -14733,7 +14779,9 @@ to other mailing list members. </p>
 
 <p> Unfortunately, older Postfix releases reset the owner-alias
 attribute when delivering mail to a child alias that does not have
-its own owner alias.  The local(8) delivery agent then attempts to
+its own owner alias. To be precise, this resets only the decision
+to create a new queue file, not the decision to override the envelope
+sender address. The local(8) delivery agent then attempts to
 deliver local addresses as soon as they come out of child alias
 expansion.  If delivery to any address from child alias expansion
 fails with a temporary error condition, the entire mailing list may
@@ -16685,3 +16733,65 @@ See http://unicode.org/cldr/utility/idna.jsp for more examples.
 </p>
 
 <p> This feature is available in Postfix 3.2 and later.  </p>
+
+%PARAM smtp_balance_inet_protocols yes
+
+<p> When a remote destination resolves to a combination of IPv4 and
+IPv6 addresses, ensure that the Postfix SMTP client can try both
+address types before it runs into the smtp_mx_address_limit. </p>
+
+<p> This avoids an interoperability problem when a destination resolves
+to primarily IPv6 addresses, the smtp_address_limit feature eliminates
+most or all IPv4 addresses, and the destination is not reachable over
+IPv6. </p>
+
+<p> This feature is available in Postfix 3.3 and later. </p>
+
+%PARAM lmtp_balance_inet_protocols yes
+
+<p> The LMTP-specific version of the smtp_balance_inet_protocols
+configuration parameter. See there for details. </p>
+
+<p> This feature is available in Postfix 3.3 and later.  </p>
+
+%PARAM header_from_format standard
+
+<p> The format of the Postfix-generated <b>From:</b> header. This
+setting affects the appearance of 'full name' information when a
+local program such as /bin/mail submits a message without From:
+header through the Postfix sendmail(1) command. </p>
+
+<p> Specify one of the following: </p>
+
+<dl>
+
+<dt><b>standard</b> (default)</dt> <dd> Produce a header formatted
+as "<b>From:</b> <i>name</i><b> &lt;</b><i>address</i><b>&gt;</b>".
+This is the default as of Postfix 3.3.</dd>
+
+<dt><b>obsolete</b></dt> <dd>Produce a header formatted as "<b>From:</b>
+<i>address</i> <b>(</b><i>name</i><b>)</b>". This is the behavior
+prior to Postfix 3.3. </dd>
+
+</dl>
+
+<p> Notes: </p>
+
+<ul>
+
+<li> <p> Postfix generates the format "<b>From:</b> <i>address</i>"
+when <i>name</i> information is unavailable or the envelope sender
+address is empty. This is the same behavior as prior to Postfix
+3.3. </p>
+
+<li> <p> In the <b>standard</b> form, the <i>name</i> will be quoted
+if it contains <b>specials</b> as defined in RFC 5322, or the "!%"
+address operators. </p>
+
+<li> <p> The Postfix sendmail(1) command gets <i>name</i> information
+from the <b>-F</b> command-line option, from the <b>NAME</b>
+environment variable, or from the UNIX password file. </p>
+
+</ul>
+
+<p> This feature is available in Postfix 3.3 and later. </p>

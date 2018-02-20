@@ -75,6 +75,9 @@ typedef struct {
 	((node)->flags = (((node)->flags & ~PCF_PARAM_MASK_CLASS) | (class)))
 
 #define PCF_RAW_PARAMETER(node) ((node)->flags & PCF_PARAM_FLAG_RAW)
+#define PCF_BUILTIN_PARAMETER(node) ((node)->flags & PCF_PARAM_FLAG_BUILTIN)
+#define PCF_SERVICE_PARAMETER(node) ((node)->flags & PCF_PARAM_FLAG_SERVICE)
+#define PCF_USER_PARAMETER(node) ((node)->flags & PCF_PARAM_FLAG_USER)
 #define PCF_LEGACY_PARAMETER(node) ((node)->flags & PCF_PARAM_FLAG_LEGACY)
 #define PCF_READONLY_PARAMETER(node) ((node)->flags & PCF_PARAM_FLAG_READONLY)
 #define PCF_DBMS_PARAMETER(node) ((node)->flags & PCF_PARAM_FLAG_DBMS)
@@ -118,6 +121,7 @@ typedef struct {
     char   *name_space;			/* service/type, parameter name space */
     ARGV   *argv;			/* null, or master.cf fields */
     DICT   *all_params;			/* null, or all name=value entries */
+    DICT   *ro_params;			/* read-only name=value entries */
     HTABLE *valid_names;		/* null, or "valid" parameter names */
 } PCF_MASTER_ENT;
 

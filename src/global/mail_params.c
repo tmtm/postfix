@@ -36,6 +36,7 @@
 /*	int	var_event_drain;
 /*	int	var_bundle_rcpt;
 /*	char	*var_procname;
+/*	char	*var_servname;
 /*	int	var_pid;
 /*	int	var_ipc_timeout;
 /*	char	*var_pid_dir;
@@ -130,6 +131,7 @@
 /*	int     var_idna2003_compat;
 /*	int     var_compat_level;
 /*	char	*var_drop_hdrs;
+/*	bool	var_enable_orcpt;
 /*
 /*	void	mail_params_init()
 /*
@@ -138,6 +140,7 @@
 /*	int	warn_compat_break_app_dot_mydomain;
 /*	int	warn_compat_break_smtputf8_enable;
 /*	int	warn_compat_break_chroot;
+/*	int	warn_compat_break_relay_restrictions;
 /*
 /*	int	warn_compat_break_relay_domains;
 /*	int	warn_compat_break_flush_domains;
@@ -247,6 +250,7 @@ int     var_event_drain;
 int     var_idle_limit;
 int     var_bundle_rcpt;
 char   *var_procname;
+char   *var_servname;
 int     var_pid;
 int     var_ipc_timeout;
 char   *var_pid_dir;
@@ -342,6 +346,7 @@ char   *var_smtputf8_autoclass;
 int     var_idna2003_compat;
 int     var_compat_level;
 char   *var_drop_hdrs;
+bool    var_enable_orcpt;
 
 const char null_format_string[1] = "";
 
@@ -358,6 +363,7 @@ int     warn_compat_break_mynetworks_style;
 int     warn_compat_break_app_dot_mydomain;
 int     warn_compat_break_smtputf8_enable;
 int     warn_compat_break_chroot;
+int     warn_compat_break_relay_restrictions;
 
 /* check_myhostname - lookup hostname and validate */
 
@@ -611,6 +617,10 @@ static void check_legacy_defaults(void)
 	if (mail_conf_lookup(VAR_MYNETWORKS) == 0
 	    && mail_conf_lookup(VAR_MYNETWORKS_STYLE) == 0)
 	    warn_compat_break_mynetworks_style = 1;
+    } else {					/* for 'postfix reload' */
+	warn_compat_break_relay_domains = 0;
+	warn_compat_break_flush_domains = 0;
+	warn_compat_break_mynetworks_style = 0;
     }
 
     /*
@@ -629,6 +639,17 @@ static void check_legacy_defaults(void)
 	if (mail_conf_lookup(VAR_SMTPUTF8_ENABLE) == 0)
 	    warn_compat_break_smtputf8_enable = 1;
 	warn_compat_break_chroot = 1;
+
+	/*
+	 * Grandfathered in to help sites migrating from Postfix <2.10.
+	 */
+	if (mail_conf_lookup(VAR_RELAY_CHECKS) == 0)
+	    warn_compat_break_relay_restrictions = 1;
+    } else {					/* for 'postfix reload' */
+	warn_compat_break_app_dot_mydomain = 0;
+	warn_compat_break_smtputf8_enable = 0;
+	warn_compat_break_chroot = 0;
+	warn_compat_break_relay_restrictions = 0;
     }
 }
 
@@ -783,6 +804,7 @@ void    mail_params_init()
 	VAR_MULTI_ENABLE, DEF_MULTI_ENABLE, &var_multi_enable,
 	VAR_LONG_QUEUE_IDS, DEF_LONG_QUEUE_IDS, &var_long_queue_ids,
 	VAR_STRICT_SMTPUTF8, DEF_STRICT_SMTPUTF8, &var_strict_smtputf8,
+	VAR_ENABLE_ORCPT, DEF_ENABLE_ORCPT, &var_enable_orcpt,
 	0,
     };
     const char *cp;

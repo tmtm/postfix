@@ -113,6 +113,10 @@
 /* .IP "\fBsyslog_name (see 'postconf -d' output)\fR"
 /*	A prefix that is prepended to the process name in syslog
 /*	records, so that, for example, "smtpd" becomes "prefix/smtpd".
+/* .PP
+/*	Available in Postfix 3.3 and later:
+/* .IP "\fBservice_name (read-only)\fR"
+/*	The master.cf service name of a Postfix daemon process.
 /* SEE ALSO
 /*	smtp(8), SMTP client
 /*	postconf(5), configuration parameters

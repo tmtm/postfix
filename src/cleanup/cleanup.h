@@ -119,6 +119,7 @@ typedef struct CLEANUP_STATE {
     VSTRING *milter_err_text;		/* milter call-back reply */
     HBC_CHECKS *milter_hbc_checks;	/* Milter header checks */
     VSTRING *milter_hbc_reply;		/* Milter header checks reply */
+    VSTRING *milter_dsn_buf;		/* Milter DSN parsing buffer */
 
     /*
      * Support for Milter body replacement requests.
@@ -347,6 +348,13 @@ extern int cleanup_body_edit_start(CLEANUP_STATE *);
 extern int cleanup_body_edit_write(CLEANUP_STATE *, int, VSTRING *);
 extern int cleanup_body_edit_finish(CLEANUP_STATE *);
 extern void cleanup_body_edit_free(CLEANUP_STATE *);
+
+ /*
+  * From: header formatting.
+  */
+#define HFROM_FORMAT_CODE_STD	0
+#define HFROM_FORMAT_CODE_OBS	1
+extern int hfrom_format_code;
 
 /* LICENSE
 /* .ad

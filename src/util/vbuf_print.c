@@ -64,6 +64,7 @@
 /* Application-specific. */
 
 #include "msg.h"
+#include "mymalloc.h"
 #include "vbuf.h"
 #include "vstring.h"
 #include "vbuf_print.h"
@@ -110,10 +111,10 @@
 	    return (bp); \
 	_ret = snprintf((char *) (bp)->ptr, (bp)->cnt, (fmt), (arg)); \
 	if (_ret < 0) \
-	    msg_panic("%s: output error for '%s'", myname, (fmt)); \
+	    msg_panic("%s: output error for '%s'", myname, mystrdup(fmt)); \
 	if (_ret >= (bp)->cnt) \
 	    msg_panic("%s: output for '%s' exceeds space %ld", \
-		      myname, fmt, (long) (bp)->cnt); \
+		      myname, mystrdup(fmt), (long) (bp)->cnt); \
 	VBUF_SKIP(bp); \
     } while (0)
 #else

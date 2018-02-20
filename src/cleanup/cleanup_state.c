@@ -28,6 +28,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -130,6 +135,7 @@ CLEANUP_STATE *cleanup_state_alloc(VSTREAM *src)
     state->milter_ext_from = 0;
     state->milter_ext_rcpt = 0;
     state->milter_err_text = 0;
+    state->milter_dsn_buf = 0;
     state->free_regions = state->body_regions = state->curr_body_region = 0;
     state->smtputf8 = 0;
     return (state);
@@ -189,6 +195,8 @@ void    cleanup_state_free(CLEANUP_STATE *state)
 	vstring_free(state->milter_ext_rcpt);
     if (state->milter_err_text)
 	vstring_free(state->milter_err_text);
+    if (state->milter_dsn_buf)
+	vstring_free(state->milter_dsn_buf);
     cleanup_region_done(state);
     myfree((void *) state);
 }

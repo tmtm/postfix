@@ -304,6 +304,9 @@ static void vstring_extend(VBUF *bp, ssize_t incr)
      * 
      * The length overflow tests here and in vstring_alloc() should protect us
      * against all length overflow problems within vstring library routines.
+     * 
+     * Safety net: add a gratuitous null terminator so that C-style string
+     * operations won't scribble past the end.
      */
     if ((bp->flags & VSTRING_FLAG_EXACT) == 0 && bp->len > incr)
 	incr = bp->len;
@@ -328,7 +331,7 @@ static int vstring_buf_get_ready(VBUF *unused_buf)
 
 static int vstring_buf_put_ready(VBUF *bp)
 {
-    vstring_extend(bp, 0);
+    vstring_extend(bp, 1);
     return (0);
 }
 
@@ -351,6 +354,10 @@ VSTRING *vstring_alloc(ssize_t len)
 {
     VSTRING *vp;
 
+    /*
+     * Safety net: add a gratuitous null terminator so that C-style string
+     * operations won't scribble past the end.
+     */
     if (len < 1 || len > SSIZE_T_MAX - 1)
 	msg_panic("vstring_alloc: bad length %ld", (long) len);
     vp = (VSTRING *) mymalloc(sizeof(*vp));
@@ -668,7 +675,18 @@ VSTRING *vstring_sprintf_prepend(VSTRING *vp, const char *format,...)
 int     main(int argc, char **argv)
 {
     VSTRING *vp = vstring_alloc(1);
+    int     n;
 
+    /*
+     * Report the location of the gratuitous null terminator.
+     */
+    for (n = 1; n <= 5; n++) {
+	VSTRING_ADDCH(vp, 'x');
+	printf("payload/buffer size %d/%ld, strlen() %ld\n",
+	       n, (long) (vp)->vbuf.len, (long) strlen(vstring_str(vp)));
+    }
+
+    VSTRING_RESET(vp);
     while (argc-- > 0) {
 	vstring_strcat(vp, *argv++);
 	vstring_strcat(vp, ".");

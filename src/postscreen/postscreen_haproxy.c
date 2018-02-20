@@ -29,6 +29,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -133,7 +138,7 @@ static void psc_endpt_haproxy_event(int event, void *context)
     /*
      * Parse the haproxy line. Note: the haproxy_srvr_parse() routine
      * performs address protocol checks, address and port syntax checks, and
-     * converts IPv4-in-IPv6 address string syntax (:ffff::1.2.3.4) to IPv4
+     * converts IPv4-in-IPv6 address string syntax (::ffff:1.2.3.4) to IPv4
      * syntax where permitted by the main.cf:inet_protocols setting.
      */
     if (status == 0 && last_char == '\n') {

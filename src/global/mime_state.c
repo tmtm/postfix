@@ -237,6 +237,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -507,6 +512,7 @@ MIME_STATE *mime_state_alloc(int flags,
     state->prev_rec_type = 0;
     state->stack = 0;
     state->token_buffer = vstring_alloc(1);
+    state->nesting_level = -1;			/* BC Fix 20170512 */
 
     /* Static members. */
     state->static_flags = flags;

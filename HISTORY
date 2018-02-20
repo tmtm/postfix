@@ -22940,16 +22940,21 @@ Apologies for any names omitted.
 20170218
 
 	Cleanup: typofixes from klemens. The only change in compiled
-	code is in one mysql error message that also appears in the
-	pgsql client. Files: about 50.
+	code is in one identical mysql error message that also
+	appears in the pgsql client.  Files: about 50.
 
 20170221
 
 	Compatibility fix (introduced: Postfix 3.1): some Milter
-	applications do not recognize macros sent as {name} when
-	macros have single-character names. Postfix now sends such
-	macros without {} as it has done historically. Viktor
-	Dukhovni. File: milter/milter.c.
+	applications do not recognize macros sent as {name} when macros
+	have single-character names. Postfix now sends such macros
+	without {} as it has done historically. Viktor Dukhovni. File:
+	milter/milter.c.
+
+20170228
+
+	Documentation: re-word scary warnings at the top of SASL_README
+	and TLS_README.
 
 20170402
 
@@ -22963,7 +22968,31 @@ Apologies for any names omitted.
 
 	Safety net: append a null byte to vstring buffers, so that
 	C-style string operations won't scribble past the end. File:
-	vstring.c.
+	vstring.[hc].
+
+20170505
+
+	Workaround for a current problem where some destination
+	announces primarily IPv6 MX addresses, the smtp_address_limit
+	eliminates most or all IPv4 addresses, and the destination
+	is not reachable over IPv6. This workaround is enabled with
+	"smtp_balance_mx_inet_protocols = yes", which is the default.
+	Files: smtp/smtp.c, smtp/smtp_params.c, smtp/smtp_addr.c,
+	global/mail_params.h, proto/postconf.proto.
+
+20170506
+
+	A last-minute cosmetic fix had introduced a bug in
+	smtp/smtp_addr.c.
+
+20170512
+
+	Bugfix (introduced: Postfix 2.0): the MIME nesting level
+	counter was not initialized (i.e. left at the memory fill
+	pattern 0xffffffff which equals -1). This broke unit tests
+	with a different memory allocator. Changing the value to
+	zero would break backwards compatibility (reject mail that
+	was previously not rejected). Files: global/mime_state.c.
 
 20170531
 
@@ -22972,13 +23001,23 @@ Apologies for any names omitted.
 	features ignored the parent_domain_matches_subdomains
 	setting. Reported by Henrik Larsson. File: smtpd/smtpd_check.c.
 
+	Workaround (introduced: Postfix 3.2): mail_addr_find() logs
+	a warning that it does not support both parent-domain and
+	dot-parent-domain style lookups in the same call.  File:
+	global/mail_addr_find.c
+
 20170610
 
 	Workaround (introduced: Postfix 3.0 20140718): prevent MIME
-	downgrade of Postfix-generated message/delivery status.
+	downgrade of Postfix-generated message/delivery-status.
 	It's supposed to be 7bit, therefore quoted-printable encoding
 	is not expected. Problem reported by Griff. File:
 	bounce/bounce_notify_util.c.
+
+	Documentation: indicate that the transport_mumble parameters
+	are implemented by the queue manager, not by delivery agents.
+	Files: mantools/postlink, local/local.c, pipe/pipe.c,
+	*qmgr/qmgr.c, smtp/smtp.c, virtual/virtual.c.
 
 20170611
 
@@ -22993,12 +23032,113 @@ Apologies for any names omitted.
 	for Berkeley DB < 3, but reduces file create performance
 	for Berkeley DB 3 .. 4.6.  File: util/dict_db.c.
 
+20170617
+
+	Cleanup: the postconf command warns about unknown parameter
+	names in a database configuration file, specified as an
+	absolute pathname (for example, ldap:/path/to/file). This
+	code was mostly written in January 2017, and it still is a
+	partial implementation.  Files: postconf/postconf_dbms.c,
+	postconf/Makefile.in, postconf/test66.ref.
+
+20170618 
+
+	Cleanup: added missing "defined(__GLIBC__)" guards for
+	GLIBC version tests. File: util/sys_defs.h.
+
 20170620
 
 	Bugfix (introduced: Postfix 3.2) extension propagation was
 	broken with "recipient_delimiter = .". This change reverts
 	a change that was trying to be too clever. Files:
 	global/mail_adr_crunch.c, global/mail_addr_crunch.ref.
+
+20170704
+
+	Typos (introduced: Postfix 2.10): in comments about
+	IPv4-in-IPv6 addresses, replace :ffff::1.2.3.4 with the
+	correct form ::ffff:1.2.3.4. Incorrect or misleading comments
+	are worse than no comments. Files: smtpd/smtpd_haproxy.c,
+	postscreen/postscreen_haproxy.c.
+
+20170721
+
+	Bitrot: updated postconf LDAP database configuration check with
+	SASL and TLS-related parameters. Reported by Ralf Hildebrandt.
+	File: postconf/postconf_dbms.c.
+
+20170722
+
+	Cleanup: don't log the 'delay_dotcrlf' workaround for CISCO
+	PIX bugs before the smtp_pix_workaround_threshold_time has
+	passed. Reported by Ralf Hildebrandt. File: smtp/smtp_proto.c.
+
+20170727
+
+	Cleanup: the postconf command now uses mechanically-generated
+	lists of DBMS parameter names. This eliminates false positives
+	with mysql databases. Files: postconf/Makefile.in,
+	postconf/extract_cfg.sh, postconf/postconf_dbms.c.
+
+	Cleanup: removed `#if 0/#endif' dead code from dict_ldap.c,
+	to avoid spurious output from the extract_cfg.sh parameter name
+	extraction tool.
+
+20170728
+
+	Documentation: added warnings that "enable_original_recipient
+	= no" prevents Postfix <= 3.2 from saving the address
+	verification result under the original probe destination
+	address, if it is changed by aliasing or canonical mapping.
+	Files: proto/ADDRESS_VERIFICATION_README.html,
+	proto/postconf.proto.
+
+	Cleanup: don't store an empty address in the verify cache
+	(this could happen with "enable_original_recipient = no").
+	File: global/verify.c.
+
+20170729
+
+	Cleanup: the setting "enable_original_recipient = no" no
+	longer breaks address verification for aliased addresses.
+	This does not change the behavior of the X-Original-To
+	header and of recipient deduplication. The fix is to always
+	store the original recipient in queue files. Some other
+	changes were needed to move ownership of the var_enable_orcpt
+	parameter from the cleanup daemon to the global library.
+	Files: cleanup/cleanup_init.c, cleanup/cleanup_milter.c,
+	cleanup_out_recipient.c, global/mail_params.c, global/mail_copy.c,
+	proto/postconf.proto proto/ADDRESS_VERIFICATION_README.html,
+	local/local.c, virtual/virtual.c, pipe/pipe.c.
+
+20170730
+
+	Bugfix (introduced: yesterday): revert global/verify.c code
+	to always store the verify result under the original address,
+	and to conditionally store it under the rewritten address.
+	File: global/verify.c.
+
+20170827
+
+	Safety: in vstream_buf_space(), add a sanity check to reject
+	negative request sizes, instead of letting the program fail
+	later. File: util/vstream.c
+
+	Bugfix: in tests that enable the VSTRING_FLAG_EXACT flag,
+	vstring_buf_put_ready() could fail to extend the buffer,
+	causing infinite recursion in VBUF_PUT(). File: util/vstring.c.
+
+20170830
+
+	Bugfix: in vbuf_print(), save the parser-produced format
+	string before calling msg_panic(), so that the panic message
+	will not display its own format string. File: util/vbuf_print.c.
+
+20170831
+
+	Undefined behavior (introduced Postfix 1.0): after subtracting
+	a larger unsigned integer from a smaller one, do not assign
+	the result to a signed integer. File: postqueue/showq_compat.c.
 
 20170910
 
@@ -23007,6 +23147,10 @@ Apologies for any names omitted.
 	These checks were lost with the Postfix 3.2 rewrite of
 	the vbuf_print formatter. File: vbuf_print.c.
 
+	Bugfix (introduced: postfix-alpha): improve the 'fatal:
+	invalid option' message to show the optopt value instead of
+	the getopt() result.  Files: master/*server.c.
+
 20170923
 
 	Bugfix (introduced: Postfix 3.2): panic in the postqueue
@@ -23014,6 +23158,11 @@ Apologies for any names omitted.
 	This change restores a write error check that was lost with
 	the Postfix 3.2 rewrite of the vbuf_print formatter.
 	Problem reported by Andreas Schulze. File: util/vbuf_print.c.
+
+20170924
+
+	Cleanup: terminate early after output write error. Files:
+	showq/show_compat.c, showq/show_json.c.
 
 20171009
 
@@ -23035,6 +23184,12 @@ Apologies for any names omitted.
 	that some restriction returns OK, when the access map
 	DISCARD feature is in effect. File: smtpd/smtpd_check.c.
 
+20171209
+
+	Documentation: the effects of owner_request_special and
+	reset_owner_alias on alias expansion. Files: proto/aliases,
+	proto/postconf.proto.
+
 20171215
 
 	Bugfix (introduced: 20170611): the DB_CONFIG bugfix broke
@@ -23048,13 +23203,55 @@ Apologies for any names omitted.
 	a panic, the Postfix DNS client now logs a warning and sets
 	h_errno to TRY_AGAIN. File: dns/dns_lookup.c.
 
+	Cleanup: allow XCLIENT before STARTTLS, when TLS is required.
+	File: smtpd/smtpd.c.
+
+20171219
+
+	Feature: preliminary support to run Postfix in the foreground.
+	This requires that multi-instance support is disabled.
+	Files: conf/postfix-script, postfix/postfix.c.
+
+20171223
+
+	Feature: Milters can now send RET and ENVID arguments in
+	SMFIR_CHGFROM requests. Files: cleanup/Makefile.in,
+	cleanup/cleanup.h, cleanup/cleanup_envelope.c,
+	cleanup/cleanup_milter.c, cleanup/cleanup_milter.in13h,
+	cleanup/cleanup_milter.in13i, cleanup/cleanup_milter.ref13c,
+	cleanup/cleanup_milter.ref13d, cleanup/cleanup_milter.ref13f,
+	cleanup/cleanup_milter.ref13g, cleanup/cleanup_milter.ref13h,
+	cleanup/cleanup_milter.ref13i, cleanup/cleanup_state.c,
+	cleanup/test-queue-file13h, cleanup/test-queue-file13i,
+	oqmgr/qmgr_message.c, qmgr/qmgr_message.c.
+
 20171226
 
 	Documentation patches by Sven Neuhaus. Files:
 	proto/FORWARD_SECRECY_README.html, proto/MILTER_README.html,
 	proto/SMTPD_ACCESS_README.html.
 
+20171227
+
+	Feature: postgresql:// URI support by Magosányi Árpád.
+	Files: global/dict_pgsql.c, proto/pgsql_table.
+
+	Cleanup: added employer attributions for non-trivial changes
+	after Wietse changed employers.
+
 20180106
+
+	Compatibility: with compatibility_level < 1, the SMTP server
+	now warns for mail that would be blocked by the Postfix
+	2.10 smtpd_relay_restrictions feature. This extends the
+	safety net for sites that upgrade from earlier Postfix
+	versions (questions on the postfix-users list show a steady
+	trickle). Files: proto/COMPATIBILITY_README.html,
+	global/mail_params[hc], smtpd/smtpd_check.c.
+
+	Cleanup: reset compatibility_level warnings after 'postfix
+	reload'. This is relevant primarily for the master daemon.
+	File: global/mail_params.c.
 
 	Cleanup: missing mailbox seek-to-end error check in the
 	local(8) delivery agent. File: local/mailbox.c.
@@ -23062,7 +23259,64 @@ Apologies for any names omitted.
 	Cleanup: incorrect mailbox seek-to-end error message in the
 	virtual(8) delivery agent. File: virtual/mailbox.c.
 
-20180127
+20180107
+
+	Cleanup: Postfix-generated From: headers with 'full name'
+	information are now formatted as "From: name <address>" by
+	default. Specify "header_from_format = obsolete" for the
+	earlier form "From: address (name)". Files: proto/postconf.proto,
+	cleanup/cleanup.h, cleanup_init.c, cleanup_message.c,
+	mail_params.h.
+
+20180113
+
+	Bugfix: "postconf -M" commands did not warn about unused
+	name=value settings in master.cf. File: postconf/postconf.c.
+
+	Bugfix: "postconf -xM" now expands $process_name using the
+	daemon file name in master.cf, instead of the "postconf"
+	command process name. Files: postconf/postconf.h,
+	postconf/postconf_lookup.c, postconf/postconf_master.c.
+
+	Feature: read-only service_name parameter that contains the
+	master.cf service name. This allows, for example, setting
+	the syslog_name with "-o syslog_name=postfix/$service_name"
+	for the "submission" and "smtps" services. Files:
+	proto/postconf.proto global/mail_params.h, global/mail_params.c,
+	master/single_server.c, master/multi_server.c,
+	master/trigger_server.c, master/event_server.c,
+	postconf/postconf_master.c, postconf/postconf_builtin.c,
+	and daemon manpages.
+
+20180114
+
+	Paranoia: censor the postqueue process name, similar to the
+	set-gid postdrop program. File: postqueue/postqueue.c.
+
+	Cleanup: the new "service_name" parameter is applicable
+	only to Postfix daemons configured in master.cf; hyperlink
+	the parameter name in documentation.  Files: proto/postconf.proto,
+	mantools/postlink, daemon manpages.
+
+	Cleanup: allow whitespace between $[{(], parameter name,
+	and [:?)}]. This allows making complex expressions more
+	readable with line breaks. File: util/mac_expand.c.
+
+	Cleanup: don't initialize the service_name parameter with
+	the process_name value.  Files: postconf/postconf.[hc],
+	postconf/postconf_builtin.c.
+
+20180121
+
+	Bugfix (introduced: 20180106): too many arguments for format
+	string. File: local/mailbox.c.
+
+20180128
+
+	Documentation: the tcp_table(5) manpage now documents the
+	absence of substring lookups. File: proto/tcp_table.
+
+20180203
 
 	Licence: in addition to the historical IBM Public License
 	1.0, this software is now also distributed with the more
@@ -23070,3 +23324,13 @@ Apologies for any names omitted.
 	to take the software under the license of their choice.
 	Those who are more comfortable with the IPL can continue
 	with that license. File: LICENSE.
+
+20180218
+
+	Cleanup: added 22 missing *_maps parameters to the default
+	proxy_read_maps setting. Files: global/mail_params.h.
+
+	Bugfix (introduced: 20120117): postconf should scan only
+	built-in or service-defined parameters for ldap, *sql, etc.
+	database names. Problem reported by Christian Rößner. Files:
+	postconf/postconf_user.c.

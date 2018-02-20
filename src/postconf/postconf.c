@@ -1012,6 +1012,7 @@ int     main(int argc, char **argv)
 	else
 	    pcf_show_master_entries(VSTREAM_OUT, pcf_cmd_mode, argc - optind,
 				    argv + optind);
+	pcf_flag_unused_master_parameters();
     }
 
     /*

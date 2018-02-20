@@ -449,6 +449,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -980,6 +985,8 @@ static int vstream_buf_space(VBUF *bp, ssize_t want)
      */
     if (bp->put_ready == 0)
 	msg_panic("%s: read-only stream", myname);
+    if (want < 0)
+        msg_panic("%s: bad length %ld", myname, (long) want);
     switch (bp->flags & (VSTREAM_FLAG_READ | VSTREAM_FLAG_WRITE)) {
     case VSTREAM_FLAG_READ:			/* change direction */
 	bp->flags &= ~VSTREAM_FLAG_READ;

@@ -2007,22 +2007,38 @@ name changes.
 .PP
 This feature is available in Postfix 2.9 and later.
 .SH enable_original_recipient (default: yes)
-Enable support for the X\-Original\-To message header. This header
-is needed for multi\-recipient mailboxes.
+Enable support for the original recipient address after an
+address is rewritten to a different address (for example with
+aliasing or with canonical mapping).
 .PP
-When this parameter is set to yes, the \fBcleanup\fR(8) daemon performs
-duplicate elimination on distinct pairs of (original recipient,
-rewritten recipient), and generates non\-empty original recipient
-queue file records.
+The original recipient address is used as follows:
+.IP "Final delivery"
+With "enable_original_recipient =
+yes", the original recipient address is stored in the \fBX\-Original\-To\fR
+message header. This header may be used to distinguish between
+different recipients that share the same mailbox.
+.br
+.IP "Recipient deduplication"
+With "enable_original_recipient
+= yes", the \fBcleanup\fR(8) daemon performs duplicate recipient elimination
+based on the content of (original recipient, maybe\-rewritten
+recipient) pairs.  Otherwise, the \fBcleanup\fR(8) daemon performs duplicate
+recipient elimination based only on the maybe\-rewritten recipient
+address.
+.br
+.br
 .PP
-When this parameter is set to no, the \fBcleanup\fR(8) daemon performs
-duplicate elimination on the rewritten recipient address only, and
-generates empty original recipient queue file records.
+Note: with Postfix <= 3.2 the "setting enable_original_recipient
+= \fBno\fR" breaks address verification for addresses that are
+aliased or otherwise rewritten (Postfix is unable to store the
+address verification result under the original probe destination
+address; instead, it can store the result only under the rewritten
+address).
 .PP
-This feature is available in Postfix 2.1 and later. With Postfix
-version 2.0, support for the X\-Original\-To message header is always turned
-on. Postfix versions before 2.0 have no support for the X\-Original\-To
-message header.
+This feature is available in Postfix 2.1 and later. Postfix
+version 2.0 behaves as if this parameter is always set to \fByes\fR.
+Postfix versions before 2.0 have no support for the original recipient
+address.
 .SH error_notice_recipient (default: postmaster)
 The recipient of postmaster notifications about mail delivery
 problems that are caused by policy, resource, software or protocol
@@ -2040,10 +2056,11 @@ outside the allowed set are replaced by underscores.
 .PP
 This feature is available in Postfix 2.2 and later.
 .SH expand_owner_alias (default: no)
-When delivering to an alias "aliasname" that has an "owner\-aliasname"
-companion alias, set the envelope sender address to the expansion
-of the "owner\-aliasname" alias. Normally, Postfix sets the envelope
-sender address to the name of the "owner\-aliasname" alias.
+When delivering to an alias "\fIaliasname\fR" that has an
+"owner\-\fIaliasname\fR" companion alias, set the envelope sender
+address to the expansion of the "owner\-\fIaliasname\fR" alias.
+Normally, Postfix sets the envelope sender address to the name of
+the "owner\-\fIaliasname\fR" alias.
 .SH export_environment (default: see "postconf \-d" output)
 The list of environment variables that a Postfix process will export
 to non\-Postfix processes. The TZ variable is needed for sane
@@ -2286,6 +2303,42 @@ The limit is enforced by the \fBcleanup\fR(8) server.
 .SH header_checks (default: empty)
 Optional lookup tables for content inspection of primary non\-MIME
 message headers, as specified in the \fBheader_checks\fR(5) manual page.
+.SH header_from_format (default: standard)
+The format of the Postfix\-generated \fBFrom:\fR header. This
+setting affects the appearance of 'full name' information when a
+local program such as /bin/mail submits a message without From:
+header through the Postfix \fBsendmail\fR(1) command.
+.PP
+Specify one of the following:
+.IP "\fBstandard\fR (default)"
+Produce a header formatted
+as "\fBFrom:\fR \fIname\fR\fB <\fR\fIaddress\fR\fB>\fR".
+This is the default as of Postfix 3.3.
+.br
+.IP "\fBobsolete\fR"
+Produce a header formatted as "\fBFrom:\fR
+\fIaddress\fR \fB(\fR\fIname\fR\fB)\fR". This is the behavior
+prior to Postfix 3.3.
+.br
+.br
+.PP
+Notes:
+.IP \(bu
+Postfix generates the format "\fBFrom:\fR \fIaddress\fR"
+when \fIname\fR information is unavailable or the envelope sender
+address is empty. This is the same behavior as prior to Postfix
+3.3.
+.IP \(bu
+In the \fBstandard\fR form, the \fIname\fR will be quoted
+if it contains \fBspecials\fR as defined in RFC 5322, or the "!%"
+address operators.
+.IP \(bu
+The Postfix \fBsendmail\fR(1) command gets \fIname\fR information
+from the \fB\-F\fR command\-line option, from the \fBNAME\fR
+environment variable, or from the UNIX password file.
+.br
+.PP
+This feature is available in Postfix 3.3 and later.
 .SH header_size_limit (default: 102400)
 The maximal amount of memory in bytes for storing a message header.
 If a header is larger, the excess is discarded.  The limit is
@@ -2561,6 +2614,11 @@ server performs final delivery, and send "delivered" delivery status
 notifications instead of "relayed". The default setting is backwards
 compatible to avoid the infinitesimal possibility of breaking
 existing LMTP\-based content filters.
+.SH lmtp_balance_inet_protocols (default: yes)
+The LMTP\-specific version of the smtp_balance_inet_protocols
+configuration parameter. See there for details.
+.PP
+This feature is available in Postfix 3.3 and later.
 .SH lmtp_bind_address (default: empty)
 The LMTP\-specific version of the smtp_bind_address configuration
 parameter.  See there for details.
@@ -4496,10 +4554,10 @@ Example:
 .PP
 This feature is available in Postfix 3.1 and later.
 .SH owner_request_special (default: yes)
-Give special treatment to owner\-listname and listname\-request
-address localparts: don't split such addresses when the
-recipient_delimiter is set to "\-".  This feature is useful for
-mailing lists.
+Enable special treatment for owner\-\fIlistname\fR entries in the
+\fBaliases\fR(5) file, and don't split owner\-\fIlistname\fR and
+\fIlistname\fR\-request address localparts when the recipient_delimiter
+is set to "\-".  This feature is useful for mailing lists.
 .SH parent_domain_matches_subdomains (default: see "postconf \-d" output)
 A list of Postfix features where the pattern "example.com" also
 matches subdomains of example.com,
@@ -5941,7 +5999,8 @@ Postfix releases, the behavior is as if this parameter is set to
 "yes".
 .PP
 As documented in \fBaliases\fR(5), when an alias \fIname\fR has a
-companion alias named owner\-\fIname\fR, delivery errors will be
+companion alias named owner\-\fIname\fR, this will replace the
+envelope sender address, so that delivery errors will be
 reported to the owner alias instead of the sender. This configuration
 is recommended for mailing lists.
 .PP
@@ -5971,7 +6030,9 @@ to other mailing list members.
 .PP
 Unfortunately, older Postfix releases reset the owner\-alias
 attribute when delivering mail to a child alias that does not have
-its own owner alias.  The \fBlocal\fR(8) delivery agent then attempts to
+its own owner alias. To be precise, this resets only the decision
+to create a new queue file, not the decision to override the envelope
+sender address. The \fBlocal\fR(8) delivery agent then attempts to
 deliver local addresses as soon as they come out of child alias
 expansion.  If delivery to any address from child alias expansion
 fails with a temporary error condition, the entire mailing list may
@@ -6177,6 +6238,36 @@ This feature is available in Postfix 2.9 and later.
 A Sendmail compatibility feature that specifies the location of
 the Postfix \fBsendmail\fR(1) command. This command can be used to
 submit mail into the Postfix queue.
+.SH service_name (read\-only)
+The master.cf service name of a Postfix daemon process. This
+can be used to distinguish the logging from different services that
+use the same program name.
+.PP
+Example master.cf entries:
+.PP
+.nf
+.na
+.ft C
+# Distinguish inbound MTA logging from submission and smtps logging.
+smtp      inet  n       \-       n       \-       \-       smtpd
+submission inet n       \-       n       \-       \-       smtpd
+    \-o syslog_name=postfix/$service_name
+smtps     inet  n       \-       n       \-       \-       smtpd
+    \-o syslog_name=postfix/$service_name
+.fi
+.ad
+.ft R
+.PP
+.nf
+.na
+.ft C
+# Distinguish outbound MTA logging from inbound relay logging.
+smtp      unix  \-       \-       n       \-       \-       smtp
+relay     unix  \-       \-       n       \-       \-       smtp
+    \-o syslog_name=postfix/$service_name
+.fi
+.ad
+.ft R
 .SH service_throttle_time (default: 60s)
 How long the Postfix \fBmaster\fR(8) waits before forking a server that
 appears to be malfunctioning.
@@ -6306,6 +6397,17 @@ With "smtp_always_send_ehlo = no", the Postfix SMTP client sends
 EHLO only when
 the word "ESMTP" appears in the server greeting banner (example:
 220 spike.porcupine.org ESMTP Postfix).
+.SH smtp_balance_inet_protocols (default: yes)
+When a remote destination resolves to a combination of IPv4 and
+IPv6 addresses, ensure that the Postfix SMTP client can try both
+address types before it runs into the smtp_mx_address_limit.
+.PP
+This avoids an interoperability problem when a destination resolves
+to primarily IPv6 addresses, the smtp_address_limit feature eliminates
+most or all IPv4 addresses, and the destination is not reachable over
+IPv6.
+.PP
+This feature is available in Postfix 3.3 and later.
 .SH smtp_bind_address (default: empty)
 An optional numerical network address that the Postfix SMTP client
 should bind to when making an IPv4 connection.
@@ -10238,8 +10340,10 @@ unverified_recipient_tempfail_action parameter specifies the action
 after address probe failure due to a temporary problem (default:
 defer_if_permit).
 .br
-This feature is available in Postfix 2.1
-and later.
+This feature breaks for aliased addresses
+with "enable_original_recipient = no" (Postfix <= 3.2).
+.br
+This feature is available in Postfix 2.1 and later.
 .br
 .br
 .PP
@@ -10818,8 +10922,11 @@ The unverified_sender_tempfail_action parameter
 specifies the action after address probe failure due to a temporary
 problem (default: defer_if_permit).
 .br
-This feature is available
-in Postfix 2.1 and later.
+This feature breaks for
+aliased addresses with "enable_original_recipient = no" (Postfix
+<= 3.2).
+.br
+This feature is available in Postfix 2.1 and later.
 .br
 .br
 .PP

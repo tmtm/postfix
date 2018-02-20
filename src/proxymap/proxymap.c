@@ -181,6 +181,10 @@
 /* .IP "\fBproxy_write_maps (see 'postconf -d' output)\fR"
 /*	The lookup tables that the \fBproxymap\fR(8) server is allowed to
 /*	access for the read-write service.
+/* .PP
+/*	Available in Postfix 3.3 and later:
+/* .IP "\fBservice_name (read-only)\fR"
+/*	The master.cf service name of a Postfix daemon process.
 /* SEE ALSO
 /*	postconf(5), configuration parameters
 /*	master(5), generic daemon options

@@ -15,7 +15,9 @@ TESTPROG=
 MAKES	= bool_table.h bool_vars.h int_table.h int_vars.h str_table.h \
 	str_vars.h time_table.h time_vars.h raw_table.h raw_vars.h \
 	nint_table.h nint_vars.h nbool_table.h nbool_vars.h long_table.h \
-	long_vars.h str_fn_table.h str_fn_vars.h
+	long_vars.h str_fn_table.h str_fn_vars.h 
+DB_MAKES= pcf_ldap_suffixes.h pcf_memcache_suffixes.h pcf_mysql_suffixes.h \
+	pcf_pgsql_suffixes.h pcf_sqlite_suffixes.h
 TEST_TMP= main.cf master.cf test*.tmp
 DUMMIES	= makes_dummy # for "make -j"
 PROG	= postconf
@@ -52,7 +54,7 @@ tests: test1 test2 test3 test4 test5 test6 test7 test8 test9 test10 test11 \
 	test31 test32 test33 test34 test35 test36 test37 test39 test40 test41 \
 	test42 test43 test44 test45 test46 test47 test48 test49 test50 test51 \
 	test52 test53 test54 test55 test56 test57 test58 test59 test60 test61 \
-	test62 test63 test64 test65
+	test62 test63 test64 test65 test66 test67 test68 test69
 
 root_tests:
 
@@ -67,6 +69,22 @@ makes_dummy: $(INC_DIR)/mail_params.h ../global/mail_params.c extract.awk Makefi
 	$(AWK) -f extract.awk ../*/*.c | $(SHELL)
 	touch makes_dummy
 
+$(DB_MAKES): extract_cfg.sh Makefile.in 
+
+pcf_ldap_suffixes.h: ../global/dict_ldap.c 
+	sh extract_cfg.sh -d ../global/dict_ldap.c > $@
+
+pcf_memcache_suffixes.h: ../global/dict_memcache.c 
+	sh extract_cfg.sh -d ../global/dict_memcache.c > $@
+
+pcf_mysql_suffixes.h: ../global/dict_mysql.c 
+	sh extract_cfg.sh -d -s ../global/dict_mysql.c > $@
+
+pcf_pgsql_suffixes.h: ../global/dict_pgsql.c 
+	sh extract_cfg.sh -d -s ../global/dict_pgsql.c > $@
+
+pcf_sqlite_suffixes.h: ../global/dict_sqlite.c
+	sh extract_cfg.sh -d -s ../global/dict_sqlite.c > $@
 
 # Define two parameters with smtpd_restriction_classes. One will be ignored.
 
@@ -418,8 +436,8 @@ test28:	$(PROG) test28.ref
 	echo 'yy = aap' >> main.cf
 	echo 'db = memcache' >> main.cf
 	echo whatevershebrings unix - n n - 0 other >> master.cf
-	echo ' -o body_checks=$$db:zz' >> master.cf
-	echo 'zz_domain = whatever' >> main.cf
+	echo ' -o body_checks=$$db:$$zz' >> master.cf
+	echo 'aap_domain = whatever' >> main.cf
 	echo 'aa_domain = whatever' >> main.cf
 	touch -t 197101010000 main.cf
 	$(SHLIB_ENV) ./$(PROG) -nc . >test28.tmp 2>&1
@@ -870,6 +888,67 @@ test65: $(PROG) test65.ref
 	diff test65.ref test65.tmp
 	rm -f main.cf master.cf test65.tmp
 
+# unknown parameters in database configuration file (absolute pathname).
+
+test66: $(PROG) test66.ref
+	rm -f main.cf master.cf
+	touch master.cf
+	echo alias_maps = ldap:`pwd`/test66.cf >> main.cf
+	echo " " mysql:`pwd`/test66.cf >> main.cf
+	echo " " pgsql:`pwd`/test66.cf >> main.cf
+	echo " " sqlite:`pwd`/test66.cf >> main.cf
+	echo " " memcache:`pwd`/test66.cf >> main.cf
+	echo junk = junk >> test66.cf
+	touch -t 197101010000 main.cf
+	$(SHLIB_ENV) ./$(PROG) -c. 2>test66.tmp >/dev/null
+	sed "s;PWD;`pwd`;" test66.ref | diff - test66.tmp
+	rm -f main.cf master.cf test66.tmp test66.cf
+
+# expand process name and service name in master.cf.
+
+test67: $(PROG) test67.ref
+	rm -f main.cf master.cf
+	touch master.cf
+	echo 'smtp inet n - n - - smtpd' >>master.cf
+	echo ' -o test1_process_name=$$process_name' >> master.cf
+	echo ' -o test1_service_name=$$service_name' >> master.cf
+	echo 'smtp unix n - n - - smtp' >>master.cf
+	echo ' -o test2_process_name=$$process_name' >> master.cf
+	echo ' -o test2_service_name=$$service_name' >> master.cf
+	touch -t 197101010000 main.cf
+	$(SHLIB_ENV) ./$(PROG) -xMfc. >test67.tmp 2>&1
+	diff test67.ref test67.tmp
+	rm -f main.cf master.cf test67.tmp
+
+test68: $(PROG) test68.ref
+	rm -f main.cf master.cf
+	touch master.cf
+	echo foo = ldap:`pwd` >> main.cf
+	echo 'alias_maps = $$foo/test68.cf' >> main.cf
+	echo " " mysql:`pwd`/test68.cf >> main.cf
+	echo " " pgsql:`pwd`/test68.cf >> main.cf
+	echo " " sqlite:`pwd`/test68.cf >> main.cf
+	echo " " memcache:`pwd`/test68.cf >> main.cf
+	echo junk = junk >> test68.cf
+	touch -t 197101010000 main.cf
+	$(SHLIB_ENV) ./$(PROG) -c. 2>test68.tmp >/dev/null
+	sed "s;PWD;`pwd`;" test68.ref | diff - test68.tmp
+	rm -f main.cf master.cf test68.tmp test68.cf
+
+# See also test28 for user-defined parameters defined in main.cf.
+
+test69:	$(PROG) test69.ref
+	rm -f main.cf master.cf
+	touch main.cf master.cf
+	echo whatevershebrings unix - n n - 0 other >> master.cf
+	echo " -o ldap=ldap:`pwd`" >> master.cf
+	echo ' -o body_checks=$$ldap/test69.cf' >> master.cf
+	echo junk = junk >> test69.cf
+	touch -t 197101010000 main.cf
+	$(SHLIB_ENV) ./$(PROG) -nc . >test69.tmp 2>&1
+	diff test69.ref test69.tmp
+	rm -f main.cf master.cf test69.tmp test69.cf
+
 printfck: $(OBJS) $(PROG)
 	rm -rf printfck
 	mkdir printfck
@@ -883,7 +962,7 @@ lint:
 
 clean:
 	rm -f *.o *core $(PROG) $(TESTPROG) junk $(MAKES) $(AUTOS) $(DUMMIES) \
-	$(TEST_TMP)
+	$(TEST_TMP) $(DB_MAKES)
 	rm -rf printfck
 
 tidy:	clean
@@ -971,6 +1050,7 @@ postconf_builtin.o: time_vars.h
 postconf_dbms.o: ../../include/argv.h
 postconf_dbms.o: ../../include/check_arg.h
 postconf_dbms.o: ../../include/dict.h
+postconf_dbms.o: ../../include/dict_ht.h
 postconf_dbms.o: ../../include/dict_ldap.h
 postconf_dbms.o: ../../include/dict_memcache.h
 postconf_dbms.o: ../../include/dict_mysql.h
@@ -992,8 +1072,13 @@ postconf_dbms.o: ../../include/sys_defs.h
 postconf_dbms.o: ../../include/vbuf.h
 postconf_dbms.o: ../../include/vstream.h
 postconf_dbms.o: ../../include/vstring.h
-postconf_dbms.o: postconf.h
+postconf_dbms.o: pcf_ldap_suffixes.h
+postconf_dbms.o: pcf_memcache_suffixes.h
+postconf_dbms.o: pcf_mysql_suffixes.h
+postconf_dbms.o: pcf_pgsql_suffixes.h
 postconf_dbms.o: postconf_dbms.c
+postconf_dbms.o: postconf.h
+postconf_dbms.o: pcf_sqlite_suffixes.h
 postconf_edit.o: ../../include/argv.h
 postconf_edit.o: ../../include/check_arg.h
 postconf_edit.o: ../../include/dict.h
@@ -1012,8 +1097,8 @@ postconf_edit.o: ../../include/vbuf.h
 postconf_edit.o: ../../include/vstream.h
 postconf_edit.o: ../../include/vstring.h
 postconf_edit.o: ../../include/vstring_vstream.h
-postconf_edit.o: postconf.h
 postconf_edit.o: postconf_edit.c
+postconf_edit.o: postconf.h
 postconf_lookup.o: ../../include/argv.h
 postconf_lookup.o: ../../include/check_arg.h
 postconf_lookup.o: ../../include/dict.h

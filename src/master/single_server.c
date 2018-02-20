@@ -146,6 +146,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -549,10 +554,11 @@ NORETURN single_server_main(int argc, char **argv, SINGLE_SERVER_FN service,...)
 	    zerolimit = 1;
 	    break;
 	default:
-	    msg_fatal("invalid option: %c", c);
+	    msg_fatal("invalid option: %c", optopt);
 	    break;
 	}
     }
+    set_mail_conf_str(VAR_SERVNAME, service_name);
 
     /*
      * Initialize generic parameters.
