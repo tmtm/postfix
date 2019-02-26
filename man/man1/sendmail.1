@@ -265,8 +265,8 @@ inputs.
 .SH DIAGNOSTICS
 .ad
 .fi
-Problems are logged to \fBsyslogd\fR(8) and to the standard error
-stream.
+Problems are logged to \fBsyslogd\fR(8) or \fBpostlogd\fR(8),
+and to the standard error stream.
 .SH "ENVIRONMENT"
 .na
 .nf
@@ -306,7 +306,7 @@ line endings from <CR><LF> into UNIX format (<LF>).
 .nf
 .ad
 .fi
-The DEBUG_README file gives examples of how to trouble shoot a
+The DEBUG_README file gives examples of how to troubleshoot a
 Postfix system.
 .IP "\fBdebugger_command (empty)\fR"
 The external command to execute when a Postfix daemon program is
@@ -441,6 +441,7 @@ postalias(1), create/update/query alias database
 postdrop(1), mail posting utility
 postfix(1), mail system control
 postqueue(1), mail queue control
+postlogd(8), Postfix logging
 syslogd(8), system logging
 .SH "README_FILES"
 .na

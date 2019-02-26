@@ -946,7 +946,7 @@ test69:	$(PROG) test69.ref
 	echo junk = junk >> test69.cf
 	touch -t 197101010000 main.cf
 	$(SHLIB_ENV) ./$(PROG) -nc . >test69.tmp 2>&1
-	diff test69.ref test69.tmp
+	sed "s;PWD;`pwd`;" test69.ref | diff - test69.tmp
 	rm -f main.cf master.cf test69.tmp test69.cf
 
 printfck: $(OBJS) $(PROG)
@@ -1076,9 +1076,9 @@ postconf_dbms.o: pcf_ldap_suffixes.h
 postconf_dbms.o: pcf_memcache_suffixes.h
 postconf_dbms.o: pcf_mysql_suffixes.h
 postconf_dbms.o: pcf_pgsql_suffixes.h
-postconf_dbms.o: postconf_dbms.c
-postconf_dbms.o: postconf.h
 postconf_dbms.o: pcf_sqlite_suffixes.h
+postconf_dbms.o: postconf.h
+postconf_dbms.o: postconf_dbms.c
 postconf_edit.o: ../../include/argv.h
 postconf_edit.o: ../../include/check_arg.h
 postconf_edit.o: ../../include/dict.h
@@ -1097,8 +1097,8 @@ postconf_edit.o: ../../include/vbuf.h
 postconf_edit.o: ../../include/vstream.h
 postconf_edit.o: ../../include/vstring.h
 postconf_edit.o: ../../include/vstring_vstream.h
-postconf_edit.o: postconf_edit.c
 postconf_edit.o: postconf.h
+postconf_edit.o: postconf_edit.c
 postconf_lookup.o: ../../include/argv.h
 postconf_lookup.o: ../../include/check_arg.h
 postconf_lookup.o: ../../include/dict.h

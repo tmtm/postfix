@@ -267,13 +267,13 @@ static DICT *psc_cmd_filter;
 	PSC_CLEAR_EVENT_REQUEST(vstream_fileno((state)->smtp_client_stream), \
 				   (event), (void *) (state)); \
 	PSC_DROP_SESSION_STATE((state), (reply)); \
-    } while (0);
+    } while (0)
 
 #define PSC_CLEAR_EVENT_HANGUP(state, event) do { \
 	PSC_CLEAR_EVENT_REQUEST(vstream_fileno((state)->smtp_client_stream), \
 				   (event), (void *) (state)); \
 	psc_hangup_event(state); \
-    } while (0);
+    } while (0)
 
 /* psc_helo_cmd - record HELO and respond */
 
@@ -345,6 +345,8 @@ static void psc_smtpd_format_ehlo_reply(VSTRING *buf, int discard_mask
     /* Fix 20140708: announce SMTPUTF8. */
     if (var_smtputf8_enable && (discard_mask & EHLO_MASK_SMTPUTF8) == 0)
 	PSC_EHLO_APPEND(saved_len, psc_temp, "250-SMTPUTF8\r\n");
+    if ((discard_mask & EHLO_MASK_CHUNKING) == 0)
+	PSC_EHLO_APPEND(saved_len, psc_temp, "250-CHUNKING\r\n");
     STR(psc_temp)[saved_len + 3] = ' ';
 }
 
@@ -581,27 +583,61 @@ static int psc_rcpt_cmd(PSC_STATE *state, char *args)
 
 static int psc_data_cmd(PSC_STATE *state, char *args)
 {
+    const char myname[] = "psc_data_cmd";
 
     /*
-     * smtpd(8) incompatibility: we reject all requests.
+     * smtpd(8) incompatibility: postscreen(8) drops the connection, instead
+     * of waiting for the next command. Justification: postscreen(8) should
+     * never see DATA from a legitimate client, because 1) the server rejects
+     * every recipient, and 2) the server does not announce PIPELINING.
      */
     if (PSC_SMTPD_NEXT_TOKEN(args) != 0)
-	return (PSC_SEND_REPLY(state,
-			       "501 5.5.4 Syntax: DATA\r\n"));
-    if (state->sender == 0)
-	return (PSC_SEND_REPLY(state,
-			       "503 5.5.1 Error: need RCPT command\r\n"));
+	PSC_CLEAR_EVENT_DROP_SESSION_STATE(state,
+					   psc_smtpd_time_event,
+					   "501 5.5.4 Syntax: DATA\r\n");
+    else if (state->sender == 0)
+	PSC_CLEAR_EVENT_DROP_SESSION_STATE(state,
+					   psc_smtpd_time_event,
+				  "503 5.5.1 Error: need RCPT command\r\n");
+    else
+	PSC_CLEAR_EVENT_DROP_SESSION_STATE(state,
+					   psc_smtpd_time_event,
+				"554 5.5.1 Error: no valid recipients\r\n");
+    /* Caution: state is now a dangling pointer. */
+    return (0);
+}
+
+/* psc_bdat_cmd - respond to BDAT and disconnect */
+
+static int psc_bdat_cmd(PSC_STATE *state, char *args)
+{
+    const char *myname = "psc_bdat_cmd";
 
     /*
-     * We really would like to hang up the connection as early as possible,
-     * so that we dont't have to deal with broken zombies that fall silent at
-     * the first reject response. For now we rely on stress-dependent command
-     * read timeouts.
-     * 
-     * If we proceed into the data phase, enforce over-all DATA time limit.
+     * smtpd(8) incompatibility: postscreen(8) drops the connection, instead
+     * of reading the entire BDAT chunk and staying in sync with the client.
+     * Justification: postscreen(8) should never see BDAT from a legitimate
+     * client, because 1) the server rejects every recipient, and 2) the
+     * server does not announce PIPELINING.
      */
-    return (PSC_SEND_REPLY(state,
-			   "554 5.5.1 Error: no valid recipients\r\n"));
+    if (state->ehlo_discard_mask & EHLO_MASK_CHUNKING)
+	PSC_CLEAR_EVENT_DROP_SESSION_STATE(state,
+					   psc_smtpd_time_event,
+			    "502 5.5.1 Error: command not implemented\r\n");
+    else if (PSC_SMTPD_NEXT_TOKEN(args) == 0)
+	PSC_CLEAR_EVENT_DROP_SESSION_STATE(state,
+					   psc_smtpd_time_event,
+				 "501 5.5.4 Syntax: BDAT count [LAST]\r\n");
+    else if (state->sender == 0)
+	PSC_CLEAR_EVENT_DROP_SESSION_STATE(state,
+					   psc_smtpd_time_event,
+				  "554 5.5.1 Error: need RCPT command\r\n");
+    else
+	PSC_CLEAR_EVENT_DROP_SESSION_STATE(state,
+					   psc_smtpd_time_event,
+				"554 5.5.1 Error: no valid recipients\r\n");
+    /* Caution: state is now a dangling pointer. */
+    return (0);
 }
 
 /* psc_rset_cmd - reset, send 250 OK */
@@ -701,6 +737,7 @@ typedef struct {
 #define PSC_SMTPD_CMD_FLAG_DESTROY	(1<<1)	/* dangling pointer alert */
 #define PSC_SMTPD_CMD_FLAG_PRE_TLS	(1<<2)	/* allowed with mandatory TLS */
 #define PSC_SMTPD_CMD_FLAG_SUSPEND	(1<<3)	/* suspend command engine */
+#define PSC_SMTPD_CMD_FLAG_HAS_PAYLOAD	(1<<4)	/* command has payload */
 
 static const PSC_SMTPD_COMMAND command_table[] = {
     "HELO", psc_helo_cmd, PSC_SMTPD_CMD_FLAG_ENABLE | PSC_SMTPD_CMD_FLAG_PRE_TLS,
@@ -711,8 +748,9 @@ static const PSC_SMTPD_COMMAND command_table[] = {
     "AUTH", psc_noop_cmd, PSC_SMTPD_CMD_FLAG_NONE,
     "MAIL", psc_mail_cmd, PSC_SMTPD_CMD_FLAG_ENABLE,
     "RCPT", psc_rcpt_cmd, PSC_SMTPD_CMD_FLAG_ENABLE,
-    "DATA", psc_data_cmd, PSC_SMTPD_CMD_FLAG_ENABLE,
+    "DATA", psc_data_cmd, PSC_SMTPD_CMD_FLAG_ENABLE | PSC_SMTPD_CMD_FLAG_DESTROY,
     /* ".", psc_dot_cmd, PSC_SMTPD_CMD_FLAG_NONE, */
+    "BDAT", psc_bdat_cmd, PSC_SMTPD_CMD_FLAG_ENABLE | PSC_SMTPD_CMD_FLAG_DESTROY | PSC_SMTPD_CMD_FLAG_HAS_PAYLOAD,
     "RSET", psc_rset_cmd, PSC_SMTPD_CMD_FLAG_ENABLE,
     "NOOP", psc_noop_cmd, PSC_SMTPD_CMD_FLAG_ENABLE | PSC_SMTPD_CMD_FLAG_PRE_TLS,
     "VRFY", psc_vrfy_cmd, PSC_SMTPD_CMD_FLAG_ENABLE,
@@ -994,7 +1032,8 @@ static void psc_smtpd_read_event(int event, void *context)
 	    }
 	}
 	/* Command PIPELINING test. */
-	if ((state->flags & PSC_STATE_MASK_PIPEL_TODO_SKIP)
+	if ((state->flags & PSC_SMTPD_CMD_FLAG_HAS_PAYLOAD) == 0
+	    && (state->flags & PSC_STATE_MASK_PIPEL_TODO_SKIP)
 	    == PSC_STATE_FLAG_PIPEL_TODO && !PSC_SMTPD_BUFFER_EMPTY(state)) {
 	    printable(command, '?');
 	    PSC_SMTPD_ESCAPE_TEXT(psc_temp, PSC_SMTPD_PEEK_DATA(state),
@@ -1246,7 +1285,7 @@ void    psc_smtpd_init(void)
     /*
      * Initialize the reply footer.
      */
-    if (*var_psc_rej_footer)
+    if (*var_psc_rej_footer || *var_psc_rej_ftr_maps)
 	psc_expand_init();
 }
 
@@ -1274,4 +1313,10 @@ void    psc_smtpd_pre_jail_init(void)
     if (*var_psc_cmd_filter)
 	psc_cmd_filter = dict_open(var_psc_cmd_filter, O_RDONLY,
 				   DICT_FLAG_LOCK | DICT_FLAG_FOLD_FIX);
+
+    /*
+     * SMTP server reply footer.
+     */
+    if (*var_psc_rej_ftr_maps)
+	pcs_send_pre_jail_init();
 }

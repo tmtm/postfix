@@ -417,13 +417,13 @@ static void smtp_cleanup_session(SMTP_STATE *state)
     state->session = 0;
 
     /*
-     * If this session was good, reset the logical next-hop state, so that we
-     * won't cache connections to alternate servers under the logical
-     * next-hop destination. Otherwise we could end up skipping over the
-     * available and more preferred servers.
+     * If this session was good, reset the scache next-hop destination, so
+     * that we won't cache connections to less-preferred servers under the
+     * same next-hop destination. Otherwise we could end up skipping over the
+     * available and more-preferred servers.
      */
-    if (HAVE_NEXTHOP_STATE(state) && !throttled)
-	FREE_NEXTHOP_STATE(state);
+    if (HAVE_SCACHE_REQUEST_NEXTHOP(state) && !throttled)
+	CLEAR_SCACHE_REQUEST_NEXTHOP(state);
 
     /*
      * Clean up the lists with todo and dropped recipients.
@@ -657,27 +657,30 @@ static int smtp_reuse_session(SMTP_STATE *state, DNS_RR **addr_list,
     DSN_BUF *why = state->why;
 
     /*
-     * First, search the cache by request nexthop. We truncate the server
-     * address list when all the sessions for this destination are used up,
-     * to reduce the number of variables that need to be checked later.
+     * First, search the cache by delivery request nexthop. We truncate the
+     * server address list when all the sessions for this destination are
+     * used up, to reduce the number of variables that need to be checked
+     * later.
      * 
-     * Note: lookup by logical destination restores the "best MX" bit.
+     * Note: connection reuse by delivery request nexthop restores the "best MX"
+     * bit.
      * 
      * smtp_reuse_nexthop() clobbers the iterators's "dest" attribute. We save
      * and restore it here, so that subsequent connections will use the
      * proper nexthop information.
      * 
-     * We request a dummy "TLS disabled" policy for connection-cache lookup by
-     * request nexthop only. If we find a saved connection, then we know that
-     * plaintext was permitted, because we never save a connection after
-     * turning on TLS.
+     * We don't use TLS level info for nexthop-based connection cache storage
+     * keys. The combination of (service, nexthop, etc.) should be stable
+     * over the time range of interest, and the policy is still enforced on
+     * an individual connection to an MX host, before that connection is
+     * stored under a nexthop- or host-based storage key.
      */
 #ifdef USE_TLS
     smtp_tls_policy_dummy(state->tls);
 #endif
     SMTP_ITER_SAVE_DEST(state->iterator);
     if (*addr_list && SMTP_RCPT_LEFT(state) > 0
-	&& HAVE_NEXTHOP_STATE(state)
+	&& HAVE_SCACHE_REQUEST_NEXTHOP(state)
 	&& (session = smtp_reuse_nexthop(state, SMTP_KEY_MASK_SCACHE_DEST_LABEL)) != 0) {
 	session_count = 1;
 	smtp_update_addr_list(addr_list, STR(iter->addr), session_count);
@@ -879,10 +882,10 @@ static void smtp_connect_inet(SMTP_STATE *state, const char *nexthop,
 	    domain_best_pref = addr_list->pref;
 
 	/*
-	 * When session caching is enabled, store the first good session for
-	 * this delivery request under the next-hop destination name. All
-	 * good sessions will be stored under their specific server IP
-	 * address.
+	 * When connection caching is enabled, store the first good
+	 * connection for this delivery request under the delivery request
+	 * next-hop name. Good connections will also be stored under their
+	 * specific server IP address.
 	 * 
 	 * XXX smtp_session_cache_destinations specifies domain names without
 	 * :port, because : is already used for maptype:mapname. Because of
@@ -898,7 +901,7 @@ static void smtp_connect_inet(SMTP_STATE *state, const char *nexthop,
 	if (addr_list && (state->misc_flags & SMTP_MISC_FLAG_FIRST_NEXTHOP)) {
 	    smtp_cache_policy(state, domain);
 	    if (state->misc_flags & SMTP_MISC_FLAG_CONN_CACHE_MASK)
-		SET_NEXTHOP_STATE(state, dest);
+		SET_SCACHE_REQUEST_NEXTHOP(state, dest);
 	}
 
 	/*
@@ -1123,8 +1126,8 @@ static void smtp_connect_inet(SMTP_STATE *state, const char *nexthop,
     /*
      * Cleanup.
      */
-    if (HAVE_NEXTHOP_STATE(state))
-	FREE_NEXTHOP_STATE(state);
+    if (HAVE_SCACHE_REQUEST_NEXTHOP(state))
+	CLEAR_SCACHE_REQUEST_NEXTHOP(state);
     argv_free(sites);
 }
 

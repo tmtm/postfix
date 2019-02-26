@@ -100,7 +100,8 @@
 /*	RFC 6533 (Internationalized Delivery Status Notifications)
 /*	RFC 7672 (SMTP security via opportunistic DANE TLS)
 /* DIAGNOSTICS
-/*	Problems and transactions are logged to \fBsyslogd\fR(8).
+/*	Problems and transactions are logged to \fBsyslogd\fR(8)
+/*	or \fBpostlogd\fR(8).
 /*	Corrupted message files are marked so that the queue manager can
 /*	move them to the \fBcorrupt\fR queue for further inspection.
 /*
@@ -458,6 +459,13 @@
 /* .IP "\fBtls_disable_workarounds (see 'postconf -d' output)\fR"
 /*	List or bit-mask of OpenSSL bug work-arounds to disable.
 /* .PP
+/*	Available in Postfix version 2.11-3.1:
+/* .IP "\fBtls_dane_digest_agility (on)\fR"
+/*	Configure RFC7671 DANE TLSA digest algorithm agility.
+/* .IP "\fBtls_dane_trust_anchor_digest_enable (yes)\fR"
+/*	Enable support for RFC 6698 (DANE TLSA) DNS records that contain
+/*	digests of trust-anchors with certificate usage "2".
+/* .PP
 /*	Available in Postfix version 2.11 and later:
 /* .IP "\fBsmtp_tls_trust_anchor_file (empty)\fR"
 /*	Zero or more PEM-format files with trust-anchor certificates
@@ -478,6 +486,16 @@
 /*	The TLS policy for MX hosts with "secure" TLSA records when the
 /*	nexthop destination security level is \fBdane\fR, but the MX
 /*	record was found via an "insecure" MX lookup.
+/* .PP
+/*	Available in Postfix version 3.4 and later:
+/* .IP "\fBsmtp_tls_connection_reuse (no)\fR"
+/*	Try to make multiple deliveries per TLS-encrypted connection.
+/* .IP "\fBsmtp_tls_chain_files (empty)\fR"
+/*	List of one or more PEM files, each holding one or more private keys
+/*	directly followed by a corresponding certificate chain.
+/* .IP "\fBsmtp_tls_servername (empty)\fR"
+/*	Optional name to send to the remote SMTP server in the TLS Server
+/*	Name Indication (SNI) extension.
 /* OBSOLETE STARTTLS CONTROLS
 /* .ad
 /* .fi
@@ -583,6 +601,10 @@
 /*	When SMTP connection caching is enabled, the number of times
 /*	that an SMTP session may be reused before it is closed, or zero (no
 /*	limit).
+/* .PP
+/*	Available in Postfix version 3.4 and later:
+/* .IP "\fBsmtp_tls_connection_reuse (no)\fR"
+/*	Try to make multiple deliveries per TLS-encrypted connection.
 /* .PP
 /*	Implemented in the qmgr(8) daemon:
 /* .IP "\fBtransport_destination_concurrency_limit ($default_destination_concurrency_limit)\fR"
@@ -740,6 +762,7 @@
 /*	master(5), generic daemon options
 /*	master(8), process manager
 /*	tlsmgr(8), TLS session and PRNG management
+/*	postlogd(8), Postfix logging
 /*	syslogd(8), system logging
 /* README FILES
 /* .ad
@@ -810,6 +833,7 @@
 /* Global library. */
 
 #include <deliver_request.h>
+#include <mail_proto.h>
 #include <mail_params.h>
 #include <mail_version.h>
 #include <mail_conf.h>
@@ -895,6 +919,8 @@ bool    var_smtp_enforce_tls;
 char   *var_smtp_tls_per_site;
 char   *var_smtp_tls_policy;
 bool    var_smtp_tls_wrappermode;
+bool    var_smtp_tls_conn_reuse;
+char   *var_tlsproxy_service;
 
 #ifdef USE_TLS
 char   *var_smtp_sasl_tls_opts;
@@ -902,6 +928,7 @@ char   *var_smtp_sasl_tlsv_opts;
 int     var_smtp_starttls_tmout;
 char   *var_smtp_tls_CAfile;
 char   *var_smtp_tls_CApath;
+char   *var_smtp_tls_chain_files;
 char   *var_smtp_tls_cert_file;
 char   *var_smtp_tls_mand_ciph;
 char   *var_smtp_tls_excl_ciph;
@@ -923,6 +950,7 @@ char   *var_smtp_tls_proto;
 char   *var_smtp_tls_ciph;
 char   *var_smtp_tls_eccert_file;
 char   *var_smtp_tls_eckey_file;
+char   *var_smtp_tls_sni;
 bool    var_smtp_tls_blk_early_mail_reply;
 bool    var_smtp_tls_force_tlsa;
 char   *var_smtp_tls_insecure_mx_policy;
@@ -1213,12 +1241,17 @@ static void pre_init(char *unused_name, char **unused_argv)
 #ifdef USE_TLS
 	TLS_CLIENT_INIT_PROPS props;
 
+	tls_pre_jail_init(TLS_ROLE_CLIENT);
+
 	/*
 	 * We get stronger type safety and a cleaner interface by combining
 	 * the various parameters into a single tls_client_props structure.
 	 * 
 	 * Large parameter lists are error-prone, so we emulate a language
 	 * feature that C does not have natively: named parameter lists.
+	 * 
+	 * With tlsproxy(8) turned on, this is still needed for DANE-related
+	 * initializations.
 	 */
 	smtp_tls_ctx =
 	    TLS_CLIENT_INIT(&props,
@@ -1226,6 +1259,7 @@ static void pre_init(char *unused_name, char **unused_argv)
 			    log_level = var_smtp_tls_loglevel,
 			    verifydepth = var_smtp_tls_scert_vd,
 			    cache_type = LMTP_SMTP_SUFFIX(TLS_MGR_SCACHE),
+			    chain_files = var_smtp_tls_chain_files,
 			    cert_file = var_smtp_tls_cert_file,
 			    key_file = var_smtp_tls_key_file,
 			    dcert_file = var_smtp_tls_dcert_file,

@@ -44,11 +44,17 @@ for debugging only.
 Terminate the master process after \fIexit_time\fR seconds. Child
 processes terminate at their convenience.
 .IP \fB\-i\fR
-Enable \fBinit\fR mode: do not attempt to become a session
-or process group leader; and to force termination, set an
-explicit signal handler instead of relying on the default
-signal action. This mode is allowed only if the process ID
-equals 1.
+Enable \fBinit\fR mode: do not become a session or process
+group leader; and similar to \fB\-s\fR, do not redirect stdout
+to /dev/null, so that "maillog_file = /dev/stdout" works.
+This mode is allowed only if the process ID equals 1.
+.sp
+This feature is available in Postfix 3.3 and later.
+.IP \fB\-s\fR
+Do not redirect stdout to /dev/null, so that "maillog_file
+= /dev/stdout" works.
+.sp
+This feature is available in Postfix 3.4 and later.
 .IP \fB\-t\fR
 Test mode. Return a zero exit status when the \fBmaster.pid\fR lock
 file does not exist or when that file is not locked.  This is evidence
@@ -85,7 +91,8 @@ processes to finish what they are doing.
 .SH DIAGNOSTICS
 .ad
 .fi
-Problems are reported to \fBsyslogd\fR(8). The exit status
+Problems are reported to \fBsyslogd\fR(8) or \fBpostlogd\fR(8).
+The exit status
 is non\-zero in case of problems, including problems while
 initializing as a master daemon process in the background.
 .SH "ENVIRONMENT"
@@ -192,6 +199,7 @@ qmgr(8), queue manager
 verify(8), address verification
 master(5), master.cf configuration file syntax
 postconf(5), main.cf configuration file syntax
+postlogd(8), Postfix logging
 syslogd(8), system logging
 .SH "LICENSE"
 .na

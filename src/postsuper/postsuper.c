@@ -200,12 +200,13 @@
 /*	options make the software increasingly verbose.
 /* DIAGNOSTICS
 /*	Problems are reported to the standard error stream and to
-/*	\fBsyslogd\fR(8).
+/*	\fBsyslogd\fR(8) or \fBpostlogd\fR(8).
 /*
 /*	\fBpostsuper\fR(1) reports the number of messages deleted with \fB-d\fR,
 /*	the number of messages requeued with \fB-r\fR, and the number of
 /*	messages whose queue file name was fixed with \fB-s\fR. The report
-/*	is written to the standard error stream and to \fBsyslogd\fR(8).
+/*	is written to the standard error stream and to \fBsyslogd\fR(8)
+/*	or \fBpostlogd\fR(8).
 /* ENVIRONMENT
 /* .ad
 /* .fi
@@ -248,6 +249,8 @@
 /* SEE ALSO
 /*	sendmail(1), Sendmail-compatible user interface
 /*	postqueue(1), unprivileged queue operations
+/*	postlogd(8), Postfix logging
+/*	syslogd(8), system logging
 /* LICENSE
 /* .ad
 /* .fi
@@ -280,7 +283,6 @@
 
 #include <mymalloc.h>
 #include <msg.h>
-#include <msg_syslog.h>
 #include <vstream.h>
 #include <msg_vstream.h>
 #include <scan_dir.h>
@@ -305,6 +307,7 @@
 #include <mail_open_ok.h>
 #include <file_id.h>
 #include <mail_parm_split.h>
+#include <maillog_client.h>
 
 /* Application-specific. */
 
@@ -1149,7 +1152,8 @@ int     main(int argc, char **argv)
     if ((slash = strrchr(argv[0], '/')) != 0 && slash[1])
 	argv[0] = slash + 1;
     msg_vstream_init(argv[0], VSTREAM_ERR);
-    msg_syslog_init(mail_task(argv[0]), LOG_PID, LOG_FACILITY);
+    maillog_client_init(mail_task(argv[0]),
+			MAILLOG_CLIENT_FLAG_LOGWRITER_FALLBACK);
     set_mail_conf_str(VAR_PROCNAME, var_procname = mystrdup(argv[0]));
 
     /*
@@ -1242,7 +1246,8 @@ int     main(int argc, char **argv)
     update_env(import_env->argv);
     argv_free(import_env);
     /* Re-evaluate mail_task() after reading main.cf. */
-    msg_syslog_init(mail_task(argv[0]), LOG_PID, LOG_FACILITY);
+    maillog_client_init(mail_task(argv[0]),
+			MAILLOG_CLIENT_FLAG_LOGWRITER_FALLBACK);
     if (chdir(var_queue_dir))
 	msg_fatal("chdir %s: %m", var_queue_dir);
 

@@ -28,12 +28,12 @@
   */
 typedef struct VSTRING {
     VBUF    vbuf;
-    ssize_t maxlen;
 } VSTRING;
 
 extern VSTRING *vstring_alloc(ssize_t);
 extern void vstring_ctl(VSTRING *,...);
 extern VSTRING *vstring_truncate(VSTRING *, ssize_t);
+extern VSTRING *vstring_set_payload_size(VSTRING *, ssize_t);
 extern VSTRING *vstring_free(VSTRING *);
 extern VSTRING *vstring_strcpy(VSTRING *, const char *);
 extern VSTRING *vstring_strncpy(VSTRING *, const char *, ssize_t);
@@ -51,18 +51,17 @@ extern char *vstring_export(VSTRING *);
 extern VSTRING *vstring_import(char *);
 
 /* Legacy API: constant plus type-unchecked argument. */
-#define VSTRING_CTL_MAXLEN	1
 #define VSTRING_CTL_EXACT	2
 #define VSTRING_CTL_END		0
 
 /* Safer API: type-checked arguments. */
 #define CA_VSTRING_CTL_END		VSTRING_CTL_END
 #define CA_VSTRING_CTL_EXACT		VSTRING_CTL_EXACT
-#define CA_VSTRING_CTL_MAXLEN(val)	VSTRING_CTL_MAXLEN, CHECK_VAL(VSTRING_CTL, ssize_t, (val))
 
 CHECK_VAL_HELPER_DCL(VSTRING_CTL, ssize_t);
 
-#define VSTRING_FLAG_EXACT	(1<<8)	/* exact allocation for tests */
+/* Flags 24..31 are reserved for VSTRING. */
+#define VSTRING_FLAG_EXACT	(1<<24)	/* exact allocation for tests */
 
  /*
   * Macros. Unsafe macros have UPPERCASE names.
@@ -89,10 +88,12 @@ CHECK_VAL_HELPER_DCL(VSTRING_CTL, ssize_t);
   * The following macro is not part of the public interface, because it can
   * really screw up a buffer by positioning past allocated memory.
   */
+#ifdef VSTRING_INTERNAL
 #define VSTRING_AT_OFFSET(vp, offset) do { \
 	(vp)->vbuf.ptr = (vp)->vbuf.data + (offset); \
 	(vp)->vbuf.cnt = (vp)->vbuf.len - (offset); \
     } while (0)
+#endif
 
 extern VSTRING *vstring_vsprintf(VSTRING *, const char *, va_list);
 extern VSTRING *vstring_vsprintf_append(VSTRING *, const char *, va_list);

@@ -116,7 +116,8 @@ RFC 7672 (SMTP security via opportunistic DANE TLS)
 .SH DIAGNOSTICS
 .ad
 .fi
-Problems and transactions are logged to \fBsyslogd\fR(8).
+Problems and transactions are logged to \fBsyslogd\fR(8)
+or \fBpostlogd\fR(8).
 Corrupted message files are marked so that the queue manager can
 move them to the \fBcorrupt\fR queue for further inspection.
 
@@ -488,6 +489,13 @@ Available in Postfix version 2.8 and later:
 .IP "\fBtls_disable_workarounds (see 'postconf -d' output)\fR"
 List or bit\-mask of OpenSSL bug work\-arounds to disable.
 .PP
+Available in Postfix version 2.11\-3.1:
+.IP "\fBtls_dane_digest_agility (on)\fR"
+Configure RFC7671 DANE TLSA digest algorithm agility.
+.IP "\fBtls_dane_trust_anchor_digest_enable (yes)\fR"
+Enable support for RFC 6698 (DANE TLSA) DNS records that contain
+digests of trust\-anchors with certificate usage "2".
+.PP
 Available in Postfix version 2.11 and later:
 .IP "\fBsmtp_tls_trust_anchor_file (empty)\fR"
 Zero or more PEM\-format files with trust\-anchor certificates
@@ -508,6 +516,16 @@ Available in Postfix version 3.1 and later:
 The TLS policy for MX hosts with "secure" TLSA records when the
 nexthop destination security level is \fBdane\fR, but the MX
 record was found via an "insecure" MX lookup.
+.PP
+Available in Postfix version 3.4 and later:
+.IP "\fBsmtp_tls_connection_reuse (no)\fR"
+Try to make multiple deliveries per TLS\-encrypted connection.
+.IP "\fBsmtp_tls_chain_files (empty)\fR"
+List of one or more PEM files, each holding one or more private keys
+directly followed by a corresponding certificate chain.
+.IP "\fBsmtp_tls_servername (empty)\fR"
+Optional name to send to the remote SMTP server in the TLS Server
+Name Indication (SNI) extension.
 .SH "OBSOLETE STARTTLS CONTROLS"
 .na
 .nf
@@ -617,6 +635,10 @@ Available in Postfix version 2.11 and later:
 When SMTP connection caching is enabled, the number of times
 that an SMTP session may be reused before it is closed, or zero (no
 limit).
+.PP
+Available in Postfix version 3.4 and later:
+.IP "\fBsmtp_tls_connection_reuse (no)\fR"
+Try to make multiple deliveries per TLS\-encrypted connection.
 .PP
 Implemented in the qmgr(8) daemon:
 .IP "\fBtransport_destination_concurrency_limit ($default_destination_concurrency_limit)\fR"
@@ -782,6 +804,7 @@ postconf(5), configuration parameters
 master(5), generic daemon options
 master(8), process manager
 tlsmgr(8), TLS session and PRNG management
+postlogd(8), Postfix logging
 syslogd(8), system logging
 .SH "README FILES"
 .na

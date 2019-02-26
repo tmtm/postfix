@@ -140,6 +140,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -169,7 +174,8 @@ int     vbuf_unget(VBUF *bp, int ch)
 
 int     vbuf_get(VBUF *bp)
 {
-    return (bp->get_ready(bp) ? VBUF_EOF : VBUF_GET(bp));
+    return (bp->get_ready(bp) ?
+	((bp->flags |= VBUF_FLAG_EOF), VBUF_EOF) : VBUF_GET(bp));
 }
 
 /* vbuf_put - handle write buffer full condition */

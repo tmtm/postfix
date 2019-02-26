@@ -198,6 +198,14 @@
 
 #include "dict_mysql.h"
 
+/* MySQL 8.x API change */
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50023
+#define DICT_MYSQL_SSL_VERIFY_SERVER_CERT MYSQL_OPT_SSL_VERIFY_SERVER_CERT
+#elif MYSQL_VERSION_ID >= 80000
+#define DICT_MYSQL_SSL_VERIFY_SERVER_CERT MYSQL_OPT_SSL_MODE
+#endif
+
 /* need some structs to help organize things */
 typedef struct {
     MYSQL  *db;
@@ -237,7 +245,7 @@ typedef struct {
     char   *tls_CAfile;
     char   *tls_CApath;
     char   *tls_ciphers;
-#if MYSQL_VERSION_ID >= 50023
+#if defined(DICT_MYSQL_SSL_VERIFY_SERVER_CERT)
     int     tls_verify_cert;
 #endif
 #endif
@@ -316,6 +324,19 @@ static const char *dict_mysql_lookup(DICT *dict, const char *name)
     int     domain_rc;
 
     dict->error = 0;
+
+    /*
+     * Don't frustrate future attempts to make Postfix UTF-8 transparent.
+     */
+#ifdef SNAPSHOT
+    if ((dict->flags & DICT_FLAG_UTF8_ACTIVE) == 0
+	&& !valid_utf8_string(name, strlen(name))) {
+	if (msg_verbose)
+	    msg_info("%s: %s: Skipping lookup of non-UTF-8 key '%s'",
+		     myname, dict_mysql->parser->name, name);
+	return (0);
+    }
+#endif
 
     /*
      * Optionally fold the key.
@@ -656,9 +677,9 @@ static void plmysql_connect_single(DICT_MYSQL *dict_mysql, HOST *host)
 		      dict_mysql->tls_key_file, dict_mysql->tls_cert_file,
 		      dict_mysql->tls_CAfile, dict_mysql->tls_CApath,
 		      dict_mysql->tls_ciphers);
-#if MYSQL_VERSION_ID >= 50023
+#if defined(DICT_MYSQL_SSL_VERIFY_SERVER_CERT)
     if (dict_mysql->tls_verify_cert != -1)
-	mysql_options(host->db, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+	mysql_options(host->db, DICT_MYSQL_SSL_VERIFY_SERVER_CERT,
 		      &dict_mysql->tls_verify_cert);
 #endif
 #endif
@@ -723,7 +744,7 @@ static void mysql_parse_config(DICT_MYSQL *dict_mysql, const char *mysqlcf)
     dict_mysql->tls_CAfile = cfg_get_str(p, "tls_CAfile", NULL, 0, 0);
     dict_mysql->tls_CApath = cfg_get_str(p, "tls_CApath", NULL, 0, 0);
     dict_mysql->tls_ciphers = cfg_get_str(p, "tls_ciphers", NULL, 0, 0);
-#if MYSQL_VERSION_ID >= 50023
+#if defined(DICT_MYSQL_SSL_VERIFY_SERVER_CERT)
     dict_mysql->tls_verify_cert = cfg_get_bool(p, "tls_verify_cert", -1);
 #endif
 #endif

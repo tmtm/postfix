@@ -38,11 +38,17 @@
 /*	Terminate the master process after \fIexit_time\fR seconds. Child
 /*	processes terminate at their convenience.
 /* .IP \fB-i\fR
-/*	Enable \fBinit\fR mode: do not attempt to become a session
-/*	or process group leader; and to force termination, set an
-/*	explicit signal handler instead of relying on the default
-/*	signal action. This mode is allowed only if the process ID
-/*	equals 1.
+/*	Enable \fBinit\fR mode: do not become a session or process
+/*	group leader; and similar to \fB-s\fR, do not redirect stdout
+/*	to /dev/null, so that "maillog_file = /dev/stdout" works.
+/*	This mode is allowed only if the process ID equals 1.
+/* .sp
+/*	This feature is available in Postfix 3.3 and later.
+/* .IP \fB-s\fR
+/*	Do not redirect stdout to /dev/null, so that "maillog_file
+/*	= /dev/stdout" works.
+/* .sp
+/*	This feature is available in Postfix 3.4 and later.
 /* .IP \fB-t\fR
 /*	Test mode. Return a zero exit status when the \fBmaster.pid\fR lock
 /*	file does not exist or when that file is not locked.  This is evidence
@@ -77,7 +83,8 @@
 /*	terminate only the master ("\fBpostfix stop\fR") and allow running
 /*	processes to finish what they are doing.
 /* DIAGNOSTICS
-/*	Problems are reported to \fBsyslogd\fR(8). The exit status
+/*	Problems are reported to \fBsyslogd\fR(8) or \fBpostlogd\fR(8).
+/*	The exit status
 /*	is non-zero in case of problems, including problems while
 /*	initializing as a master daemon process in the background.
 /* ENVIRONMENT
@@ -172,6 +179,7 @@
 /*	verify(8), address verification
 /*	master(5), master.cf configuration file syntax
 /*	postconf(5), main.cf configuration file syntax
+/*	postlogd(8), Postfix logging
 /*	syslogd(8), system logging
 /* LICENSE
 /* .ad
@@ -193,7 +201,6 @@
 
 #include <sys_defs.h>
 #include <sys/stat.h>
-#include <syslog.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -205,7 +212,6 @@
 
 #include <events.h>
 #include <msg.h>
-#include <msg_syslog.h>
 #include <vstring.h>
 #include <mymalloc.h>
 #include <iostuff.h>
@@ -229,6 +235,7 @@
 #include <open_lock.h>
 #include <inet_proto.h>
 #include <mail_parm_split.h>
+#include <maillog_client.h>
 
 /* Application-specific. */
 
@@ -264,6 +271,7 @@ int     main(int argc, char **argv)
     VSTRING *data_lock_path;
     off_t   inherited_limit;
     int     debug_me = 0;
+    int     keep_stdout = 0;
     int     ch;
     int     fd;
     int     n;
@@ -321,7 +329,8 @@ int     main(int argc, char **argv)
     /*
      * Initialize logging and exit handler.
      */
-    msg_syslog_init(mail_task(var_procname), LOG_PID, LOG_FACILITY);
+    maillog_client_init(mail_task(var_procname),
+			MAILLOG_CLIENT_FLAG_LOGWRITER_FALLBACK);
 
     /*
      * Check the Postfix library version as soon as we enable logging.
@@ -341,7 +350,7 @@ int     main(int argc, char **argv)
     /*
      * Process JCL.
      */
-    while ((ch = GETOPT(argc, argv, "c:Dde:itvw")) > 0) {
+    while ((ch = GETOPT(argc, argv, "c:Dde:istvw")) > 0) {
 	switch (ch) {
 	case 'c':
 	    if (setenv(CONF_ENV_PATH, optarg, 1) < 0)
@@ -357,9 +366,13 @@ int     main(int argc, char **argv)
 	    if (getpid() != 1)
 		msg_fatal("-i is allowed only for PID 1 process");
 	    init_mode = 1;
+	    keep_stdout = 1;
 	    break;
 	case 'D':
 	    debug_me = 1;
+	    break;
+	case 's':
+	    keep_stdout = 1;
 	    break;
 	case 't':
 	    test_lock = 1;
@@ -404,9 +417,12 @@ int     main(int argc, char **argv)
     /*
      * If started from a terminal, get rid of any tty association. This also
      * means that all errors and warnings must go to the syslog daemon.
+     * Some new world has no terminals and prefers logging to stdout.
      */
     if (master_detach)
 	for (fd = 0; fd < 3; fd++) {
+	    if (fd == STDOUT_FILENO && keep_stdout)
+		continue;
 	    (void) close(fd);
 	    if (open("/dev/null", O_RDWR, 0) != fd)
 		msg_fatal("open /dev/null: %m");
@@ -525,6 +541,8 @@ int     main(int argc, char **argv)
     master_config();
     master_sigsetup();
     master_flow_init();
+    maillog_client_init(mail_task(var_procname),
+			MAILLOG_CLIENT_FLAG_LOGWRITER_FALLBACK);
     msg_info("daemon started -- version %s, configuration %s",
 	     var_mail_version, var_config_dir);
 
@@ -563,6 +581,8 @@ int     main(int argc, char **argv)
 	    master_gotsighup = 0;		/* this first */
 	    master_vars_init();			/* then this */
 	    master_refresh();			/* then this */
+	    maillog_client_init(mail_task(var_procname),
+				MAILLOG_CLIENT_FLAG_LOGWRITER_FALLBACK);
 	}
 	if (master_gotsigchld) {
 	    if (msg_verbose)

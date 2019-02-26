@@ -16,21 +16,24 @@
 #	output stream that can be prepended to template Makefiles.
 #	These macros implement an internal interface and are subject
 #	to change without notice.
-#
+# NAME=VALUE OVERRIDES
+# .ad
+# .fi
 #	Default settings can be overruled by specifying them as
 #	environment variables (or as name=value pairs on the "make"
 #	command line). Use quotes if variables contain whitespace
 #	or shell meta characters.
 #
-#	The command "make makefiles name=value..." will replace the
-#	string MAIL_VERSION at the end of a parameter value with
-#	the Postfix release version. Do not try to specify something
-#	like $mail_version on this command line. This produces
-#	inconsistent results with different versions of the make(1)
-#	command.
+#	The command "\fBmake makefiles name=value...\fR" will replace
+#	the string \fBMAIL_VERSION\fR at the end of a value with the
+#	Postfix version (\fImajor.minor.patchlevel\fR for a stable
+#	release, \fImajor.minor-date\fR for a development release).
+#	Do not try to specify something like \fB$mail_version\fR:
+#	that produces inconsistent results with different implementations
+#	of the make(1) command.
 # .IP \fBAUXLIBS=\fIobject_library...\fR
 #	Specifies one or more non-default object libraries. Postfix
-#	2,12 and later specify some of their database library
+#	3.0 and later specify some of their database library
 #	dependencies with AUXLIBS_CDB, AUXLIBS_LDAP, AUXLIBS_LMDB,
 #	AUXLIBS_MYSQL, AUXLIBS_PCRE, AUXLIBS_PGSQL, AUXLIBS_SDBM,
 #	and AUXLIBS_SQLITE, respectively.
@@ -57,8 +60,8 @@
 #	are known to support it.
 # .IP \fB-DNO_EAI\fR
 #	Do not build with EAI (SMTPUTF8) support. By default, EAI
-#	support is compiled in when the "icu-config" command is
-#	found.
+#	support is compiled in when the "pkg-config" command is
+#	found, or the deprecated "icu-config" command.
 # .IP \fB-DNO_INLINE\fR
 #	Do not require support for C99 "inline" functions. Instead,
 #	implement argument typechecks for non-(printf/scanf)-like
@@ -141,7 +144,6 @@
 #	This feature was introduced with Postfix 3.0.
 # .IP \fBpie=yes\fR
 # .IP \fBpie=no\fR
-#
 #	Enable (disable) Postfix builds with position-independent
 #	executables, on platforms where this is supported.
 #
@@ -279,6 +281,15 @@ case "$SYSTEM.$RELEASE" in
 		: ${PLUGIN_LD="${CC-gcc} -shared"}
 		;;
   FreeBSD.10*)	SYSTYPE=FREEBSD10
+		: ${CC=cc}
+		: ${SHLIB_SUFFIX=.so}
+		: ${SHLIB_CFLAGS=-fPIC}
+		: ${SHLIB_LD="${CC} -shared"' -Wl,-soname,${LIB}'}
+		: ${SHLIB_RPATH='-Wl,-rpath,${SHLIB_DIR}'}
+		: ${SHLIB_ENV="LD_LIBRARY_PATH=`pwd`/lib"}
+		: ${PLUGIN_LD="${CC} -shared"}
+		;;
+   FreeBSD.11*) SYSTYPE=FREEBSD11
 		: ${CC=cc}
 		: ${SHLIB_SUFFIX=.so}
 		: ${SHLIB_CFLAGS=-fPIC}
@@ -781,8 +792,10 @@ esac
 #
 case "$CCARGS" in
 *-DNO_EAI*) CCARGS="$CCARGS "'-DDEF_SMTPUTF8_ENABLE=\"no\"';;
-	 *) icu_cppflags=`(icu-config --cppflags) 2>/dev/null` && {
-		icu_ldflags=`(icu-config --ldflags) 2>/dev/null` && {
+	 *) icu_cppflags=`((pkg-config --cflags icu-uc icu-i18n) ||
+		  (icu-config --cppflags)) 2>/dev/null` && {
+		icu_ldflags=`((pkg-config --libs icu-uc icu-i18n) ||
+		  (icu-config --ldflags)) 2>/dev/null` && {
 		    trap 'rm -f makedefs.test makedefs.test.[co]' 1 2 3 15
 		    cat >makedefs.test.c <<'EOF'
 #include <unicode/uidna.h>

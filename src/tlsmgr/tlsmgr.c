@@ -49,7 +49,8 @@
 /*	to the Postfix-owned \fBdata_directory\fR, and a warning
 /*	is logged.
 /* DIAGNOSTICS
-/*	Problems and transactions are logged to the syslog daemon.
+/*	Problems and transactions are logged to \fBsyslogd\fR(8)
+/*	or \fBpostlogd\fR(8).
 /* BUGS
 /*	There is no automatic means to limit the number of entries in the
 /*	TLS session caches and/or the size of the TLS cache files.
@@ -142,6 +143,7 @@
 /*	postconf(5), configuration parameters
 /*	master(5), generic daemon options
 /*	master(8), process manager
+/*	postlogd(8), Postfix logging
 /*	syslogd(8), system logging
 /* README FILES
 /* .ad
@@ -757,8 +759,7 @@ static void tlsmgr_service(VSTREAM *client_stream, char *unused_service,
 		} else {
 		    VSTRING_SPACE(buffer, len);
 		    RAND_bytes((unsigned char *) STR(buffer), len);
-		    VSTRING_AT_OFFSET(buffer, len);	/* XXX not part of the
-							 * official interface */
+		    vstring_set_payload_size(buffer, len);
 		    status = TLS_MGR_STAT_OK;
 		}
 	    }

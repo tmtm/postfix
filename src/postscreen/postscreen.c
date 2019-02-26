@@ -61,12 +61,14 @@
 /*	RFC 2034 (SMTP Enhanced Status Codes)
 /*	RFC 2821 (SMTP protocol)
 /*	Not: RFC 2920 (SMTP Pipelining)
+/*	RFC 3030 (CHUNKING without BINARYMIME)
 /*	RFC 3207 (STARTTLS command)
 /*	RFC 3461 (SMTP DSN Extension)
 /*	RFC 3463 (Enhanced Status Codes)
 /*	RFC 5321 (SMTP protocol, including multi-line 220 banners)
 /* DIAGNOSTICS
-/*	Problems and transactions are logged to \fBsyslogd\fR(8).
+/*	Problems and transactions are logged to \fBsyslogd\fR(8)
+/*	or \fBpostlogd\fR(8).
 /* BUGS
 /*	The \fBpostscreen\fR(8) built-in SMTP protocol engine
 /*	currently does not announce support for AUTH, XCLIENT or
@@ -117,6 +119,11 @@
 /*	Available in Postfix version 3.1 and later:
 /* .IP "\fBdns_ncache_ttl_fix_enable (no)\fR"
 /*	Enable a workaround for future libc incompatibility.
+/* .PP
+/*	Available in Postfix version 3.4 and later:
+/* .IP "\fBpostscreen_reject_footer_maps ($smtpd_reject_footer_maps)\fR"
+/*	Optional lookup table for information that is appended after a 4XX
+/*	or 5XX \fBpostscreen\fR(8) server response.
 /* TROUBLE SHOOTING CONTROLS
 /* .ad
 /* .fi
@@ -367,6 +374,7 @@
 /*	smtpd(8), Postfix SMTP server
 /*	tlsproxy(8), Postfix TLS proxy server
 /*	dnsblog(8), DNS black/whitelist logger
+/*	postlogd(8), Postfix logging
 /*	syslogd(8), system logging
 /* README FILES
 /* .ad
@@ -503,13 +511,14 @@ char   *var_psc_barlf_action;
 int     var_psc_barlf_ttl;
 
 int     var_psc_cmd_count;
-char   *var_psc_cmd_time;
+int     var_psc_cmd_time;
 
 char   *var_dnsblog_service;
 char   *var_tlsproxy_service;
 
 char   *var_smtpd_rej_footer;
 char   *var_psc_rej_footer;
+char   *var_psc_rej_ftr_maps;
 
 int     var_smtpd_cconn_limit;
 int     var_psc_cconn_limit;
@@ -1123,6 +1132,7 @@ int     main(int argc, char **argv)
 	VAR_TLSPROXY_SERVICE, DEF_TLSPROXY_SERVICE, &var_tlsproxy_service, 1, 0,
 	VAR_PSC_WLIST_IF, DEF_PSC_WLIST_IF, &var_psc_wlist_if, 0, 0,
 	VAR_PSC_UPROXY_PROTO, DEF_PSC_UPROXY_PROTO, &var_psc_uproxy_proto, 0, 0,
+	VAR_PSC_REJ_FTR_MAPS, DEF_PSC_REJ_FTR_MAPS, &var_psc_rej_ftr_maps, 0, 0,
 	0,
     };
     static const CONFIG_INT_TABLE int_table[] = {
@@ -1139,6 +1149,7 @@ int     main(int argc, char **argv)
 	0,
     };
     static const CONFIG_TIME_TABLE time_table[] = {
+	VAR_PSC_CMD_TIME, DEF_PSC_CMD_TIME, &var_psc_cmd_time, 1, 0,
 	VAR_PSC_GREET_WAIT, DEF_PSC_GREET_WAIT, &var_psc_greet_wait, 1, 0,
 	VAR_PSC_PREGR_TTL, DEF_PSC_PREGR_TTL, &var_psc_pregr_ttl, 1, 0,
 	VAR_PSC_DNSBL_MIN_TTL, DEF_PSC_DNSBL_MIN_TTL, &var_psc_dnsbl_min_ttl, 1, 0,
@@ -1165,7 +1176,6 @@ int     main(int argc, char **argv)
 	0,
     };
     static const CONFIG_RAW_TABLE raw_table[] = {
-	VAR_PSC_CMD_TIME, DEF_PSC_CMD_TIME, &var_psc_cmd_time, 1, 0,
 	VAR_SMTPD_REJ_FOOTER, DEF_SMTPD_REJ_FOOTER, &var_smtpd_rej_footer, 0, 0,
 	VAR_PSC_REJ_FOOTER, DEF_PSC_REJ_FOOTER, &var_psc_rej_footer, 0, 0,
 	VAR_SMTPD_EXP_FILTER, DEF_SMTPD_EXP_FILTER, &var_smtpd_exp_filter, 1, 0,

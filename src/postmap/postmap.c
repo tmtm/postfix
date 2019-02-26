@@ -5,17 +5,12 @@
 /*	Postfix lookup table management
 /* SYNOPSIS
 /* .fi
-/*	\fBpostmap\fR [\fB-NbfhimnoprsuUvw\fR] [\fB-c \fIconfig_dir\fR]
+/*	\fBpostmap\fR [\fB-bfFhimnNoprsuUvw\fR] [\fB-c \fIconfig_dir\fR]
 /*	[\fB-d \fIkey\fR] [\fB-q \fIkey\fR]
 /*		[\fIfile_type\fR:]\fIfile_name\fR ...
 /* DESCRIPTION
 /*	The \fBpostmap\fR(1) command creates or queries one or more Postfix
-/*	lookup tables, or updates an existing one. The input and output
-/*	file formats are expected to be compatible with:
-/*
-/* .nf
-/*	    \fBmakemap \fIfile_type\fR \fIfile_name\fR < \fIfile_name\fR
-/* .fi
+/*	lookup tables, or updates an existing one.
 /*
 /*	If the result files do not exist they will be created with the
 /*	same group and other read permissions as their source file.
@@ -44,6 +39,13 @@
 /*	The \fIkey\fR and \fIvalue\fR are processed as is, except that
 /*	surrounding white space is stripped off. Whitespace in lookup
 /*	keys is supported as of Postfix 3.2.
+/*
+/*	When the \fB-F\fR option is given, the \fIvalue\fR must
+/*	specify one or more filenames separated by comma and/or
+/*	whitespace; \fBpostmap\fR(1) will concatenate the file
+/*	content (with a newline character inserted between files)
+/*	and will store the base64-encoded result instead of the
+/*	\fIvalue\fR.
 /*
 /*	When the \fIkey\fR specifies email address information, the
 /*	localpart should be enclosed with double quotes if required
@@ -98,6 +100,12 @@
 /*	With Postfix version 2.3 and later, this option has no
 /*	effect for regular expression tables. There, case folding
 /*	is controlled by appending a flag to a pattern.
+/* .IP \fB-F\fR
+/*	When querying a map, or listing a map, base64-decode each
+/*	value. When creating a map from source file, process each
+/*	value as a list of filenames, concatenate the content of
+/*	those files, and store the base64-encoded result instead
+/*	of the value (see INPUT FORMAT for details).
 /* .IP \fB-h\fR
 /*	Enable message header query mode. When reading lookup keys
 /*	from standard input with "\fB-q -\fR", process the input
@@ -149,6 +157,11 @@
 /*	Search the specified maps for \fIkey\fR and write the first value
 /*	found to the standard output stream. The exit status is zero
 /*	when the requested information was found.
+/*
+/*	Note: this performs a single query with the key as specified,
+/*	and does not make iterative queries with substrings of the
+/*	key as described for access(5), canonical(5), transport(5),
+/*	virtual(5) and other Postfix table-driven features.
 /*
 /*	If a key value of \fB-\fR is specified, the program reads key
 /*	values from the standard input stream and writes one line of
@@ -217,7 +230,7 @@
 /*	The name of the lookup table source file when rebuilding a database.
 /* DIAGNOSTICS
 /*	Problems are logged to the standard error stream and to
-/*	\fBsyslogd\fR(8).
+/*	\fBsyslogd\fR(8) or \fBpostlogd\fR(8).
 /*	No output means that no problems were detected. Duplicate entries are
 /*	skipped and are flagged with a warning.
 /*
@@ -266,6 +279,7 @@
 /*	postalias(1), create/update/query alias database
 /*	postconf(1), supported database types
 /*	postconf(5), configuration parameters
+/*	postlogd(8), Postfix logging
 /*	syslogd(8), system logging
 /* README FILES
 /* .ad
@@ -308,7 +322,6 @@
 #include <vstring.h>
 #include <vstream.h>
 #include <msg_vstream.h>
-#include <msg_syslog.h>
 #include <readlline.h>
 #include <stringops.h>
 #include <split_at.h>
@@ -329,6 +342,7 @@
 #include <mime_state.h>
 #include <rec_type.h>
 #include <mail_parm_split.h>
+#include <maillog_client.h>
 
 /* Application-specific. */
 
@@ -499,6 +513,24 @@ static void postmap(char *map_type, char *path_name, int postmap_flags,
 			 VSTREAM_PATH(source_fp), lineno);
 
 	    /*
+	     * Optionally treat the vale as a filename, and replace the value
+	     * with the BASE64-encoded content of the named file.
+	     */
+	    if (dict_flags & DICT_FLAG_SRC_RHS_IS_FILE) {
+		VSTRING *base64_buf;
+		char   *err;
+
+		if ((base64_buf = dict_file_to_b64(mkmap->dict, value)) == 0) {
+		    err = dict_file_get_error(mkmap->dict);
+		    msg_warn("%s, line %d: %s: skipping this entry",
+			     VSTREAM_PATH(source_fp), lineno, err);
+		    myfree(err);
+		    continue;
+		}
+		value = vstring_str(base64_buf);
+	    }
+
+	    /*
 	     * Store the value under a (possibly case-insensitive) key, as
 	     * specified with open_flags.
 	     */
@@ -624,7 +656,10 @@ static int postmap_queries(VSTREAM *in, char **maps, const int map_count,
 		    dicts[n] = ((map_name = split_at(maps[n], ':')) != 0 ?
 		       dict_open3(maps[n], map_name, O_RDONLY, dict_flags) :
 		    dict_open3(var_db_type, maps[n], O_RDONLY, dict_flags));
-		if ((value = dict_get(dicts[n], STR(keybuf))) != 0) {
+		value = ((dict_flags & DICT_FLAG_SRC_RHS_IS_FILE) ?
+			 dict_file_lookup : dicts[n]->lookup)
+		    (dicts[n], STR(keybuf));
+		if (value != 0) {
 		    if (*value == 0) {
 			msg_warn("table %s:%s: key %s: empty string result is not allowed",
 			       dicts[n]->type, dicts[n]->name, STR(keybuf));
@@ -635,9 +670,16 @@ static int postmap_queries(VSTREAM *in, char **maps, const int map_count,
 		    found = 1;
 		    break;
 		}
-		if (dicts[n]->error)
+		switch (dicts[n]->error) {
+		case 0:
+		    break;
+		case DICT_ERR_CONFIG:
+		    msg_fatal("table %s:%s: query error",
+			      dicts[n]->type, dicts[n]->name);
+		default:
 		    msg_fatal("table %s:%s: query error: %m",
 			      dicts[n]->type, dicts[n]->name);
+		}
 	    }
 	}
     } else {
@@ -686,6 +728,7 @@ static int postmap_queries(VSTREAM *in, char **maps, const int map_count,
 	mime_state_free(mime_state);
 	found = key_state.found;
     }
+
     if (found)
 	vstream_fflush(VSTREAM_OUT);
 
@@ -710,7 +753,9 @@ static int postmap_query(const char *map_type, const char *map_name,
     const char *value;
 
     dict = dict_open3(map_type, map_name, O_RDONLY, dict_flags);
-    if ((value = dict_get(dict, key)) != 0) {
+    value = ((dict_flags & DICT_FLAG_SRC_RHS_IS_FILE) ?
+	     dict_file_lookup : dict->lookup) (dict, key);
+    if (value != 0) {
 	if (*value == 0) {
 	    msg_warn("table %s:%s: key %s: empty string result is not allowed",
 		     map_type, map_name, key);
@@ -719,8 +764,16 @@ static int postmap_query(const char *map_type, const char *map_name,
 	}
 	vstream_printf("%s\n", value);
     }
-    if (dict->error)
-	msg_fatal("table %s:%s: query error: %m", dict->type, dict->name);
+    switch (dict->error) {
+    case 0:
+	break;
+    case DICT_ERR_CONFIG:
+	msg_fatal("table %s:%s: query error",
+		  dict->type, dict->name);
+    default:
+	msg_fatal("table %s:%s: query error: %m",
+		  dict->type, dict->name);
+    }
     vstream_fflush(VSTREAM_OUT);
     dict_close(dict);
     return (value != 0);
@@ -829,6 +882,20 @@ static void postmap_seq(const char *map_type, const char *map_name,
 	    msg_warn("table %s:%s should return NO RESULT in case of NOT FOUND",
 		     map_type, map_name);
 	}
+	if (dict_flags & DICT_FLAG_SRC_RHS_IS_FILE) {
+	    VSTRING *unb64;
+	    char   *err;
+
+	    if ((unb64 = dict_file_from_b64(dict, value)) == 0) {
+		err = dict_file_get_error(dict);
+		msg_warn("table %s:%s: key %s: %s",
+			 dict->type, dict->name, key, err);
+		myfree(err);
+		/* dict->error = DICT_ERR_CONFIG; */
+		continue;
+	    }
+	    value = STR(unb64);
+	}
 	vstream_printf("%s	%s\n", key, value);
     }
     if (dict->error)
@@ -841,7 +908,7 @@ static void postmap_seq(const char *map_type, const char *map_name,
 
 static NORETURN usage(char *myname)
 {
-    msg_fatal("usage: %s [-NfinoprsuUvw] [-c config_dir] [-d key] [-q key] [map_type:]file...",
+    msg_fatal("usage: %s [-bfFhimnNoprsuUvw] [-c config_dir] [-d key] [-q key] [map_type:]file...",
 	      myname);
 }
 
@@ -893,13 +960,13 @@ int     main(int argc, char **argv)
 	msg_verbose = 1;
 
     /*
-     * Initialize. Set up logging, read the global configuration file and
-     * extract configuration information.
+     * Initialize. Set up logging. Read the global configuration file after
+     * parsing command-line arguments.
      */
     if ((slash = strrchr(argv[0], '/')) != 0 && slash[1])
 	argv[0] = slash + 1;
     msg_vstream_init(argv[0], VSTREAM_ERR);
-    msg_syslog_init(mail_task(argv[0]), LOG_PID, LOG_FACILITY);
+    maillog_client_init(mail_task(argv[0]), MAILLOG_CLIENT_FLAG_NONE);
 
     /*
      * Check the Postfix library version as soon as we enable logging.
@@ -909,7 +976,7 @@ int     main(int argc, char **argv)
     /*
      * Parse JCL.
      */
-    while ((ch = GETOPT(argc, argv, "Nbc:d:fhimnopq:rsuUvw")) > 0) {
+    while ((ch = GETOPT(argc, argv, "bc:d:fFhimnNopq:rsuUvw")) > 0) {
 	switch (ch) {
 	default:
 	    usage(argv[0]);
@@ -932,6 +999,9 @@ int     main(int argc, char **argv)
 	    break;
 	case 'f':
 	    dict_flags &= ~DICT_FLAG_FOLD_FIX;
+	    break;
+	case 'F':
+	    dict_flags |= DICT_FLAG_SRC_RHS_IS_FILE;
 	    break;
 	case 'h':
 	    postmap_flags |= POSTMAP_FLAG_HEADER_KEY;
@@ -987,7 +1057,7 @@ int     main(int argc, char **argv)
     update_env(import_env->argv);
     argv_free(import_env);
     /* Re-evaluate mail_task() after reading main.cf. */
-    msg_syslog_init(mail_task(argv[0]), LOG_PID, LOG_FACILITY);
+    maillog_client_init(mail_task(argv[0]), MAILLOG_CLIENT_FLAG_NONE);
     mail_dict_init();
     if ((query == 0 || strcmp(query, "-") != 0)
 	&& (postmap_flags & POSTMAP_FLAG_ANY_KEY))

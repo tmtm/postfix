@@ -1,19 +1,19 @@
-This is the Postfix 3.3 (stable) release.
+This is the Postfix 3.4 (stable) release.
 
-The stable Postfix release is called postfix-3.3.x where 3=major
-release number, 3=minor release number, x=patchlevel. The stable
+The stable Postfix release is called postfix-3.4.x where 3=major
+release number, 4=minor release number, x=patchlevel.  The stable
 release never changes except for patches that address bugs or
 emergencies. Patches change the patchlevel and the release date.
 
 New features are developed in snapshot releases. These are called
-postfix-3.4-yyyymmdd where yyyymmdd is the release date (yyyy=year,
-mm=month, dd=day). Patches are never issued for snapshot releases;
+postfix-3.5-yyyymmdd where yyyymmdd is the release date (yyyy=year,
+mm=month, dd=day).  Patches are never issued for snapshot releases;
 instead, a new snapshot is released.
 
 The mail_release_date configuration parameter (format: yyyymmdd)
 specifies the release date of a stable release or snapshot release.
 
-If you upgrade from Postfix 3.1 or earlier, read RELEASE_NOTES-3.2
+If you upgrade from Postfix 3.2 or earlier, read RELEASE_NOTES-3.3
 before proceeding.
 
 License change
@@ -25,100 +25,184 @@ more recent Eclipse Public License 2.0. Recipients can choose to take
 the software under the license of their choice. Those who are more
 comfortable with the IPL can continue with that license.
 
-Major changes - compatibility safety net
-----------------------------------------
+Summary of changes
+------------------
 
-[20180106] With compatibility_level < 1, the Postfix SMTP server
-now warns for mail that would be blocked by the Postfix 2.10
-smtpd_relay_restrictions feature, without blocking that mail. This
-extends the compatibility safety net for sites that upgrade from
-earlier Postfix versions (questions on the postfix-users list show
-there is a steady trickle). See COMPATIBILITY_README for details.
+Incompatible changes, bdat support, containers, database support,
+logging, safety, tls connection pooling, tls support, usability,
 
-Major changes - configuration
------------------------------
+Incompatible changes
+--------------------
 
-[20170617] The postconf command now warns about unknown parameter
-names in a Postfix database configuration file. As with other unknown
-parameter names, these warnings can help to find typos early.
+[Incompat 20180826] The Postfix SMTP server announces CHUNKING (BDAT
+command) by default. In the unlikely case that this breaks some
+important remote SMTP client, disable the feature as follows:
 
-[20180113] New read-only service_name parameter that contains the
-master.cf service name of a Postfix daemon process (it that is empty
-in a non-daemon process). This can make Postfix SMTP server logging
-logging distinct by setting the syslog_name in master.cf with "-o
-syslog_name=postfix/$service_name" for the "submission" and "smtps"
-services, and can make Postfix SMTP client distinct by setting "-o
-syslog_name=postfix/$service_name" for the "relay" service.
+/etc/postfix/main.cf:
+    # The logging alternative:
+    smtpd_discard_ehlo_keywords = chunking
+    # The non-logging alternative:
+    smtpd_discard_ehlo_keywords = chunking, silent_discard
 
-Major changes - container support
----------------------------------
+See BDAT_README for more.
 
-[20171218] Preliminary support to run Postfix in the foreground,
-with "postfix start-fg". This requires that Postfix multi-instance
-support is disabled. To receive Postfix syslog information on the
-container's host, mount the host's /dev/log socket inside the
-container (example: "docker run -v /dev/log:/dev/log ..."), and
-specify a distinct Postfix "syslog_name" prefix that identifies the
-logging from the Postfix instance. Postfix does not log systemd
-events.
+[Incompat 20190126] This introduces a new master.cf service 'postlog'
+with type 'unix-dgram' that is used by the new postlogd(8) daemon.
+Before backing out to an older Postfix version, edit the master.cf
+file and remove the postlog entry.
+
+[Incompat 20190106] Postfix 3.4 drops support for OpenSSL 1.0.1
+(end-of-life was December 31, 2016) and all earlier releases.
+
+[Incompat 20180701] To avoid performance loss under load, the
+tlsproxy(8) daemon now requires a zero process limit in master.cf
+(this setting is provided with the default master.cf file). By
+default, a tlsproxy(8) process will retire after several hours.
+
+To set the tlsproxy process limit to zero:
+
+# postconf -F tlsproxy/unix/process_limit=0
+# postfix reload
+
+Major changes - bdat support
+--------------------
+
+[Feature 20180826] Postfix SMTP server support for RFC 3030 CHUNKING
+(the BDAT command) without BINARYMIME, in both smtpd(8) and
+postscreen(8). This has no effect on Milters, smtpd_mumble_restrictions,
+and smtpd_proxy_filter. See BDAT_README for more.
+
+Major changes - containers
+--------------------------
+
+[Feature 20190126] Support for logging to file or stdout, instead
+of using syslog.
+
+- Logging to file solves a usability problem for MacOS, and
+  eliminates multiple problems with systemd-based systems.
+
+- Logging to stdout is useful when Postfix runs in a container, as
+  it eliminates a syslogd dependency.
+
+See MAILLOG_README for configuration examples and logfile rotation.
+
+[Feature 20180422] Better handling of undocumented(!) Linux behavior
+whether or not signals are delivered to a PID=1 process.
 
 Major changes - database support
----------------------------------
+--------------------------------
 
-[20170617] The postconf command warns about unknown parameter names
-in a Postfix database configuration file.
+[Feature 20181105] Support for (key, list of filenames) in map
+source text.
 
-[20171227] The pgsql_table(5) hosts parameter now supports the
-postgresql:// URI syntax. Contributed by Magosányi Árpád.
+- Currently, this feature is used only by tls_server_sni_maps.
 
-Major changes - header format
------------------------------
+- When a map is created from source with "postmap -F maptype:mapname",
+  the command processes each key as usual and processes each value
+  as a list of filenames, concatenates the content of those files
+  (with one newline character in-between files), and stores an entry
+  with (key, base64-encoded result).
 
-[20180010] This release changes the format of 'full name' information
-in Postfix-generated From: headers, when a local program such as
-/bin/mail submits a message without From: header.
+- When a map is queried with "postmap -F -q ...", the command
+  base64-decodes each value. It reports an error when a value is
+  not in base64 form.
 
-Postfix-generated From: headers with 'full name' information are
-now formatted as "From: name <address>" by default. Specify
-"header_from_format = obsolete" to get the earlier form "From:
-address (name)". See the postconf(5) manpage for more details.
+  This "postmap -F -q ..." behavior also works when querying the
+  memory-resident map types cidr:, inline:, pcre:, randmap:, regexp:,
+  and static:. Postfix reads the files specified as table values,
+  stores base64-encoded content, and base64-decodes content upon
+  table lookup.
 
-Major changes - invisible changes
----------------------------------
+  Internally, Postfix will turn on this behavior for lookups (not
+  updates) when a map is opened with the DICT_FLAG_RHS_IS_FILE flag.
 
-[20170617] Additional paranoia in the VSTRING implementation: a
-null byte after the end of vstring buffers (this is a safety net
-so that C-style string operations won't scribble past the end);
-earlier detection of bad length and precision format string specifiers
-(these are the result of programming error, as Postfix format strings
-cannot be specified externally).
-
-Major changes - milter support
-------------------------------
-
-[20171223] Milter applications can now send RET and ENVID parameters
-in SMFIR_CHGFROM (change envelope sender) requests.
-
-Major changes - mixed IPv6/IPv4 support
----------------------------------------
-
-[20170505] Workaround for mail delivery problems when 1) both Postfix
-IPv6 and IPv4 support are enabled, 2) some destination announces
-more primary IPv6 MX addresses than primary IPv4 MX addresses, 3)
-the destination is unreachable over IPv6, and 4) Postfix runs into
-the smtp_mx_address_limit before it can try to deliver over IPv4.
-
-When both Postfix IPv6 and IPv4 support are enabled, the Postfix
-SMTP client will now relax MX preferences so that it can schedule
-similar numbers of IPv4 and IPv6 destination addresses. This ensures
-that an IPv6 connectivity problem will not prevent mail from being
-delivered over IPv4 (and vice versa). Specify "smtp_balance_inet_protocols
-= no" to disable this workaround.
-
-Major changes - xclient
+Major changes - logging
 -----------------------
 
-[20171218] The Postfix SMTP server now allows the XCLIENT command
-before STARTTLS when TLS is required. This is useful for servers
-that run behind a reverse proxy server such as nginx.
+[Feature 20190126] Support for logging to file or stdout, instead
+of using syslog.
+
+- Logging to file solves a usability problem for MacOS, and
+  eliminates multiple problems with systemd-based systems.
+
+- Logging to stdout is useful when Postfix runs in a container, as
+  it eliminates a syslogd dependency.
+
+See MAILLOG_README for configuration examples and logfile rotation.
+
+Major changes - safety
+----------------------
+
+[Feature 20180623] Automatic retirement: dnsblog(8) and tlsproxy(8) process
+will now voluntarily retire after after max_idle*max_use, or some
+sane limit if either limit is disabled. Without this, a process
+could stay busy for days or more.
+
+Major changes - tls connection pooling
+--------------------------------------
+
+[Feature 20180617] Postfix SMTP client support for multiple deliveries
+per TLS-encrypted connection. This is primarily to improve mail
+delivery performance for destinations that throttle clients when
+they don't combine deliveries.
+
+This feature is enabled with "smtp_tls_connection_reuse=yes" in
+main.cf, or with "tls_connection_reuse=yes" in smtp_tls_policy_maps.
+It supports all Postfix TLS security levels including dane and
+dane-only.
+
+The implementation of TLS connection reuse relies on the same
+scache(8) service as used for delivering plaintext SMTP mail, the
+same tlsproxy(8) daemon as used by the postscreen(8) service for
+inbound connections, and relies on the same hints from the qmgr(8)
+daemon. It reuses the configuration parameters described in
+CONNECTION_CACHE_README.
+
+The Postfix SMTP client now logs whether an SMTP-over-TLS connection
+is newly established ("TLS connection established") or whether the
+connection is reused ("TLS connection reused").
+
+The following illustrates how TLS connections are reused:
+
+    Initial plaintext SMTP handshake:
+      smtp(8) -> remote SMTP server
+
+    Reused SMTP/TLS connection, or new SMTP/TLS connection:
+      smtp(8) -> tlsproxy(8) -> remote SMTP server
+
+    Cached SMTP/TLS connection:
+      scache(8) -> tlsproxy(8) -> remote SMTP server
+
+Major changes - tls support
+---------------------------
+
+[Feature 20190106] SNI support in the Postfix SMTP server, the
+Postfix SMTP client, and in the tlsproxy(8) daemon (both server and
+client roles). See the postconf(5) documentation for the new
+tls_server_sni_maps and smtp_tls_servername parameters.
+
+[Feature 20190106] Support for files that contain multiple (key,
+certificate, trust chain) instances. This was required to implement
+server-side SNI table lookups, but it also eliminates the need for
+separate cert/key files for RSA, DSA, Elliptic Curve, and so on.
+The file format is documented in the TLS_README sections "Server-side
+certificate and private key configuration" and "Client-side certificate
+and private key configuration", and in the postconf(5) documentation
+for the parameters smtp_tls_chain_files, smtpd_tls_chain_files,
+tlsproxy_client_chain_files, and tlsproxy_tls_chain_files.
+
+Note: the command "postfix tls" does not yet support the new
+consolidated certificate chain format.  If you switch to the new
+format, you'll need to manage your keys and certificates directly,
+rather than via postfix-tls(1).
+
+Major changes - usability
+-------------------------
+
+[Feature 20180812] Support for smtpd_reject_footer_maps (as well
+as the postscreen variant postscreen_reject_footer_maps) for more
+informative reject messages. This is indexed with the Postfix SMTP
+server response text, and overrides the footer specified with
+smtpd_reject_footer.  One will want to use a pcre: or regexp: map
+with this.
 

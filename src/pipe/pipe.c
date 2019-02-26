@@ -191,7 +191,7 @@
 /* .sp
 /*	Specify "{" and "}" around command arguments that contain
 /*	whitespace (Postfix 3.0 and later). Whitespace
-/*	after "{" and before "}" is ignored.
+/*	after the opening "{" and before the closing "}" is ignored.
 /* .sp
 /*	In the command argument vector, the following macros are recognized
 /*	and replaced with corresponding information from the Postfix queue
@@ -331,7 +331,8 @@
 /*	This command output is not examined for the presence of an
 /*	enhanced status code.
 /*
-/*	Problems and transactions are logged to \fBsyslogd\fR(8).
+/*	Problems and transactions are logged to \fBsyslogd\fR(8)
+/*	or \fBpostlogd\fR(8).
 /*	Corrupted message files are marked so that the queue manager
 /*	can move them to the \fBcorrupt\fR queue for further inspection.
 /* SECURITY
@@ -432,6 +433,7 @@
 /*	postconf(5), configuration parameters
 /*	master(5), generic daemon options
 /*	master(8), process manager
+/*	postlogd(8), Postfix logging
 /*	syslogd(8), system logging
 /* LICENSE
 /* .ad

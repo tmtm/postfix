@@ -24,7 +24,8 @@
 /*	is no reply, or a negative reply that contains no SOA record.
 /*	Finally, the \fBdnsblog\fR(8) server closes the connection.
 /* DIAGNOSTICS
-/*	Problems and transactions are logged to \fBsyslogd\fR(8).
+/*	Problems and transactions are logged to \fBsyslogd\fR(8)
+/*	or \fBpostlogd\fR(8).
 /* CONFIGURATION PARAMETERS
 /* .ad
 /* .fi
@@ -65,7 +66,8 @@
 /* SEE ALSO
 /*	smtpd(8), Postfix SMTP server
 /*	postconf(5), configuration parameters
-/*	syslogd(5), system logging
+/*	postlogd(8), Postfix logging
+/*	syslogd(8), system logging
 /* LICENSE
 /* .ad
 /* .fi
@@ -312,5 +314,6 @@ int     main(int argc, char **argv)
 		       CA_MAIL_SERVER_TIME_TABLE(time_table),
 		       CA_MAIL_SERVER_POST_INIT(post_jail_init),
 		       CA_MAIL_SERVER_UNLIMITED,
+		       CA_MAIL_SERVER_RETIRE_ME,
 		       0);
 }

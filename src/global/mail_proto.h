@@ -60,6 +60,7 @@
 #define MAIL_SERVICE_SCACHE	"scache"
 #define MAIL_SERVICE_DNSBLOG	"dnsblog"
 #define MAIL_SERVICE_TLSPROXY	"tlsproxy"
+#define MAIL_SERVICE_POSTLOG	"postlog"
 
  /*
   * Mail source classes. Used to specify policy decisions for content
@@ -275,37 +276,6 @@ extern char *mail_pathname(const char *, const char *);
 #define MAIL_ATTR_DSN_NOTIFY	"notify_flags"	/* dsn notify flags */
 #define MAIL_ATTR_DSN_ORCPT	"dsn_orig_rcpt"	/* dsn original recipient */
 #define MAIL_ATTR_SMTPUTF8	"smtputf8"	/* RFC6531 support */
-
- /*
-  * TLSPROXY support.
-  */
-#define MAIL_ATTR_REMOTE_ENDPT	"remote_endpoint"	/* name[addr]:port */
-#define MAIL_ATTR_ROLE		"role"	/* requested role */
-#define MAIL_ATTR_ROLE_SERVER	"server"
-#define MAIL_ATTR_ROLE_CLIENT	"client"
-#define MAIL_ATTR_TIMEOUT	"timeout"
-#define MAIL_ATTR_PEER_CN	"peer_CN"
-#define MAIL_ATTR_ISSUER_CN	"issuer_CN"
-#define MAIL_ATTR_PEER_CERT_FPT	"peer_fingerprint"
-#define MAIL_ATTR_PEER_PKEY_FPT	"peer_pubkey_fingerprint"
-#define MAIL_ATTR_PEER_STATUS	"peer_status"
-#define MAIL_ATTR_CIPHER_PROTOCOL "cipher_protocol"
-#define MAIL_ATTR_CIPHER_NAME	"cipher_name"
-#define MAIL_ATTR_CIPHER_USEBITS "cipher_usebits"
-#define MAIL_ATTR_CIPHER_ALGBITS "cipher_algbits"
-#define MAIL_ATTR_KEX_NAME	"key_exchange"
-#define MAIL_ATTR_KEX_CURVE	"key_exchange_curve"
-#define MAIL_ATTR_KEX_BITS	"key_exchange_bits"
-#define MAIL_ATTR_CLNT_SIG_NAME	"clnt_signature"
-#define MAIL_ATTR_CLNT_SIG_CURVE	"clnt_signature_curve"
-#define MAIL_ATTR_CLNT_SIG_BITS	"clnt_signature_bits"
-#define MAIL_ATTR_CLNT_SIG_DGST	"clnt_signature_digest"
-#define MAIL_ATTR_SRVR_SIG_NAME	"srvr_signature"
-#define MAIL_ATTR_SRVR_SIG_CURVE	"srvr_signature_curve"
-#define MAIL_ATTR_SRVR_SIG_BITS	"srvr_signature_bits"
-#define MAIL_ATTR_SRVR_SIG_DGST	"srvr_signature_digest"
-#define MAIL_ATTR_NAMADDR	"namaddr"
-#define MAIL_ATTR_SERVER_ID	"server_id"
 
  /*
   * SMTP reply footer support.
