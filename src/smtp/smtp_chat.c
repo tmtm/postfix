@@ -102,6 +102,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -354,8 +359,13 @@ SMTP_RESP *smtp_chat_resp(SMTP_SESSION *session)
 	 * loss of mail is not acceptable then they can turn off pipelining
 	 * for specific sites, or they can turn off pipelining globally when
 	 * they find that there are just too many broken sites.
+	 * 
+	 * Fix 20190621: don't cache an SMTP session after an SMTP protocol
+	 * error. The protocol may be in a bad state. Disable caching here so
+	 * that the protocol engine will send QUIT.
 	 */
 	session->error_mask |= MAIL_ERROR_PROTOCOL;
+	DONT_CACHE_THIS_SESSION;
 	if (session->features & SMTP_FEATURE_PIPELINING) {
 	    msg_warn("%s: non-%s response from %s: %.100s",
 		     session->state->request->queue_id,

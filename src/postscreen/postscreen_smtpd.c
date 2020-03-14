@@ -164,6 +164,7 @@
 #include <maps.h>
 #include <ehlo_mask.h>
 #include <lex_822.h>
+#include <info_log_addr_form.h>
 
 /* TLS library. */
 
@@ -316,7 +317,7 @@ static void psc_smtpd_format_ehlo_reply(VSTRING *buf, int discard_mask
 
     vstring_sprintf(psc_temp, "250-%s\r\n", var_myhostname);
     if ((discard_mask & EHLO_MASK_SIZE) == 0) {
-	if (var_message_limit)
+	if (ENFORCING_SIZE_LIMIT(var_message_limit))
 	    PSC_EHLO_APPEND1(saved_len, psc_temp, "250-SIZE %lu\r\n",
 			     (unsigned long) var_message_limit);
 	else
@@ -574,7 +575,8 @@ static int psc_rcpt_cmd(PSC_STATE *state, char *args)
 	     (int) strlen(state->rcpt_reply) - 2,
 	     var_soft_bounce == 0 ? state->rcpt_reply :
 	     psc_soften_reply(state->rcpt_reply),
-	     state->sender, addr, state->protocol,
+	     info_log_addr_form_sender(state->sender),
+	     info_log_addr_form_recipient(addr), state->protocol,
 	     state->helo_name ? state->helo_name : "");
     return (PSC_SEND_REPLY(state, state->rcpt_reply));
 }

@@ -262,6 +262,11 @@
 /*	aliasing or with canonical mapping).
 /* .IP "\fBservice_name (read-only)\fR"
 /*	The master.cf service name of a Postfix daemon process.
+/* .PP
+/*	Available in Postfix 3.5 and later:
+/* .IP "\fBinfo_log_address_format (external)\fR"
+/*	The email address form that will be used in non-debug logging
+/*	(info, warning, etc.).
 /* SEE ALSO
 /*	qmgr(8), queue manager
 /*	bounce(8), delivery status reports
@@ -503,9 +508,12 @@ static void pre_init(char *unused_name, char **unused_argv)
      * because that prohibits the delivery agent from updating the queue
      * file.
      */
-    if (var_virt_mailbox_limit) {
-	if (var_virt_mailbox_limit < var_message_limit || var_message_limit == 0)
-	    msg_fatal("main.cf configuration error: %s is smaller than %s",
+    if (ENFORCING_SIZE_LIMIT(var_virt_mailbox_limit)) {
+	if (!ENFORCING_SIZE_LIMIT(var_message_limit))
+	    msg_fatal("configuration error: %s is limited but %s is "
+		    "unlimited", VAR_VIRT_MAILBOX_LIMIT, VAR_MESSAGE_LIMIT);
+	if (var_virt_mailbox_limit < var_message_limit)
+	    msg_fatal("configuration error: %s is smaller than %s",
 		      VAR_VIRT_MAILBOX_LIMIT, VAR_MESSAGE_LIMIT);
 	set_file_limit(var_virt_mailbox_limit);
     }

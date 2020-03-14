@@ -1957,8 +1957,11 @@ extern long var_message_limit;
 
 #define VAR_QUEUE_MINFREE	"queue_minfree"
 #define DEF_QUEUE_MINFREE	0
-extern int var_queue_minfree;
+extern long var_queue_minfree;
 
+ /*
+  * Light-weight content inspection.
+  */
 #define VAR_HEADER_CHECKS	"header_checks"
 #define DEF_HEADER_CHECKS	""
 extern char *var_header_checks;
@@ -3331,7 +3334,7 @@ extern char *var_tls_server_sni_maps;
 extern char *var_tls_dane_digests;
 
  /*
-  * The default is backwards-incompatible.
+  * The default is incompatible with pre-TLSv1.0 protocols.
   */
 #define VAR_TLS_FAST_SHUTDOWN	"tls_fast_shutdown_enable"
 #define DEF_TLS_FAST_SHUTDOWN	1
@@ -3359,7 +3362,7 @@ extern char *var_cleanup_milters;
 extern char *var_milt_def_action;
 
 #define VAR_MILT_CONN_MACROS		"milter_connect_macros"
-#define DEF_MILT_CONN_MACROS		"j {daemon_name} {daemon_addr} v"
+#define DEF_MILT_CONN_MACROS		"j {daemon_name} {daemon_addr} v _"
 extern char *var_milt_conn_macros;
 
 #define VAR_MILT_HELO_MACROS		"milter_helo_macros"
@@ -3980,23 +3983,23 @@ extern char *var_tlsp_clnt_fpt_dgst;
 
 #define VAR_TLSP_CLNT_USE_TLS		"tlsproxy_client_use_tls"
 #define DEF_TLSP_CLNT_USE_TLS		"$" VAR_SMTP_USE_TLS
-bool    var_tlsp_clnt_use_tls;
+extern bool var_tlsp_clnt_use_tls;
 
 #define VAR_TLSP_CLNT_ENFORCE_TLS	"tlsproxy_client_enforce_tls"
 #define DEF_TLSP_CLNT_ENFORCE_TLS	"$" VAR_SMTP_ENFORCE_TLS
-bool    var_tlsp_clnt_enforce_tls;
+extern bool var_tlsp_clnt_enforce_tls;
 
 #define VAR_TLSP_CLNT_LEVEL		"tlsproxy_client_level"
 #define DEF_TLSP_CLNT_LEVEL		"$" VAR_SMTP_TLS_LEVEL
-char   *var_tlsp_clnt_level;
+extern char *var_tlsp_clnt_level;
 
 #define VAR_TLSP_CLNT_PER_SITE		"tlsproxy_client_per_site"
 #define DEF_TLSP_CLNT_PER_SITE		"$" VAR_SMTP_TLS_PER_SITE
-char   *var_tlsp_clnt_per_site;
+extern char *var_tlsp_clnt_per_site;
 
 #define VAR_TLSP_CLNT_POLICY		"tlsproxy_client_policy"
 #define DEF_TLSP_CLNT_POLICY		"$" VAR_SMTP_TLS_POLICY
-char   *var_tlsp_clnt_policy;
+extern char *var_tlsp_clnt_policy;
 
  /*
   * SMTPD "reject" contact info.
@@ -4188,6 +4191,16 @@ extern char *var_postlog_service;
 #define VAR_POSTLOGD_WATCHDOG	"postlogd_watchdog_timeout"
 #define DEF_POSTLOGD_WATCHDOG	"10s"
 extern int var_postlogd_watchdog;
+
+ /*
+  * Backwards compatibility for internal-form address logging.
+  */
+#define INFO_LOG_ADDR_FORM_NAME_EXTERNAL	"external"
+#define INFO_LOG_ADDR_FORM_NAME_INTERNAL	"internal"
+
+#define VAR_INFO_LOG_ADDR_FORM	"info_log_address_format"
+#define DEF_INFO_LOG_ADDR_FORM	INFO_LOG_ADDR_FORM_NAME_EXTERNAL
+extern char *var_info_log_addr_form;
 
 /* LICENSE
 /* .ad

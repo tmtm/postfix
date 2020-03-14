@@ -215,8 +215,9 @@
 /*	for communication with a Milter application; prior to Postfix 2.6
 /*	the default protocol is 2.
 /* .IP "\fBmilter_default_action (tempfail)\fR"
-/*	The default action when a Milter (mail filter) application is
-/*	unavailable or mis-configured.
+/*	The default action when a Milter (mail filter) response is
+/*	unavailable (for example, bad Postfix configuration or Milter
+/*	failure).
 /* .IP "\fBmilter_macro_daemon_name ($myhostname)\fR"
 /*	The {daemon_name} macro value for Milter (mail filter) applications.
 /* .IP "\fBmilter_macro_v ($mail_name $mail_version)\fR"
@@ -494,10 +495,15 @@
 /*	clients via the TLS Server Name Indication (SNI) extension to the
 /*	appropriate keys and certificate chains.
 /* .PP
-/*	Introduced with Postfix 3.4.6, 3.3.5, 3.2.10, and 3.1.13:
+/*	Available in Postfix 3.5, 3.4.6, 3.3.5, 3.2.10, 3.1.13 and later:
 /* .IP "\fBtls_fast_shutdown_enable (yes)\fR"
-/*	A workaround for implementations that hang Postfix while shuting
+/*	A workaround for implementations that hang Postfix while shutting
 /*	down a TLS session, until Postfix times out.
+/* .PP
+/*	Available in Postfix 3.5 and later:
+/* .IP "\fBinfo_log_address_format (external)\fR"
+/*	The email address form that will be used in non-debug logging
+/*	(info, warning, etc.).
 /* OBSOLETE STARTTLS CONTROLS
 /* .ad
 /* .fi
@@ -1220,6 +1226,8 @@
 #include <verify_sender_addr.h>
 #include <smtputf8.h>
 #include <match_parent_style.h>
+#include <normalize_mailhost_addr.h>
+#include <info_log_addr_form.h>
 
 /* Single-threaded server skeleton. */
 
@@ -1257,7 +1265,7 @@ int     var_smtpd_rcpt_limit;
 int     var_smtpd_tmout;
 int     var_smtpd_soft_erlim;
 int     var_smtpd_hard_erlim;
-int     var_queue_minfree;		/* XXX use off_t */
+long    var_queue_minfree;		/* XXX use off_t */
 char   *var_smtpd_banner;
 char   *var_notify_classes;
 char   *var_client_checks;
@@ -1583,9 +1591,11 @@ static const char *smtpd_whatsup(SMTPD_STATE *state)
     else
 	VSTRING_RESET(buf);
     if (state->sender)
-	vstring_sprintf_append(buf, " from=<%s>", state->sender);
+	vstring_sprintf_append(buf, " from=<%s>",
+			       info_log_addr_form_sender(state->sender));
     if (state->recipient)
-	vstring_sprintf_append(buf, " to=<%s>", state->recipient);
+	vstring_sprintf_append(buf, " to=<%s>",
+			    info_log_addr_form_recipient(state->recipient));
     if (state->protocol)
 	vstring_sprintf_append(buf, " proto=%s", state->protocol);
     if (state->helo_name)
@@ -1867,7 +1877,7 @@ static int ehlo_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
     if ((discard_mask & EHLO_MASK_PIPELINING) == 0)
 	EHLO_APPEND(state, "PIPELINING");
     if ((discard_mask & EHLO_MASK_SIZE) == 0) {
-	if (var_message_limit)
+	if (ENFORCING_SIZE_LIMIT(var_message_limit))
 	    EHLO_APPEND1(state, "SIZE %lu",
 			 (unsigned long) var_message_limit);	/* XXX */
 	else
@@ -3513,7 +3523,8 @@ static void receive_data_message(SMTPD_STATE *state,
 	    && (proxy == 0 ? (++start, --len) == 0 : len == 1))
 	    break;
 	if (state->err == CLEANUP_STAT_OK) {
-	    if (var_message_limit > 0 && var_message_limit - state->act_size < len + 2) {
+	    if (ENFORCING_SIZE_LIMIT(var_message_limit)
+		&& var_message_limit - state->act_size < len + 2) {
 		state->err = CLEANUP_STAT_SIZE;
 		msg_warn("%s: queue file size limit exceeded",
 			 state->queue_id ? state->queue_id : "NOQUEUE");
@@ -3890,7 +3901,7 @@ static int bdat_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	}
     }
     /* Block too large chunks. */
-    if (var_message_limit > 0
+    if (ENFORCING_SIZE_LIMIT(var_message_limit)
 	&& state->act_size > var_message_limit - chunk_size) {
 	state->error_mask |= MAIL_ERROR_POLICY;
 	msg_warn("%s: BDAT request from %s exceeds message size limit",
@@ -3983,7 +3994,7 @@ static int bdat_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	    start = vstring_str(state->bdat_get_buffer);
 	    len = VSTRING_LEN(state->bdat_get_buffer);
 	    if (state->err == CLEANUP_STAT_OK) {
-		if (var_message_limit > 0
+		if (ENFORCING_SIZE_LIMIT(var_message_limit)
 		    && var_message_limit - state->act_size < len + 2) {
 		    state->err = CLEANUP_STAT_SIZE;
 		    msg_warn("%s: queue file size limit exceeded",
@@ -4323,7 +4334,6 @@ static int xclient_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
     SMTPD_TOKEN *argp;
     char   *raw_value;
     char   *attr_value;
-    const char *bare_value;
     char   *attr_name;
     int     update_namaddr = 0;
     int     name_status;
@@ -4371,11 +4381,6 @@ static int xclient_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	return (-1);
     }
 #define STREQ(x,y)	(strcasecmp((x), (y)) == 0)
-#define UPDATE_STR(s, v) do { \
-	    const char *_v = (v); \
-	    if (s) myfree(s); \
-	    s = (_v) ? mystrdup(_v) : 0; \
-	} while(0)
 
     /*
      * Initialize.
@@ -4412,6 +4417,12 @@ static int xclient_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	 * specific censoring later.
 	 */
 	printable(attr_value, '?');
+
+#define UPDATE_STR(s, v) do { \
+	const char *_v = (v); \
+	if (s) myfree(s); \
+	(s) = (_v) ? mystrdup(_v) : 0; \
+    } while(0)
 
 	/*
 	 * NAME=substitute SMTP client hostname (and reverse/forward name, in
@@ -4467,24 +4478,19 @@ static int xclient_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	else if (STREQ(attr_name, XCLIENT_ADDR)) {
 	    if (STREQ(attr_value, XCLIENT_UNAVAILABLE)) {
 		attr_value = CLIENT_ADDR_UNKNOWN;
-		bare_value = attr_value;
+		UPDATE_STR(state->addr, attr_value);
+		UPDATE_STR(state->rfc_addr, attr_value);
 	    } else {
-		if ((bare_value = valid_mailhost_addr(attr_value, DONT_GRIPE)) == 0) {
+		neuter(attr_value, NEUTER_CHARACTERS, '?');
+		if (normalize_mailhost_addr(attr_value, &state->rfc_addr,
+					    &state->addr,
+					    &state->addr_family) < 0) {
 		    state->error_mask |= MAIL_ERROR_PROTOCOL;
 		    smtpd_chat_reply(state, "501 5.5.4 Bad %s syntax: %s",
 				     XCLIENT_ADDR, attr_value);
 		    return (-1);
 		}
 	    }
-	    UPDATE_STR(state->addr, bare_value);
-	    UPDATE_STR(state->rfc_addr, attr_value);
-#ifdef HAS_IPV6
-	    if (strncasecmp(attr_value, INET_PROTO_NAME_IPV6 ":",
-			    sizeof(INET_PROTO_NAME_IPV6 ":") - 1) == 0)
-		state->addr_family = AF_INET6;
-	    else
-#endif
-		state->addr_family = AF_INET;
 	    update_namaddr = 1;
 	}
 
@@ -4561,16 +4567,20 @@ static int xclient_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	else if (STREQ(attr_name, XCLIENT_DESTADDR)) {
 	    if (STREQ(attr_value, XCLIENT_UNAVAILABLE)) {
 		attr_value = SERVER_ADDR_UNKNOWN;
-		bare_value = attr_value;
+		UPDATE_STR(state->dest_addr, attr_value);
 	    } else {
-		if ((bare_value = valid_mailhost_addr(attr_value, DONT_GRIPE)) == 0) {
+#define NO_NORM_RFC_ADDR		((char **) 0)
+#define NO_NORM_ADDR_FAMILY	((int *) 0)
+		neuter(attr_value, NEUTER_CHARACTERS, '?');
+		if (normalize_mailhost_addr(attr_value, NO_NORM_RFC_ADDR,
+					    &state->dest_addr,
+					    NO_NORM_ADDR_FAMILY) < 0) {
 		    state->error_mask |= MAIL_ERROR_PROTOCOL;
 		    smtpd_chat_reply(state, "501 5.5.4 Bad %s syntax: %s",
 				     XCLIENT_DESTADDR, attr_value);
 		    return (-1);
 		}
 	    }
-	    UPDATE_STR(state->dest_addr, bare_value);
 	    /* XXX Require same address family as client address. */
 	}
 
@@ -4680,7 +4690,6 @@ static int xforward_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
     SMTPD_TOKEN *argp;
     char   *raw_value;
     char   *attr_value;
-    const char *bare_value;
     char   *attr_name;
     int     updated = 0;
     static const NAME_CODE xforward_flags[] = {
@@ -4796,18 +4805,19 @@ static int xforward_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	case SMTPD_STATE_XFORWARD_ADDR:
 	    if (STREQ(attr_value, XFORWARD_UNAVAILABLE)) {
 		attr_value = CLIENT_ADDR_UNKNOWN;
-		bare_value = attr_value;
+		UPDATE_STR(state->xforward.addr, attr_value);
 	    } else {
 		neuter(attr_value, NEUTER_CHARACTERS, '?');
-		if ((bare_value = valid_mailhost_addr(attr_value, DONT_GRIPE)) == 0) {
+		if (normalize_mailhost_addr(attr_value,
+					    &state->xforward.rfc_addr,
+					    &state->xforward.addr,
+					    NO_NORM_ADDR_FAMILY) < 0) {
 		    state->error_mask |= MAIL_ERROR_PROTOCOL;
 		    smtpd_chat_reply(state, "501 5.5.4 Bad %s syntax: %s",
 				     XFORWARD_ADDR, attr_value);
 		    return (-1);
 		}
 	    }
-	    UPDATE_STR(state->xforward.addr, bare_value);
-	    UPDATE_STR(state->xforward.rfc_addr, attr_value);
 	    break;
 
 	    /*
@@ -4909,7 +4919,8 @@ static int xforward_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
      * Update the combined name and address when either has changed. Use only
      * the name when no address is available.
      */
-    if (updated & (SMTPD_STATE_XFORWARD_NAME | SMTPD_STATE_XFORWARD_ADDR)) {
+    if (updated & (SMTPD_STATE_XFORWARD_NAME | SMTPD_STATE_XFORWARD_ADDR
+		   | SMTPD_STATE_XFORWARD_PORT)) {
 	if (state->xforward.namaddr)
 	    myfree(state->xforward.namaddr);
 	state->xforward.namaddr =
@@ -5425,6 +5436,16 @@ static void smtpd_proto(SMTPD_STATE *state)
     case 0:
 
 	/*
+	 * Don't bother doing anything if some pre-SMTP handshake (haproxy)
+	 * did not work out.
+	 */
+	if (state->flags & SMTPD_FLAG_HANGUP) {
+	    smtpd_chat_reply(state, "421 4.3.0 %s Server local error",
+			     var_myhostname);
+	    break;
+	}
+
+	/*
 	 * In TLS wrapper mode, turn on TLS using code that is shared with
 	 * the STARTTLS command. This code does not return when the handshake
 	 * fails.
@@ -5824,6 +5845,11 @@ static char *smtpd_format_cmd_stats(VSTRING *buf)
 
     /*
      * Reset the per-command counters.
+     * 
+     * Fix 20190621: the command counter resetting code was moved from the SMTP
+     * protocol handler to this place, because the protocol handler was never
+     * called after HaProxy handshake error, causing stale numbers to be
+     * logged.
      */
     for (cmdp = smtpd_cmd_table; /* see below */ ; cmdp++) {
 	cmdp->success_count = cmdp->total_count = 0;
@@ -5967,8 +5993,7 @@ static void smtpd_service(VSTREAM *stream, char *service, char **argv)
     /*
      * Provide the SMTP service.
      */
-    if ((state.flags & SMTPD_FLAG_HANGUP) == 0)
-	smtpd_proto(&state);
+    smtpd_proto(&state);
 
     /*
      * After the client has gone away, clean up whatever we have set up at
@@ -6257,8 +6282,8 @@ static void post_jail_init(char *unused_name, char **unused_argv)
      * arbitrarily pick a small multiple of the per-message size limit. This
      * helps to avoid many unneeded (re)transmissions.
      */
-    if (var_queue_minfree > 0
-	&& var_message_limit > 0
+    if (ENFORCING_SIZE_LIMIT(var_queue_minfree)
+	&& ENFORCING_SIZE_LIMIT(var_message_limit)
 	&& var_queue_minfree / 1.5 < var_message_limit)
 	msg_warn("%s(%lu) should be at least 1.5*%s(%lu)",
 		 VAR_QUEUE_MINFREE, (unsigned long) var_queue_minfree,
@@ -6288,7 +6313,6 @@ int     main(int argc, char **argv)
     };
     static const CONFIG_INT_TABLE int_table[] = {
 	VAR_SMTPD_RCPT_LIMIT, DEF_SMTPD_RCPT_LIMIT, &var_smtpd_rcpt_limit, 1, 0,
-	VAR_QUEUE_MINFREE, DEF_QUEUE_MINFREE, &var_queue_minfree, 0, 0,
 	VAR_UNK_CLIENT_CODE, DEF_UNK_CLIENT_CODE, &var_unk_client_code, 0, 0,
 	VAR_BAD_NAME_CODE, DEF_BAD_NAME_CODE, &var_bad_name_code, 0, 0,
 	VAR_UNK_NAME_CODE, DEF_UNK_NAME_CODE, &var_unk_name_code, 0, 0,
@@ -6324,6 +6348,10 @@ int     main(int argc, char **argv)
 	VAR_SMTPD_SASL_RESP_LIMIT, DEF_SMTPD_SASL_RESP_LIMIT, &var_smtpd_sasl_resp_limit, DEF_SMTPD_SASL_RESP_LIMIT, 0,
 	VAR_SMTPD_POLICY_REQ_LIMIT, DEF_SMTPD_POLICY_REQ_LIMIT, &var_smtpd_policy_req_limit, 0, 0,
 	VAR_SMTPD_POLICY_TRY_LIMIT, DEF_SMTPD_POLICY_TRY_LIMIT, &var_smtpd_policy_try_limit, 1, 0,
+	0,
+    };
+    static const CONFIG_LONG_TABLE long_table[] = {
+	VAR_QUEUE_MINFREE, DEF_QUEUE_MINFREE, &var_queue_minfree, 0, 0,
 	0,
     };
     static const CONFIG_TIME_TABLE time_table[] = {
@@ -6502,6 +6530,7 @@ int     main(int argc, char **argv)
     single_server_main(argc, argv, smtpd_service,
 		       CA_MAIL_SERVER_NINT_TABLE(nint_table),
 		       CA_MAIL_SERVER_INT_TABLE(int_table),
+		       CA_MAIL_SERVER_LONG_TABLE(long_table),
 		       CA_MAIL_SERVER_STR_TABLE(str_table),
 		       CA_MAIL_SERVER_RAW_TABLE(raw_table),
 		       CA_MAIL_SERVER_BOOL_TABLE(bool_table),

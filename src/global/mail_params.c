@@ -131,6 +131,7 @@
 /*	int     var_idna2003_compat;
 /*	int     var_compat_level;
 /*	char	*var_drop_hdrs;
+/*	char	*var_info_log_addr_form;
 /*	bool	var_enable_orcpt;
 /*
 /*	void	mail_params_init()
@@ -352,6 +353,7 @@ char   *var_smtputf8_autoclass;
 int     var_idna2003_compat;
 int     var_compat_level;
 char   *var_drop_hdrs;
+char   *var_info_log_addr_form;
 bool    var_enable_orcpt;
 
 char	*var_maillog_file;
@@ -759,6 +761,7 @@ void    mail_params_init()
 	VAR_DSN_FILTER, DEF_DSN_FILTER, &var_dsn_filter, 0, 0,
 	VAR_SMTPUTF8_AUTOCLASS, DEF_SMTPUTF8_AUTOCLASS, &var_smtputf8_autoclass, 1, 0,
 	VAR_DROP_HDRS, DEF_DROP_HDRS, &var_drop_hdrs, 0, 0,
+	VAR_INFO_LOG_ADDR_FORM, DEF_INFO_LOG_ADDR_FORM, &var_info_log_addr_form, 1, 0,
 	0,
     };
     static const CONFIG_STR_FN_TABLE function_str_defaults_2[] = {
@@ -970,10 +973,6 @@ void    mail_params_init()
     if (var_myorigin[strcspn(var_myorigin, CHARS_COMMA_SP)])
 	msg_fatal("%s parameter setting must not contain multiple values: %s",
 		  VAR_MYORIGIN, var_myorigin);
-
-    if (var_relayhost[strcspn(var_relayhost, CHARS_COMMA_SP)])
-	msg_fatal("%s parameter setting must not contain multiple values: %s",
-		  VAR_RELAYHOST, var_relayhost);
 
     /*
      * One more sanity check.

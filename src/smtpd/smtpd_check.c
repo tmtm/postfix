@@ -216,6 +216,7 @@
 #include <valid_utf8_hostname.h>
 #include <midna_domain.h>
 #include <mynetworks.h>
+#include <name_code.h>
 
 /* DNS library. */
 
@@ -250,6 +251,8 @@
 #include <xtext.h>
 #include <smtp_stream.h>
 #include <attr_override.h>
+#include <map_search.h>
+#include <info_log_addr_form.h>
 
 /* Application-specific. */
 
@@ -514,6 +517,35 @@ static ATTR_OVER_STR str_table[] = {
 #define smtpd_policy_def_action_offset	0
 #define smtpd_policy_context_offset	1
 
+ /*
+  * Search order names must be distinct, non-empty, and non-null.
+  */
+#define SMTPD_ACL_SEARCH_NAME_CERT_FPRINT	"cert_fingerprint"
+#define SMTPD_ACL_SEARCH_NAME_PKEY_FPRINT	"pubkey_fingerprint"
+#define SMTPD_ACL_SEARCH_NAME_CERT_ISSUER_CN	"issuer_cn"
+#define SMTPD_ACL_SEARCH_NAME_CERT_SUBJECT_CN	"subject_cn"
+
+ /*
+  * Search order tokens must be distinct, and 1..126 inclusive, so that they
+  * can be stored in a character string without concerns about signed versus
+  * unsigned. Code 127 is reserved by map_search(3).
+  */
+#define SMTPD_ACL_SEARCH_CODE_CERT_FPRINT	1
+#define SMTPD_ACL_SEARCH_CODE_PKEY_FPRINT	2
+#define SMTPD_ACL_SEARCH_CODE_CERT_ISSUER_CN	3
+#define SMTPD_ACL_SEARCH_CODE_CERT_SUBJECT_CN	4
+
+ /*
+  * Mapping from search-list names and to search-list codes.
+  */
+static const NAME_CODE search_actions[] = {
+    SMTPD_ACL_SEARCH_NAME_CERT_FPRINT, SMTPD_ACL_SEARCH_CODE_CERT_FPRINT,
+    SMTPD_ACL_SEARCH_NAME_PKEY_FPRINT, SMTPD_ACL_SEARCH_CODE_PKEY_FPRINT,
+    SMTPD_ACL_SEARCH_NAME_CERT_ISSUER_CN, SMTPD_ACL_SEARCH_CODE_CERT_ISSUER_CN,
+    SMTPD_ACL_SEARCH_NAME_CERT_SUBJECT_CN, SMTPD_ACL_SEARCH_CODE_CERT_SUBJECT_CN,
+    0, MAP_SEARCH_CODE_UNKNOWN,
+};
+
 /* policy_client_register - register policy service endpoint */
 
 static void policy_client_register(const char *name)
@@ -625,6 +657,7 @@ static ARGV *smtpd_check_parse(int flags, const char *checks)
     char   *bp = saved_checks;
     char   *name;
     char   *last = 0;
+    const MAP_SEARCH *map_search;
 
     /*
      * Pre-parse the restriction list, and open any dictionaries that we
@@ -638,10 +671,12 @@ static ARGV *smtpd_check_parse(int flags, const char *checks)
     while ((name = mystrtokq(&bp, CHARS_COMMA_SP, CHARS_BRACE)) != 0) {
 	argv_add(argv, name, (char *) 0);
 	if ((flags & SMTPD_CHECK_PARSE_POLICY)
-	    && last && strcasecmp(last, CHECK_POLICY_SERVICE) == 0)
+	    && last && strcasecmp(last, CHECK_POLICY_SERVICE) == 0) {
 	    policy_client_register(name);
-	else if ((flags & SMTPD_CHECK_PARSE_MAPS) && strchr(name, ':') != 0) {
-	    command_map_register(name);
+	} else if ((flags & SMTPD_CHECK_PARSE_MAPS)
+		   && (*name == *CHARS_BRACE || strchr(name, ':') != 0)) {
+	    if ((map_search = map_search_create(name)) != 0)
+		command_map_register(map_search->map_type_name);
 	}
 	last = name;
     }
@@ -835,6 +870,12 @@ void    smtpd_check_init(void)
 					 rbl_byte_pageout, (void *) 0);
 
     /*
+     * Initialize access map search list support before parsing restriction
+     * lists.
+     */
+    map_search_init(search_actions);
+
+    /*
      * Pre-parse the restriction lists. At the same time, pre-open tables
      * before going to jail.
      */
@@ -955,9 +996,11 @@ static void log_whatsup(SMTPD_STATE *state, const char *whatsup,
 		    state->queue_id ? state->queue_id : "NOQUEUE",
 		    whatsup, state->where, state->namaddr, text);
     if (state->sender)
-	vstring_sprintf_append(buf, " from=<%s>", state->sender);
+	vstring_sprintf_append(buf, " from=<%s>",
+			       info_log_addr_form_sender(state->sender));
     if (state->recipient)
-	vstring_sprintf_append(buf, " to=<%s>", state->recipient);
+	vstring_sprintf_append(buf, " to=<%s>",
+			    info_log_addr_form_recipient(state->recipient));
     if (state->protocol)
 	vstring_sprintf_append(buf, " proto=%s", state->protocol);
     if (state->helo_name)
@@ -1584,6 +1627,10 @@ static int permit_tls_clientcerts(SMTPD_STATE *state, int permit_all_certs)
 	if (msg_verbose)
 	    msg_info("relay_clientcerts: No match for fingerprint '%s', "
 		     "pkey fingerprint %s", prints[0], prints[1]);
+    } else if (!var_smtpd_tls_ask_ccert) {
+	msg_warn("%s is requested, but \"%s = no\"", permit_all_certs ?
+		 PERMIT_TLS_ALL_CLIENTCERTS : PERMIT_TLS_CLIENTCERTS,
+		 VAR_SMTPD_TLS_ACERT);
     }
 #endif
     return (SMTPD_CHECK_DUNNO);
@@ -3100,8 +3147,7 @@ static int check_server_access(SMTPD_STATE *state, const char *table,
 
 /* check_ccert_access - access for TLS clients by certificate fingerprint */
 
-
-static int check_ccert_access(SMTPD_STATE *state, const char *table,
+static int check_ccert_access(SMTPD_STATE *state, const char *acl_spec,
 			              const char *def_acl)
 {
     int     result = SMTPD_CHECK_DUNNO;
@@ -3109,39 +3155,82 @@ static int check_ccert_access(SMTPD_STATE *state, const char *table,
 #ifdef USE_TLS
     const char *myname = "check_ccert_access";
     int     found;
+    const MAP_SEARCH *acl;
+    const char default_search[] = {
+	SMTPD_ACL_SEARCH_CODE_CERT_FPRINT,
+	SMTPD_ACL_SEARCH_CODE_PKEY_FPRINT,
+	0,
+    };
+    const char *search_order;
+
+    /*
+     * Look up the acl search list. If there is no ACL then we don't have a
+     * table to check.
+     */
+    if ((acl = map_search_lookup(acl_spec)) == 0) {
+	msg_warn("See earlier parsing error messages for '%s", acl_spec);
+	return (smtpd_check_reject(state, MAIL_ERROR_SOFTWARE, 451, "4.3.5",
+				   "Server configuration error"));
+    }
+    if ((search_order = acl->search_order) == 0)
+	search_order = default_search;
+    if (msg_verbose)
+	msg_info("%s: search_order length=%ld",
+		 myname, (long) strlen(search_order));
 
     /*
      * When directly checking the fingerprint, it is OK if the issuing CA is
      * not trusted.
      */
     if (TLS_CERT_IS_PRESENT(state->tls_context)) {
-	int     i;
-	char   *prints[2];
+	const char *action;
+	const char *match_this;
+	const char *known_action;
 
-	prints[0] = state->tls_context->peer_cert_fprint;
-	prints[1] = state->tls_context->peer_pkey_fprint;
-
-	for (i = 0; i < 2; ++i) {
+	for (action = search_order; *action; action++) {
+	    switch (*action) {
+	    case SMTPD_ACL_SEARCH_CODE_CERT_FPRINT:
+		match_this = state->tls_context->peer_cert_fprint;
+		break;
+	    case SMTPD_ACL_SEARCH_CODE_PKEY_FPRINT:
+		match_this = state->tls_context->peer_pkey_fprint;
+		break;
+	    default:
+		known_action = str_name_code(search_actions, *action);
+		if (known_action == 0)
+		    msg_panic("%s: unknown action #%d in '%s'",
+			      myname, *action, acl_spec);
+		msg_warn("%s: unexpected action '%s' in '%s'",
+			 myname, known_action, acl_spec);
+		return (smtpd_check_reject(state, MAIL_ERROR_SOFTWARE,
+					   451, "4.3.5",
+					   "Server configuration error"));
+	    }
 	    if (msg_verbose)
-		msg_info("%s: %s", myname, prints[i]);
+		msg_info("%s: look up %s %s",
+			 myname, str_name_code(search_actions, *action),
+			 match_this);
 
 	    /*
-	     * Regexp tables don't make sense for certificate fingerprints.
-	     * That may be so, but we can't ignore the entire
-	     * check_ccert_access request without logging a warning.
-	     * 
 	     * Log the peer CommonName when access is denied. Non-printable
 	     * characters will be neutered by smtpd_check_reject(). The SMTP
 	     * client name and address are always syslogged as part of a
-	     * "reject" event.
+	     * "reject" event. XXX Should log the thing that is rejected
+	     * (fingerprint etc.) or would that give away too much?
 	     */
-	    result = check_access(state, table, prints[i],
+	    result = check_access(state, acl->map_type_name, match_this,
 				  DICT_FLAG_NONE, &found,
 				  state->tls_context->peer_CN,
 				  SMTPD_NAME_CCERT, def_acl);
 	    if (result != SMTPD_CHECK_DUNNO)
 		break;
 	}
+    } else if (!var_smtpd_tls_ask_ccert) {
+	msg_warn("%s is requested, but \"%s = no\"",
+		 CHECK_CCERT_ACL, VAR_SMTPD_TLS_ACERT);
+    } else {
+	if (msg_verbose)
+	    msg_info("%s: no client certificate", myname);
     }
 #endif
     return (result);
@@ -5295,7 +5384,7 @@ char   *smtpd_check_size(SMTPD_STATE *state, off_t size)
     /*
      * Check against file size limit.
      */
-    if (var_message_limit > 0 && size > var_message_limit) {
+    if (ENFORCING_SIZE_LIMIT(var_message_limit) && size > var_message_limit) {
 	(void) smtpd_check_reject(state, MAIL_ERROR_POLICY,
 				  552, "5.3.4",
 				  "Message size exceeds fixed limit");
@@ -5534,6 +5623,7 @@ char   *var_unk_addr_tf_act;
 char   *var_unv_rcpt_tf_act;
 char   *var_unv_from_tf_act;
 char   *var_smtpd_acl_perm_log;
+char   *var_info_log_addr_form;
 
 typedef struct {
     char   *name;
@@ -5589,6 +5679,7 @@ static const STRING_TABLE string_table[] = {
     /* XXX Can't use ``$name'' type default values above. */
     VAR_SMTPD_ACL_PERM_LOG, DEF_SMTPD_ACL_PERM_LOG, &var_smtpd_acl_perm_log,
     VAR_SMTPD_DNS_RE_FILTER, DEF_SMTPD_DNS_RE_FILTER, &var_smtpd_dns_re_filter,
+    VAR_INFO_LOG_ADDR_FORM, DEF_INFO_LOG_ADDR_FORM, &var_info_log_addr_form,
     0,
 };
 
@@ -5621,7 +5712,7 @@ static int string_update(char **argv)
  /*
   * Integer parameters.
   */
-int     var_queue_minfree;		/* XXX use off_t */
+long    var_queue_minfree;		/* XXX use off_t */
 typedef struct {
     char   *name;
     int     defval;
@@ -5665,6 +5756,7 @@ int     var_plaintext_code;
 bool    var_smtpd_peername_lookup;
 bool    var_smtpd_client_port_log;
 char   *var_smtpd_dns_re_filter;
+bool    var_smtpd_tls_ask_ccert;
 
 #define int_table test_int_table
 
@@ -5699,6 +5791,7 @@ static const INT_TABLE int_table[] = {
     VAR_PLAINTEXT_CODE, DEF_PLAINTEXT_CODE, &var_plaintext_code,
     VAR_SMTPD_PEERNAME_LOOKUP, DEF_SMTPD_PEERNAME_LOOKUP, &var_smtpd_peername_lookup,
     VAR_SMTPD_CLIENT_PORT_LOG, DEF_SMTPD_CLIENT_PORT_LOG, &var_smtpd_client_port_log,
+    VAR_SMTPD_TLS_ACERT, DEF_SMTPD_TLS_ACERT, &var_smtpd_tls_ask_ccert,
     0,
 };
 

@@ -113,6 +113,7 @@
 #include <quote_821_local.h>
 #include <dsn_util.h>
 #include <xtext.h>
+#include <info_log_addr_form.h>
 
 /* Application-specific. */
 
@@ -240,9 +241,11 @@ static void cleanup_milter_hbc_log(void *context, const char *action,
 		    state->queue_id, where, action, where, line,
 		    state->client_name, state->client_addr);
     if (state->sender)
-	vstring_sprintf_append(state->temp1, " from=<%s>", state->sender);
+	vstring_sprintf_append(state->temp1, " from=<%s>",
+			       info_log_addr_form_sender(state->sender));
     if (state->recip)
-	vstring_sprintf_append(state->temp1, " to=<%s>", state->recip);
+	vstring_sprintf_append(state->temp1, " to=<%s>",
+			       info_log_addr_form_recipient(state->recip));
     if ((attr = nvtable_find(state->attr, MAIL_ATTR_LOG_PROTO_NAME)) != 0)
 	vstring_sprintf_append(state->temp1, " proto=%s", attr);
     if ((attr = nvtable_find(state->attr, MAIL_ATTR_LOG_HELO_NAME)) != 0)
@@ -2056,9 +2059,11 @@ static const char *cleanup_milter_apply(CLEANUP_STATE *state, const char *event,
 		    state->queue_id, action, event, state->client_name,
 		    state->client_addr, text);
     if (state->sender)
-	vstring_sprintf_append(state->temp1, " from=<%s>", state->sender);
+	vstring_sprintf_append(state->temp1, " from=<%s>",
+			       info_log_addr_form_sender(state->sender));
     if (state->recip)
-	vstring_sprintf_append(state->temp1, " to=<%s>", state->recip);
+	vstring_sprintf_append(state->temp1, " to=<%s>",
+			       info_log_addr_form_recipient(state->recip));
     if ((attr = nvtable_find(state->attr, MAIL_ATTR_LOG_PROTO_NAME)) != 0)
 	vstring_sprintf_append(state->temp1, " proto=%s", attr);
     if ((attr = nvtable_find(state->attr, MAIL_ATTR_LOG_HELO_NAME)) != 0)
@@ -2498,6 +2503,7 @@ int     main(int unused_argc, char **argv)
     var_line_limit = DEF_LINE_LIMIT;
     var_header_limit = DEF_HEADER_LIMIT;
     var_enable_orcpt = DEF_ENABLE_ORCPT;
+    var_info_log_addr_form = DEF_INFO_LOG_ADDR_FORM;
 
     for (;;) {
 	ARGV   *argv;

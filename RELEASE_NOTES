@@ -1,30 +1,20 @@
-This is the Postfix 3.4 (stable) release.
+This is the Postfix 3.5 (stable) release.
 
-The stable Postfix release is called postfix-3.4.x where 3=major
-release number, 4=minor release number, x=patchlevel.  The stable
+The stable Postfix release is called postfix-3.5.x where 3=major
+release number, 5=minor release number, x=patchlevel.  The stable
 release never changes except for patches that address bugs or
 emergencies. Patches change the patchlevel and the release date.
 
 New features are developed in snapshot releases. These are called
-postfix-3.5-yyyymmdd where yyyymmdd is the release date (yyyy=year,
+postfix-3.6-yyyymmdd where yyyymmdd is the release date (yyyy=year,
 mm=month, dd=day).  Patches are never issued for snapshot releases;
 instead, a new snapshot is released.
 
 The mail_release_date configuration parameter (format: yyyymmdd)
 specifies the release date of a stable release or snapshot release.
 
-If you upgrade from Postfix 3.2 or earlier, read RELEASE_NOTES-3.3
+If you upgrade from Postfix 3.3 or earlier, read RELEASE_NOTES-3.4
 before proceeding.
-
-TLS Workaround for Postfix 3.4.6, 3.3.5, 3.2.10 and 3.1.13
------------------------------------------------------------
-
-This release introduces a workaround for implementations that hang
-Postfix while shutting down a TLS session, until Postfix times out.
-With "tls_fast_shutdown_enable = yes" (the default), Postfix no
-longer waits for a remote TLS peer to respond to a TLS 'close'
-request. This behavior is recommended with TLSv1.0 and later. Specify
-"tls_fast_shutdown_enable = no" to get historical Postfix behavior.
 
 License change
 ---------------
@@ -35,184 +25,133 @@ more recent Eclipse Public License 2.0. Recipients can choose to take
 the software under the license of their choice. Those who are more
 comfortable with the IPL can continue with that license.
 
-Summary of changes
-------------------
+Major changes - multiple relayhost in SMTP
+------------------------------------------
 
-Incompatible changes, bdat support, containers, database support,
-logging, safety, tls connection pooling, tls support, usability,
+[Feature 20200111] the Postfix SMTP and LMTP client support a list
+of nexthop destinations separated by comma or whitespace. These
+destinations will be tried in the specified order.
 
-Incompatible changes
---------------------
+The list form can be specified in relayhost, transport_maps,
+default_transport, and sender_dependent_default_transport_maps.
 
-[Incompat 20180826] The Postfix SMTP server announces CHUNKING (BDAT
-command) by default. In the unlikely case that this breaks some
-important remote SMTP client, disable the feature as follows:
+Examples:
+/etc/postfix/main.cf:
+    relayhost = foo.example, bar.example
+    default_transport = smtp:foo.example, bar.example.
+
+NOTE: this is an SMTP and LMTP client feature. It does not work for
+other Postfix delivery agents.
+
+Major changes - certificate access
+----------------------------------
+
+[Feature 20190517] Search order support for check_ccert_access.
+Search order support for other tables is in design (canonical_maps,
+virtual_alias_maps, transport_maps, etc.).
+
+The following check_ccert_access setting uses the built-in search
+order: it first looks up the client certificate fingerprint, then
+the client certificate public-key fingerprint, and it stops when a
+decision is made.
 
 /etc/postfix/main.cf:
-    # The logging alternative:
-    smtpd_discard_ehlo_keywords = chunking
-    # The non-logging alternative:
-    smtpd_discard_ehlo_keywords = chunking, silent_discard
+    smtpd_mumble_restrictions =
+        ...
+        check_ccert_access hash:/etc/postfix/ccert-access
+        ...
 
-See BDAT_README for more.
+The following setting, with explicit search order, produces the
+exact same result:
 
-[Incompat 20190126] This introduces a new master.cf service 'postlog'
-with type 'unix-dgram' that is used by the new postlogd(8) daemon.
-Before backing out to an older Postfix version, edit the master.cf
-file and remove the postlog entry.
+/etc/postfix/main.cf:
+    smtpd_mumble_restrictions =
+        ...
+        check_ccert_access {
+            hash:/etc/postfix/ccert-access {
+                search_order = cert_fingerprint, pubkey_fingerprint } }
+        ...
 
-[Incompat 20190106] Postfix 3.4 drops support for OpenSSL 1.0.1
-(end-of-life was December 31, 2016) and all earlier releases.
+Support is planned for other certificate features.
 
-[Incompat 20180701] To avoid performance loss under load, the
-tlsproxy(8) daemon now requires a zero process limit in master.cf
-(this setting is provided with the default master.cf file). By
-default, a tlsproxy(8) process will retire after several hours.
+Major changes - dovecot usability
+---------------------------------
 
-To set the tlsproxy process limit to zero:
+[Feature 20190615] The SMTP+LMTP delivery agent can now prepend
+Delivered-To, X-Original-To and Return-Path headers, just like the
+pipe(8) and local(8) delivery agents. 
 
-# postconf -F tlsproxy/unix/process_limit=0
-# postfix reload
+This uses the "flags=DORX" command-line flags in master.cf. See the
+smtp(8) manpage for details.
 
-Major changes - bdat support
---------------------
+This obsoletes the "lmtp_assume_final = yes" setting, and replaces
+it with "flags=...X...", for consistency with the pipe(8) delivery
+agent.
 
-[Feature 20180826] Postfix SMTP server support for RFC 3030 CHUNKING
-(the BDAT command) without BINARYMIME, in both smtpd(8) and
-postscreen(8). This has no effect on Milters, smtpd_mumble_restrictions,
-and smtpd_proxy_filter. See BDAT_README for more.
+Major changes - forced expiration
+---------------------------------
 
-Major changes - containers
---------------------------
+[Feature 20200202] Support to force-expire email messages. This
+introduces new postsuper(1) command-line options to request expiration,
+and additional information in mailq(1) or postqueue(1) output.
 
-[Feature 20190126] Support for logging to file or stdout, instead
-of using syslog.
+The forced-to-expire status is stored in a queue file attribute.
+An expired message is returned to the sender when the queue manager
+attempts to deliver that message (note that Postfix will never
+deliver messages in the hold queue).
 
-- Logging to file solves a usability problem for MacOS, and
-  eliminates multiple problems with systemd-based systems.
+The postsuper(1) -e and -f options both set the forced-to-expire
+queue file attribute. The difference is that -f will also release
+a message if it is in the hold queue. With -e, such a message would
+not be returned to the sender until it is released with -f or -H.
 
-- Logging to stdout is useful when Postfix runs in a container, as
-  it eliminates a syslogd dependency.
+In the mailq(1) or postqueue(1) -p output, a forced-to-expire message
+is indicated with # after the queue file name. In postqueue(1) JSON
+output, there is a new per-message field "forced_expire" (with value
+true or false) that shows the forced-to-expire status.
 
-See MAILLOG_README for configuration examples and logfile rotation.
+Major changes - haproxy2 protocol
+---------------------------------
 
-[Feature 20180422] Better handling of undocumented(!) Linux behavior
-whether or not signals are delivered to a PID=1 process.
+[Feature 20200112] Support for the haproxy v2 protocol. The Postfix
+implementation supports TCP over IPv4 and IPv6, as well as non-proxied
+connections; the latter are typically used for heartbeat tests.
 
-Major changes - database support
---------------------------------
-
-[Feature 20181105] Support for (key, list of filenames) in map
-source text.
-
-- Currently, this feature is used only by tls_server_sni_maps.
-
-- When a map is created from source with "postmap -F maptype:mapname",
-  the command processes each key as usual and processes each value
-  as a list of filenames, concatenates the content of those files
-  (with one newline character in-between files), and stores an entry
-  with (key, base64-encoded result).
-
-- When a map is queried with "postmap -F -q ...", the command
-  base64-decodes each value. It reports an error when a value is
-  not in base64 form.
-
-  This "postmap -F -q ..." behavior also works when querying the
-  memory-resident map types cidr:, inline:, pcre:, randmap:, regexp:,
-  and static:. Postfix reads the files specified as table values,
-  stores base64-encoded content, and base64-decodes content upon
-  table lookup.
-
-  Internally, Postfix will turn on this behavior for lookups (not
-  updates) when a map is opened with the DICT_FLAG_RHS_IS_FILE flag.
+The haproxy v2 protocol introduces no additional Postfix configuration.
+The Postfix smtpd(8) and postscreen(8) daemons accept both v1 and
+v2 protocol versions.
 
 Major changes - logging
 -----------------------
 
-[Feature 20190126] Support for logging to file or stdout, instead
-of using syslog.
+[Incompat 20191109] Postfix daemon processes now log the from= and
+to= addresses in external (quoted) form in non-debug logging (info,
+warning, etc.).  This means that when an address localpart contains
+spaces or other special characters, the localpart will be quoted,
+for example:
 
-- Logging to file solves a usability problem for MacOS, and
-  eliminates multiple problems with systemd-based systems.
+    from=<"name with spaces"@example.com>
 
-- Logging to stdout is useful when Postfix runs in a container, as
-  it eliminates a syslogd dependency.
+Older Postfix versions would log the internal (unquoted) form:
 
-See MAILLOG_README for configuration examples and logfile rotation.
+    from=<name with spaces@example.com>
 
-Major changes - safety
-----------------------
+The external and internal forms are identical for the vast majority
+of email addresses that contain no spaces or other special characters
+in the localpart.
 
-[Feature 20180623] Automatic retirement: dnsblog(8) and tlsproxy(8) process
-will now voluntarily retire after after max_idle*max_use, or some
-sane limit if either limit is disabled. Without this, a process
-could stay busy for days or more.
+Specify "info_log_address_format = internal" for backwards
+compatibility.
 
-Major changes - tls connection pooling
---------------------------------------
+The logging in external form is consistent with the address form
+that Postfix 3.2 and later prefer for table lookups. It is therefore
+the more useful form for non-debug logging.
 
-[Feature 20180617] Postfix SMTP client support for multiple deliveries
-per TLS-encrypted connection. This is primarily to improve mail
-delivery performance for destinations that throttle clients when
-they don't combine deliveries.
+Major changes - IP address normalization
+----------------------------------------
 
-This feature is enabled with "smtp_tls_connection_reuse=yes" in
-main.cf, or with "tls_connection_reuse=yes" in smtp_tls_policy_maps.
-It supports all Postfix TLS security levels including dane and
-dane-only.
-
-The implementation of TLS connection reuse relies on the same
-scache(8) service as used for delivering plaintext SMTP mail, the
-same tlsproxy(8) daemon as used by the postscreen(8) service for
-inbound connections, and relies on the same hints from the qmgr(8)
-daemon. It reuses the configuration parameters described in
-CONNECTION_CACHE_README.
-
-The Postfix SMTP client now logs whether an SMTP-over-TLS connection
-is newly established ("TLS connection established") or whether the
-connection is reused ("TLS connection reused").
-
-The following illustrates how TLS connections are reused:
-
-    Initial plaintext SMTP handshake:
-      smtp(8) -> remote SMTP server
-
-    Reused SMTP/TLS connection, or new SMTP/TLS connection:
-      smtp(8) -> tlsproxy(8) -> remote SMTP server
-
-    Cached SMTP/TLS connection:
-      scache(8) -> tlsproxy(8) -> remote SMTP server
-
-Major changes - tls support
----------------------------
-
-[Feature 20190106] SNI support in the Postfix SMTP server, the
-Postfix SMTP client, and in the tlsproxy(8) daemon (both server and
-client roles). See the postconf(5) documentation for the new
-tls_server_sni_maps and smtp_tls_servername parameters.
-
-[Feature 20190106] Support for files that contain multiple (key,
-certificate, trust chain) instances. This was required to implement
-server-side SNI table lookups, but it also eliminates the need for
-separate cert/key files for RSA, DSA, Elliptic Curve, and so on.
-The file format is documented in the TLS_README sections "Server-side
-certificate and private key configuration" and "Client-side certificate
-and private key configuration", and in the postconf(5) documentation
-for the parameters smtp_tls_chain_files, smtpd_tls_chain_files,
-tlsproxy_client_chain_files, and tlsproxy_tls_chain_files.
-
-Note: the command "postfix tls" does not yet support the new
-consolidated certificate chain format.  If you switch to the new
-format, you'll need to manage your keys and certificates directly,
-rather than via postfix-tls(1).
-
-Major changes - usability
--------------------------
-
-[Feature 20180812] Support for smtpd_reject_footer_maps (as well
-as the postscreen variant postscreen_reject_footer_maps) for more
-informative reject messages. This is indexed with the Postfix SMTP
-server response text, and overrides the footer specified with
-smtpd_reject_footer.  One will want to use a pcre: or regexp: map
-with this.
-
+[Incompat 20190427] Postfix now normalizes IP addresses received
+with XCLIENT, XFORWARD, or with the HaProxy protocol, for consistency
+with direct connections to Postfix. This may change the appearance
+of logging, and the way that check_client_access will match subnets
+of an IPv6 address.

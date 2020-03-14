@@ -12,6 +12,12 @@
 /* .nf
 
  /*
+  * System library.
+  */
+#include <sys_defs.h>
+#include <stdarg.h>
+
+ /*
   * Utility library.
   */
 #include <vstring.h>
@@ -128,6 +134,9 @@ typedef struct VSTREAM _deliver_vstream_;
 extern DELIVER_REQUEST *deliver_request_read(_deliver_vstream_ *);
 extern int deliver_request_done(_deliver_vstream_ *, DELIVER_REQUEST *, int);
 
+extern int PRINTFLIKE(4, 5) reject_deliver_request(const char *,
+		         DELIVER_REQUEST *, const char *, const char *,...);
+
 /* LICENSE
 /* .ad
 /* .fi
@@ -137,6 +146,11 @@ extern int deliver_request_done(_deliver_vstream_ *, DELIVER_REQUEST *, int);
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 #endif

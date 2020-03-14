@@ -1310,7 +1310,9 @@ domain.
 Specify a string of the form <i>transport:nexthop</i>, where <i>transport</i>
 is the name of a mail delivery transport defined in master.cf.
 The <i>:nexthop</i> destination is optional; its syntax is documented
-in the manual page of the corresponding delivery agent.
+in the manual page of the corresponding delivery agent. In the case of
+SMTP or LMTP, specify one or more destinations separated by comma or
+whitespace (with Postfix 3.5 and later).
 </p>
 
 <p>
@@ -3773,7 +3775,7 @@ This feature is available in Postfix 2.0 and later.
 %PARAM relayhost 
 
 <p>
-The next-hop destination of non-local mail; overrides non-local
+The next-hop destination(s) for non-local mail; overrides non-local
 domains in recipient addresses. This information is overruled with
 relay_transport, sender_dependent_default_transport_maps,
 default_transport, sender_dependent_relayhost_maps
@@ -3787,9 +3789,11 @@ gateway host instead.
 </p>
 
 <p>
-In the case of SMTP, specify a domain name, hostname, hostname:port,
-[hostname]:port, [hostaddress] or [hostaddress]:port. The form
-[hostname] turns off MX lookups.
+In the case of SMTP or LMTP delivery, specify one or more destinations
+in the form of a domain name, hostname, hostname:port, [hostname]:port,
+[hostaddress] or [hostaddress]:port, separated by comma or whitespace.
+The form [hostname] turns off MX lookups. Multiple destinations are
+supported in Postfix 3.5 and later.
 </p>
 
 <p>
@@ -3804,7 +3808,7 @@ Examples:
 <pre>
 relayhost = $mydomain
 relayhost = [gateway.example.com]
-relayhost = uucphost
+relayhost = mail1.example:587, mail2.example:587
 relayhost = [an.ip.add.ress]
 </pre>
 
@@ -5099,14 +5103,27 @@ client network address information.
 
 <dt><b><a name="check_ccert_access">check_ccert_access</a> <i><a href="DATABASE_README.html">type:table</a></i></b></dt>
 
-<dd> Use the remote SMTP client certificate fingerprint or the public key
+<dd> By default use the remote SMTP client certificate fingerprint
+or the public key
 fingerprint (Postfix 2.9 and later) as lookup key for the specified
 access(5) database; with Postfix version 2.2, also require that the
 remote SMTP client certificate is verified successfully.
 The fingerprint digest algorithm is configurable via the
 smtpd_tls_fingerprint_digest parameter (hard-coded as md5 prior to
-Postfix version 2.5).  This feature is available with Postfix version
+Postfix version 2.5).  This feature requires "smtpd_tls_ask_ccert
+= yes" and is available with Postfix version
 2.2 and later. </dd>
+
+<br>
+
+<dd> Alternatively, check_ccert_access accepts an explicit search
+order (Postfix 3.5 and later). The default search order as described
+above corresponds with: </dd>
+
+<dd> check_ccert_access { type:table, { search_order = cert_fingerprint,
+pubkey_fingerprint } } </dd>
+
+<dd> The commas are optional. </dd>
 
 <dt><b><a name="check_client_access">check_client_access</a> <i><a href="DATABASE_README.html">type:table</a></i></b></dt>
 
@@ -5207,7 +5224,8 @@ CA. Otherwise, clients with a third-party certificate would also
 be allowed to relay.  Specify "tls_append_default_CA = no" when the
 trusted CA is specified with smtpd_tls_CAfile or smtpd_tls_CApath,
 to prevent Postfix from appending the system-supplied default CAs.
-This feature is available with Postfix version 2.2.</dd>
+This feature requires "smtpd_tls_ask_ccert = yes" and is available
+with Postfix version 2.2 and later.</dd>
 
 <dt><b><a name="permit_tls_clientcerts">permit_tls_clientcerts</a></b></dt>
 
@@ -5216,8 +5234,8 @@ fingerprint or public key fingerprint (Postfix 2.9 and later) is
 listed in $relay_clientcerts.
 The fingerprint digest algorithm is configurable via the
 smtpd_tls_fingerprint_digest parameter (hard-coded as md5 prior to
-Postfix version 2.5).  This feature is available with Postfix version
-2.2. </dd>
+Postfix version 2.5).  This feature requires "smtpd_tls_ask_ccert
+= yes" and is available with Postfix version 2.2 and later.</dd>
 
 <dt><b><a name="reject_rbl_client">reject_rbl_client <i>rbl_domain=d.d.d.d</i></a></b></dt>
 
@@ -11709,8 +11727,9 @@ will not reply for each individual message header.</dd>
 
 %PARAM milter_default_action tempfail
 
-<p> The default action when a Milter (mail filter) application is
-unavailable or mis-configured. Specify one of the following: </p>
+<p> The default action when a Milter (mail filter) response is
+unavailable (for example, bad Postfix configuration or Milter
+failure). Specify one of the following: </p>
 
 <dl compact>
 
@@ -12777,7 +12796,7 @@ is unwise to choose an "bleeding-edge" curve supported by only a
 small subset of clients.  </p>
 
 <p> The default "strong" curve is rated in NSA <a
-href="http://www.nsa.gov/ia/programs/suiteb_cryptography/">Suite
+href="https://web.archive.org/web/20160330034144/https://www.nsa.gov/ia/programs/suiteb_cryptography/">Suite
 B</a> for information classified up to SECRET.  </p>
 
 <p> Note: elliptic curve names are poorly standardized; different
@@ -12814,7 +12833,7 @@ curve must be implemented by OpenSSL (as reported by ecparam(1) with the
 of RFC 4492. You should not generally change this setting. </p>
 
 <p> This default "ultra" curve is rated in NSA <a
-href="http://www.nsa.gov/ia/programs/suiteb_cryptography/">Suite
+href="https://web.archive.org/web/20160330034144/https://www.nsa.gov/ia/programs/suiteb_cryptography/">Suite
 B</a> for information classified up to TOP SECRET. </p>
 
 <p> If you want to take maximal advantage of ciphers that offer <a
@@ -15577,7 +15596,7 @@ pattern. </p>
 proxy agent. When a proxy agent is used, this protocol conveys local
 and remote address and port information. Specify
 "postscreen_upstream_proxy_protocol = haproxy" to enable the haproxy
-protocol. <p>
+protocol; version 2 is supported with Postfix 3.5 and later. <p>
 
 <p> This feature is available in Postfix 2.10 and later.  </p>
 
@@ -15594,7 +15613,7 @@ postscreen_upstream_proxy_protocol parameter. </p>
 proxy agent. When a proxy agent is used, this protocol conveys local
 and remote address and port information.  Specify
 "smtpd_upstream_proxy_protocol = haproxy" to enable the haproxy
-protocol.  </p>
+protocol; version 2 is supported with Postfix 3.5 and later. </p>
 
 <p> NOTE: To use the nginx proxy with smtpd(8), enable the XCLIENT
 protocol with smtpd_authorized_xclient_hosts. This supports SASL
@@ -16244,14 +16263,11 @@ support is via the tls_ssl_options parameter.  </p>
 
 %PARAM tls_fast_shutdown_enable yes
 
-<p> A workaround for implementations that hang Postfix while shuting
+<p> A workaround for implementations that hang Postfix while shutting
 down a TLS session, until Postfix times out. With this enabled,
 Postfix will not wait for the remote TLS peer to respond to a TLS
 'close' notification. This behavior is recommended for TLSv1.0 and
 later. </p>
-
-<p> This feature was introduced with Postfix 3.4.6, 3.3.5, 3.2.10,
-and 3.1.13. </p>
 
 %PARAM default_delivery_status_filter
 
@@ -17442,16 +17458,56 @@ appropriate keys and certificate chains.  This parameter is implemented
 in the Postfix TLS library, and applies to both smtpd(8) and the SMTP
 server mode of tlsproxy(8). </p>
 
-<p> The lookup key is either the verbatim SNI domain name or an
-ancestor domain prefixed with a leading dot.  For internationalized
-domains, the lookup key must be in IDNA 2008 A-label form (as
-required in the TLS SNI extension). </p>
-
 <p> When this parameter is non-empty, the Postfix SMTP server enables
 SNI extension processing, and logs SNI values that are invalid or
 don't match an entry in the the specified tables.  When an entry
 does match, the SNI name is logged as part of the connection summary
 at log levels 1 and higher.  </p>
+
+<p> The lookup key is either the verbatim SNI domain name or an
+ancestor domain prefixed with a leading dot.  For internationalized
+domains, the lookup key must be in IDNA 2008 A-label form (as
+required in the TLS SNI extension). </p>
+
+<p> The syntax of the lookup value is the same as with the
+smtp_tls_chain_files parameter (see there for additional details),
+but here scoped to just TLS connections in which the client sends
+a matching SNI domain name. </p>
+
+<p> Example: </p>
+<blockquote>
+<pre>
+/etc/postfix/main.cf:
+    #
+    # The indexed SNI table must be created with "postmap -F"
+    #
+    indexed = ${default_database_type}:${config_directory}/
+    tls_server_sni_maps = ${indexed}sni
+</pre>
+</blockquote>
+
+<blockquote>
+<pre>
+/etc/postfix/sni:
+    #
+    # The example.com domain has both an RSA and ECDSA certificate
+    # chain.  The chain files MUST start with the private key,
+    # with the certificate chain next, starting with the leaf
+    # (server) certificate, and then the issuer certificates.
+    #
+    example.com /etc/postfix/sni-chains/rsa2048.example.com.pem,
+                /etc/postfix/sni-chains/ecdsa-p256.example.com.pem
+    #
+    # The example.net domain has a wildcard certificate, and two
+    # additional DNS names.  So its certificate chain is also used
+    # with any subdomain, plus the additional names.
+    #
+    example.net /etc/postfix/sni-chains/example.net.pem
+    .example.net /etc/postfix/sni-chains/example.net.pem
+    example.info /etc/postfix/sni-chains/example.net.pem
+    example.org /etc/postfix/sni-chains/example.net.pem
+</pre>
+</blockquote>
 
 <p> Note that the SNI lookup tables should also have entries for
 the domains that correspond to the Postfix SMTP server's default
@@ -17463,49 +17519,33 @@ The Postfix SMTP server's default certificates are then only used
 when the client sends no SNI or when it sends SNI with a domain
 that the server knows no certificate(s) for. </p>
 
-<p> The mapping from an SNI domain name to a certificate chain is
-typically indirect.  In the input source files for "cdb", "hash",
-"btree" or other tables that are converted to on-disk indexed files
-via postmap(1), the value specified for each key is a list of
-filenames.  When postmap(1) is used with the <b>-F</b> option, the
-generated table stores for each lookup key the base64-encoded
-contents of the associated files.  When querying tables via <b>postmap
--Fq</b>, the table value is decoded from base64, yielding the original
-file content, plus a new line. </p>
+<p> The mapping from an SNI domain name to a certificate chain is indirect.  In
+the input source files for "cdb", "hash", "btree" or other tables that are
+converted to on-disk indexed files via postmap(1), the value specified for each
+key is a list of filenames.  When postmap(1) is used with the <b>-F</b> option,
+the generated table stores for each lookup key the base64-encoded contents of
+the associated files.  When querying tables via <b>postmap -Fq</b>, the table
+value is decoded from base64, yielding the original file content, plus a new
+line. </p>
 
 <p> With "regexp", "pcre", "inline", "texthash", "static" and similar
 tables that are interpreted at run-time, and don't have a separate
-source format, the table value is again a list files, that are read-in
-when the table is opened.  </p>
-
-<p> Thus, for example: </p>
-
-<blockquote>
-<pre>
-$ postmap -Fq "" static:/etc/postfix/chain.pem | openssl dgst -sha1
-(stdin)= da39a3ee5e6b4b0d3255bfef95601890afd80709
-</pre>
-</blockquote>
-
-<p> produces the same output as: </p>
-
-<blockquote>
-<pre>
-$ (cat /etc/postfix/chain.pem; echo) | openssl dgst -sha1
-(stdin)= da39a3ee5e6b4b0d3255bfef95601890afd80709
-</pre>
-</blockquote>
+source format, the table value is again a list files, that are loaded
+into memory when the table is opened.  </p>
 
 <p> With tables whose content is managed outside of Postfix, such
 as LDAP, MySQL, PostgreSQL, socketmap and tcp, the value must be a
 concatenation of the desired PEM keys and certificate chains, that
 is then further encoded to yield a single-line base64 string.
-Creation of such tables and secure storage are outside the
-responsibility of Postfix.  With "socketmap" and "tcp" the data
-would be transmitted in the clear.  With LDAP and SQL, you should
-generally use TLS to protect the sensitive data in transit.  </p>
+Creation of such tables and secure storage (the value includes
+private key material) are outside the responsibility of Postfix.  </p>
 
-<p> Typically there is only private key and its chain of certificates
+<p> With "socketmap" and "tcp" the data will be transmitted in the clear, and
+there is no query access control, so these are generally unsuitable for storing
+SNI chains.  With LDAP and SQL, you should restrict read access and use TLS to
+protect the sensitive data in transit.  </p>
+
+<p> Typically there is only one private key and its chain of certificates
 starting with the "leaf" certificate corresponding to that key, and
 continuing with the appropriate intermediate issuer CA certificates,
 with each certificate ideally followed by its issuer.  Servers
@@ -17619,3 +17659,42 @@ default suffix, YYYYMMDD-HHMMSS, allows logs to be rotated frequently.
 </p>
 
 <p> This feature is available in Postfix 3.4 and later. </p>
+
+%PARAM info_log_address_format external
+
+<p> The email address form that will be used in non-debug logging
+(info, warning, etc.). As of Postfix 3.5 when an address localpart
+contains spaces or other special characters, the localpart will be
+quoted, for example: </p>
+
+<blockquote>
+<pre>
+    from=&lt;"name with spaces"@example.com&gt;
+</pre>
+</blockquote>
+
+<p> Older Postfix versions would log the internal (unquoted) form: </p>
+
+<blockquote>
+<pre>
+    from=&lt;name with spaces@example.com&gt;
+</pre>
+</blockquote> 
+
+<p> The external and internal forms are identical for the vast
+majority of email addresses that contain no spaces or other special
+characters in the localpart. </p>
+
+<p> The logging in external form is consistent with the address
+form that Postfix 3.2 and later prefer for most table lookups. This
+is therefore the more useful form for non-debug logging. </p>
+
+<p> Specify "<b>info_log_address_format = internal</b>" for backwards
+compatibility. </p>
+
+<p> Postfix uses the unquoted form internally, because an attacker
+can specify an email address in different forms by playing games
+with quotes and backslashes. An attacker should not be able to use
+such games to circumvent Postfix access policies. </p>
+
+<p> This feature is available in Postfix 3.5 and later. </p>

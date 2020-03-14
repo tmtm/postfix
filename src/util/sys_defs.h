@@ -129,7 +129,7 @@
 #define HAS_FUTIMES			/* XXX maybe earlier */
 #endif
 
-#if (defined(OpenBSD) && OpenBSD >= 199608)
+#if (defined(OpenBSD) && OpenBSD >= 199608 && OpenBSD < 201105)
 #define PREFERRED_RAND_SOURCE	"dev:/dev/arandom"	/* XXX earlier */
 #endif
 
@@ -1315,6 +1315,12 @@ extern int dup2_pass_on_exec(int oldd, int newd);
 #endif
 #define OPTIND  (optind > 0 ? optind : 1)
 
+#if !defined(__UCLIBC__) && !defined(NO_RES_SEND)
+#define HAVE_RES_SEND
+#else
+#undef HAVE_RES_SEND
+#endif
+
  /*
   * Check for required but missing definitions.
   */
@@ -1675,8 +1681,8 @@ typedef int pid_t;
   * Bit banging!! There is no official constant that defines the INT_MAX
   * equivalent for off_t, ssize_t, etc. Wietse came up with the following
   * macro that works as long as off_t, ssize_t, etc. use one's or two's
-  * complement logic (that is, the maximum value is binary 01...1). Don't
-  * use right-shift for signed types: the result is implementation-defined.
+  * complement logic (that is, the maximum value is binary 01...1). Don't use
+  * right-shift for signed types: the result is implementation-defined.
   */
 #include <limits.h>
 #define __MAXINT__(T) ((T) ~(((T) 1) << ((sizeof(T) * CHAR_BIT) - 1)))
@@ -1687,6 +1693,11 @@ typedef int pid_t;
 #ifndef SSIZE_T_MAX
 #define SSIZE_T_MAX __MAXINT__(ssize_t)
 #endif
+
+ /*
+  * Consistent enforcement of size limits.
+  */
+#define ENFORCING_SIZE_LIMIT(param)	((param) > 0)
 
  /*
   * Setting globals like h_errno can be problematic when Postfix is linked

@@ -811,7 +811,6 @@ void    tls_get_signature_params(TLS_SESS_STATE *TLScontext)
     const char *peer_sig_curve = 0;
     const char *peer_sig_dgst = 0;
     int     nid;
-    int     got_kex_key;
     SSL    *ssl = TLScontext->con;
     int     srvr = SSL_is_server(ssl);
     X509   *cert;

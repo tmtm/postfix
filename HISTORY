@@ -12281,7 +12281,7 @@ Apologies for any names omitted.
 20060606
 
 	Safety: mail receiving daemons (smtpd, qmqpd) now pass
-	actual client name/addres/helo attributes in addition to
+	actual client name/address/helo attributes in addition to
 	the attributes used for logging (xforward). This prevents
 	Milter applications from treating qmqpd mail as if it
 	originated locally, and prevents incorrect Milter decisions
@@ -13424,7 +13424,7 @@ Apologies for any names omitted.
 
 20070414
 
-	Cleanup: expire cached results from addres rewriting, address
+	Cleanup: expire cached results from address rewriting, address
 	resolution, and from transport map lookups.  Results expire
 	after 30 seconds; short enough that it doesn't freak out
 	people who run the same test repeatedly, and long enough
@@ -18499,7 +18499,7 @@ Apologies for any names omitted.
 	endpoint label; better reuse of SASL-authenticated connections
 	over UNIX-domains sockets, however unlikely these may be;
 	a first step towards refinement of connection cache lookup
-	by IP addres for plaintext or SASL-unauthenticated connections.
+	by IP address for plaintext or SASL-unauthenticated connections.
 	Files: smtp/smtp.h smtp/smtp_connect.c, smtp/smtp_reuse.c,
 	smtp/smtp_key.c, smtp/smtp_tls_sess.s.
 
@@ -24163,6 +24163,16 @@ Apologies for any names omitted.
 	and timeouts. Problem report by Andreas Schulze. File:
 	smtp/smtp_proto.c.
 
+20190226
+
+	Documentation: postconf(1) and DATABASE_README were out of
+	sync. Added a note that this should be deduplicated. File:
+	proto/DATABASE_README.html.
+
+20190227
+
+	Documentation: strict_smtputf8 in SMTPUTF8_README.
+
 20190304
 
 	Bugfix: a reversed test broke TLS configurations that specify
@@ -24180,25 +24190,26 @@ Apologies for any names omitted.
 	TLS library overhaul. By intrigeri. File: tls/tls_dane.c.
 
 	Bugfix (introduced: Postfix-1.0.1): null pointer read, while
-	logging a warning after a corrupted bounce log file. File:
-	global/bounce_log.c.
+	logging a warning after reading a corrupted bounce log file.
+	File: global/bounce_log.c.
 
 	Bugfix (introduced: Postfix-2.9.0): null pointer read, while
 	logging a warning after a postscreen_command_filter read
-	error. File: postscreen/postscreen_smtpd.c. global/bounce_log.c
+	error. File: postscreen/postscreen_smtpd.c.
 
 20190312
 
 	Bugfix (introduced: Postfix 2.2): reject_multi_recipient_bounce
 	has been producing false rejects starting with the Postfix
 	2.2 smtpd_end_of_data_restrictons, and for the same reasons,
-	does the same with the Postfix 3.4 BDAT command. The latter
+	did the same with the Postfix 3.4 BDAT command. The latter
 	was reported by Andreas Schulze. File: smtpd/smtpd_check.c.
 
 20190319
 
 	With message_size_limit=0 (which is NOT DOCUMENTED), BDAT
-	chunks were always rejected as too large. File: smtpd/smtpd.c
+	chunks were always too large. Reported by Thorben Thuermer.
+	fix by Viktor Dukhovni. File: src/smtpd/smtpd.c.
 
 20190328
 
@@ -24216,23 +24227,85 @@ Apologies for any names omitted.
 
 20190401
 
-	Portability: added "#undef sun" to util/unix_dgram_connect.c.
+	Portability: to avoid a compile-time error on Solaris, added
+	"#undef sun" to util/unix_dgram_connect.c.
 
 20190403
 
 	Bugfix (introduced: Postfix 2.3): a censoring filter broke
 	multiline Milter responses for header/body events. Problem
 	report by Andreas Thienemann. Files: util/printable.c,
-	util/stringops.h, smtpd/smtpd.c
+	util/stringops.h, smtpd/smtpd.c.
 
-	Bugfix (introduced: Postfix 3.3): "smtp_mx_address_limit =
-	0" no longer meant 'unlimited'. Problem report by Luc Pardon.
+	Bugfix (introduced: Postfix 3.3): "smtp_mx_address_limit = 0"
+	no longer meant 'unlimited'. Problem report by Luc Pardon.
 	File: smtp/smtp_addr.c.
+
+20190427
+
+	Cleanup: normalize the IP address string forms received with
+	XCLIENT, XFORWARD, and HaProxy, for consistency with address
+	information for direct connections to Postfix, and add unit
+	tests. This casefolds and removes redundant nulls from the
+	string representation of an IPv6 address, normalizes the
+	"IPv6:" address prefix of RFC 2821 IPv6 address forms, and
+	converts IPv4 address octets with leading zeros (octal form)
+	into decimal form. Files: global/haproxy.c,
+	global/normalize_mailhost_addr.[hc], smtpd/smtpd.c.
+
+	Incompatibility: this may change the appearance of logging,
+	and the way that check_client_access will match subnets of
+	an IPv6 address.
+
+20190428
+
+	Cleanup: replace "(whatever *) 0" with meaningfully-named
+	constants. Sheesh. File: smtpd/smtpd.c.
+
+	Documentation: BASIC_CONFIGURATION_README example default
+	setting was not updated after Postfix 3.0 change. File:
+	proto/BASIC_CONFIGURATION_README.html
+
+20190505
+
+	Workaround: uClibc has no res_send. Log a warning if this
+	code path would be used, and ignore dns_ncache_ttl_fix_enable.
+	Files: util/sys_defs.h, dns/dns_lookup.c, TODO: makedefs
+	and INSTALL documentation.
+
+20190516
+
+	Initial search order support for check_ccert_access. The
+	default behavior is backwards-compatible. This is work in
+	progress; see the RELEASE_NOTES for examples.  Files:
+	global/map_search.[hc], smtpd/smtpd_check.c.
+
+20190517
+
+	Bugfix: postconf mis-parsed text starting with "{" such as
+	"check_ccert_access { inline:{a=b} { search_order=c,d } }".
+	Fixed by adding another level of recursion. File:
+	postconf/postconf_dbms.c.
+
+20190525
+
+	Infrastructure: reject_deliver_request() to reject an entire
+	delivery request and bounce or defer all its recipients.
+	File: global/reject_deliver_request.c.
+
+20190609
+
+	Infrastructure: byte_mask() to convert "flags=mumble" into
+	a byte mask. This is similar to name_mask(). Files:
+	util/byte_mask.[hc] and tests.
 
 20190615
 
-	Documentation: updated the BUGS section in the smtp(8) manpage
-	about TLS connection reuse. File: smtp/smtp.c.
+	Dovecot usability: SMTP/LMTP client support for 'D', 'O',
+	'R', 'X' flags similar to the pipe(8) daemon, to produce
+	Delivered-To, X-Original-To, and Return-Path headers, and
+	to indicate final delivery. Files: smtp/smtp.c, smtp/smtp.h,
+	smtp/smtp_misc.c, smtp/smtp_proto.c, smtp/smtp_rcpt.c.
 
 	Workaround for implementations that hang Postfix while
 	shutting down a TLS session, until Postfix times out. With
@@ -24241,13 +24314,30 @@ Apologies for any names omitted.
 	request. This is recommended with TLSv1.0 and later. Files:
 	global/mail_params.h, tls/tls_session.c, and documentation.
 
+20190618
+
+	Documentation: corrected comments about the code change to
+	not wait for the TLS peer's response after sending a TLS
+	'close' notification. Viktor Dukhovni. Files: HISTORY,
+	RELEASE_NOTES, proto/postconf.proto smtp/smtp.c smtpd/smtpd.c
+	tlsproxy/tlsproxy.c
+
 20190621
+
+	Workaround: don't reuse an SMTP connection after an SMTP
+	protocol error. This limits the impact of, for example,
+	pipelining synchronization errors. File: smtp/smtp_trouble.c.
 
 	Bugfix (introduced: Postfix 3.0): the code to reset Postfix
 	SMTP server command counts was not called after a HaProxy
 	handshake failure, causing stale numbers to be reported.
 	The command counts are now reset in the function that reports
-	the counts. File: smtpd/smtpd.c.
+	the counts. Problem report by Joseph Ward. File: smtpd/smtpd.c.
+
+20190719
+
+	Bitrot: OpenBSD stopped having /dev/arandom 8 years ago.
+	Brad Smith. File: util/sys_defs.h.
 
 20190723
 
@@ -24255,6 +24345,20 @@ Apologies for any names omitted.
 	but the code said tls_fast_shutdown. Viktor Dukhovni. Changed
 	the code because no-one is expected to override the default.
 	File: global/mail_params.h.
+
+20190724
+
+	Cleanup: proxymap(8) support for table search order syntax.
+	File: proxymap/proxymap.c.
+
+	Safety: vstring_set_payload_size() now checks that the
+	payload has not overwritten the safety terminator at the
+	end of the VSTRING buffer. File: util/vstring.c.
+
+20190813
+
+	Documentation: access(5) map network address pattern syntax.
+	File: proto/access.
 
 20190820
 
@@ -24280,6 +24384,12 @@ Apologies for any names omitted.
 	now logs a proper error instead. Problem reported by Tim
 	Düsterhus. File: xsasl/xsasl_dovecot_server.c.
 
+20190908
+
+	Documentation: updated postconf(5) description of the
+	tls_server_sni_maps configuration parameter. Viktor Dukhovni.
+	File: proto/postconf.proto.
+
 20190914
 
 	Bugfix (introduced: Postfix 3.4): don't whitewash OpenSSL
@@ -24293,6 +24403,39 @@ Apologies for any names omitted.
 	https://github.com/openssl/openssl/commit/64193c8218540499984cd63cda41f3cd491f3f59
 	changed the error status, incompatibly, from SSL_ERROR_NONE
 	into SSL_ERROR_SSL. File: tlsproxy/tlsproxxy.c.
+
+20190918
+
+	Cleanup: the nbbio(3) library now accepts a sequence of
+	nbbio_enable_read() calls or a sequence of nbbio_enable_write()
+	calls. This allows tlsproxy(8) to reset an I/O timer after
+	each event without having to make an nbbio_disable_readwrite()
+	call. Files: util/nbbio.c, tlsproxy/tlsproxy.c.
+
+20191013
+
+	Cleanup: code pattern ENFORCING_SIZE_LIMIT() for more
+	consistent enforcement of the 'no size limit' case (it now
+	requires "> 0" where previous code used "!= 0" or "> 0").
+	More relevant, this explicit pattern will help finding code
+	that does not implement the 'no size limit' case with
+	var_message_limit, etc. Files: cleanup/cleanup_init.c,
+	local/local.c, postdrop/postdrop.c, postscreen/postscreen_smtpd.c,
+	sendmail/sendmail.c, smtpd/smtpd.c, smtpd/smtpd_check.c,
+	util/netstring.c, util/sys_defs.h, virtual/virtual.c.
+
+	Cleanup; with message_size_limit>0, local(8) and virtual(8)
+	mailbox size limit checks would produce a misleading error
+	message when the mailbox size was unlimited. Files:
+	local/local.c, virtual/virtual.c.
+
+	Cleanup: queue_minfree changed from 'int' to 'long'. File:
+	global/mail_params.h, src/smtpd/smtpd.c.
+
+	Attribution: updated AUTHOR in file headers. Files:
+	global/bounce_log.c, global/deliver_request.h, smtp/smtp_chat.c,
+	smtp/smtp_rcpt.c, tls/tls_certkey.c, util/nbbio.c,
+	util/vstream_tweak.c.
 
 20191014
 
@@ -24309,7 +24452,27 @@ Apologies for any names omitted.
 	rejects all RCPT commands and does not announce PIPELINING
 	support). File: postscreen/postscreen_smtpd.c.
 
+20190922
+
+	Documentation: replaced the link to "Suite B" cryptography
+	with a link to web.archive.org. File: proto/postconf.proto.
+
 20191109
+
+	Cleanup: Postfix daemon processes now log the from= and to=
+	addresses in external (quoted) form in non-debug logging
+	(info, warning, etc.). This is consistent with the address
+	form that Postfix 3.2 and later prefer for table lookups.
+	It is therefore the more useful form for non-debug logging.
+	Files: cleanup/cleanup.c, cleanup/cleanup_message.c,
+	cleanup/cleanup_milter.c, global/info_log_addr_form.c,
+	global/info_log_addr_form.h, global/log_adhoc.c,
+	global/mail_params.c, global/mail_params.h, global/opened.c,
+	local/local.c, oqmgr/qmgr.c, oqmgr/qmgr_active.c,
+	pickup/pickup.c, pipe/pipe.c, postscreen/postscreen.c,
+	postscreen/postscreen_smtpd.c, proto/postconf.proto,
+	qmgr/qmgr.c, qmgr/qmgr_active.c, smtp/smtp.c, smtpd/smtpd.c,
+	smtpd/smtpd_check.c, virtual/virtual.c.
 
 	Usability: the parser for key/certificate chain files
 	rejected inputs that contain an EC PARAMETERS object. While
@@ -24317,8 +24480,15 @@ Apologies for any names omitted.
 	types are allowed) this is surprising behavior because the
 	legacy cert/key parameters will accept such inputs. For
 	now, the parser skips object types that it does not know
-	about for usability, and logs a warning because ignoring
-	inputs is not kosher. Viktor and Wietse. File: tls/tls_certkey.c.
+	about usability, and logs a warning because ignoring inputs
+	is not kosher. Viktor and Wietse. File: tls/tls_certkey.c.
+
+20191201
+
+	Compatibility: added '_' to the milter_connect_macros default
+	value. Reportedly some software produces an ugly warning
+	message if Postfix does not send the macro, and there is
+	no harm in sending it. File: global/mail_params.h.
 
 20191214
 
@@ -24329,20 +24499,175 @@ Apologies for any names omitted.
 	res_search(). Reported by Jaroslav Skarvada. File:
 	dns/dns_lookup.c.
 
-	Bugfix (introduced: Postfix 3.0): sanitize server responses
-	before storing them in the verify database, to avoid Postfix
-	warnings about malformed UTF8. File: verify/verify.c.
+	Bugfix: sanitize server responses before storing them in
+	the verify database, to avoid Postfix warnings about malformed
+	UTF8. File: verify/verify.c.
 
-20200115
+20191215
 
-	Bugfix (introduced: Postfix 2.5): the Milter connect event
-	macros were evaluated before the Milter connection itself
+	Future proofing: the Postfix DNS library logs a warning if
+	the DNS_REQ_FLAG_NCACHE_TTL dns_lookup flag is set and the
+	RES_DNSRCH or RES_DEFNAMES resolver flags are set, and
+	disables those resolver flags. File: dns/dns_lookup.c.
+
+20191230
+
+	Documentation: added the 'X' flag (final delivery) to the
+	pipe-based final delivery examples in the default master.cf
+	file. File: conf/master.cf
+
+20201005
+
+	Workaround: postlog clients open the socket before entering
+	the chroot jail and before dropping privileges. This is needed
+	on MacOS and would not hurt otherwise. Files: util/msg_logger.[hc],
+	global/maillog_client.c.
+
+20200108
+
+	UI cleanup: SMTP (and LMTP) client support for a list of
+	nexthop destinations separated by comma or whitespace. These
+	will be tried in the specified order. The list form can be
+	specified in relayhost, transport_maps, default_transport,
+	and sender_dependent_default_transport_maps.  Examples:
+	"relayhost = foo.example, bar.example", and "default_transport
+	= smtp:foo.example, bar.example". Files: smtp/smtp.c,
+	smtp/smtp_connect.c, trivial-rewrite/resolve.c, proto/transport,
+	proto/postconf.proto, global/mail_params.c.
+
+20200112
+
+	[initially released as part of postfix-20200101-nonprod]
+	Refactored the haproxy infrastructure in preparation for
+	haproxy version 2 support. This is necessary because version
+	2 introduces a dependency of the reader on the parser.
+	Additionally, version 2 introduces support for non-proxied
+	connections (used by health checks). Files: global/haproxy_srvr.c,
+	smtpd/smtpd_peer.c, smtpd/smtpd_haproxy.c, smtpd/smtpd.h,
+	postscreen/postscreen.h, postscreen/postscreen_endpt.c,
+	postscreen/postscreen_haproxy.c, postscreen/postscreen_haproxy.h,
+	global/haproxy_srvr.h. Initial release 3.5-20200101-nonprod.
+
+	[initially released as part of postfix-20200105-nonprod]
+	Support for the haproxy v2 protocol. The haproxy v2 protocol
+	support is limited to TCP over IPv4 and TCP over IPv6. It
+	also supports non-proxied connections (typically used for
+	heartbeat tests). File: global/haproxy_srvr.c.
+
+	[initially released as part of postfix-20200105-nonprod]
+	Cleanup: after haproxy handshake error, the Postfix SMTP
+	daemon now logs the proxy connection information instead
+	of unknown/unknown, and replies with "421 4.3.0 $myhostname
+	Server local error" instead of just hanging up. Error
+	details are logged to the maillog file. File: smtpd/smtpd.c.
+
+	Cleanup: miscellaneous comments, constants, error checks,
+	no normal behavior change. Files: global/haproxy_srvr.c,
+	postscreen/postscreen_haproxy.c.
+
+20200126
+
+	Cleanup: missing 'extern' declarations in some header files.
+	Eray Aslan. Files: global/mail_params.h, postconf/postconf.h,
+	smtpd/smtpd_expand.h, trivial-rewrite/trivial-rewrite.h
+
+	Typos: Viktor Dukhovni. File: HISTORY.
+
+	Documentation: haproxy2 support. File: proto/postconf.proto.
+
+20200120
+
+	[initially released as part of postfix-20200125-nonprod]
+	Feature: forced message expiration. The "postsuper -e"
+	option sets an 'expired' bit on one or more messages selected
+	by their message ID. The queue manager returns a message
+	as undeliverable when it moves the message to the active
+	queue. Messages in the hold queue stay in that queue.
+
+	If a force-expired message was deferred, then it is returned
+	with the reason for the delay. Otherwise, the message is
+	returned with "message is administratively expired". Design
+	by Wietse; Viktor suggested using the group execute permission
+	bit. Files: global/mail_queue.h, *qmgr/qmgr.h, *qmgr/qmgr_active.c,
+	*qmgr/qmgr_message.c, postsuper/Makefile.in, postsuper/postsuper.c.
+
+20200125
+
+	[initially released as part of postfix-20200125-nonprod]
+	Added support for "postsuper -f" to expire and optionally
+	release a message. Restructured the postsuper command so
+	that it will execute actions in the order of the -[defhr]
+	flags, instead of using an invisible fixed internal order.
+	The -e and -f options are idempotent (just like -h and -H).
+	Adjusted the summary at the end to make this more clear.
+	File: postsuper/postsuper.c.
+
+20200126
+
+	[initially released as part of postfix-20200126-nonprod]
+	Updated the mailq/postqueue commands to make forced message
+	expiration status available. In ASCII ouput this is indicated
+	with "#" appended to the queue file name, and in JSON output
+	this is indicated with the boolean "force_expired" attribute.
+	Files: showq/showq.c, postqueue/showq_compat.c,
+	postqueue/showq_json.c.
+
+	[initially released as part of postfix-20200126-nonprod]
+	Cleanup: minor tweaks to comments and code.
+
+	Safety: give maildrop queue files more time (week instead
+	of day) to reach completion, in case a message is submitted
+	by a really long-running program. File: postsuper/postsuper.c.
+
+	Cleanup: postsuper manpage indentation, word abbreviation.
+	Files: mantools/postlink, postsuper/postsuper.c.
+
+20200202
+
+	Cleanup: nags about strcpy()/sprintf() from naive checkers.
+	Files: global/mail_conf_int.c, global/mail_conf_long.c,
+	global/mail_conf_nint.c, global/mail_conf_time.c,
+	global/maillog_client.c, util/mymalloc.c.
+
+	Documentation: rephrased the postconf(5) manual page entry
+	for milter_default_action. File: proto/postconf.proto.
+
+	Bugfix (introduced: Postfix 2.5): Milter SMTP connect event
+	macros were evaluated before the Postfix-to-Milter connection
 	had been negotiated. Problem reported by David Bürgin.
 	Files: milter/milter.h, milter/milter.c, milter/milter8.c
 
-20200312
+20200308
+
+	Cleanup: spellchecks, attributions. Files: HISTORY,
+	auxiliary/name-addr-test/gethostbyaddr.c,
+	auxiliary/name-addr-test/getnameinfo.c, proto/postconf.proto,
+	global/haproxy_srvr.c, global/mail_version.h, global/map_search.c,
+	global/map_search.h, postsuper/postsuper.c, smtp/smtp.c,
+	smtp/smtp_misc.c, smtpd/smtpd.c, smtpd/smtpd_check.c,
+	smtpd/smtpd_expand.h, tls/tls_client.c, tls/tls_server.c,
+	tlsproxy/tlsproxy.c, trivial-rewrite/trivial-rewrite.h,
+	util/byte_mask.c, util/vstream_tweak.c.
+
+	Cleanup: bitrot in tests. File: cleanup/cleanup_milter.c.
+
+	Cleanup: harmless memory leak in postconf. File:
+	postconf/postconf_master.c.
 
 	Bugfix (introduced: Postfix 2.3): panic with Postfix
 	multi-Milter configuration during MAIL FROM. Milter client
 	state was not properly reset after one of the Milters failed.
 	Reported by WeiYu Wu.
+
+20200312
+
+	Usability: the Postfix SMTP server now logs a warning when
+	a configuration requests access control by client certificate,
+	but "smtpd_tls_ask_clientcert = no".  Files: proto/postconf.proto,
+	smtpd/smtpd_check.c.
+
+20200316
+
+	Removed the issuer_cn and subject_cn matches from
+	check_ccert_access. Files: smtpd/smtpd_check.c,
+	proto/postconf.proto.

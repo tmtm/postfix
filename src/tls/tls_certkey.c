@@ -74,6 +74,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -413,7 +418,7 @@ static int load_pem_object(pem_load_state_t *st)
 		   && strcmp(name, PEM_STRING_DSA) == 0)) {
 	load_pkey(st, pkey_type, buf, buflen);
     } else if (!st->mixed) {
-	msg_warn("loading %s: ignoring PEM type: %s", st->source, name);
+       msg_warn("loading %s: ignoring PEM type: %s", st->source, name);
     }
     OPENSSL_free(name);
     OPENSSL_free(header);
