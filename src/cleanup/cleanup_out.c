@@ -64,6 +64,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -117,6 +122,9 @@ void    cleanup_out(CLEANUP_STATE *state, int type, const char *string, ssize_t 
 	return;
 
 #define TEXT_RECORD(t)	((t) == REC_TYPE_NORM || (t) == REC_TYPE_CONT)
+
+    if (msg_verbose && !TEXT_RECORD(type))
+	msg_info("cleanup_out: %c %.*s", type, (int) len, string);
 
     if (var_line_limit <= 0)
 	msg_panic("cleanup_out: bad line length limit: %d", var_line_limit);

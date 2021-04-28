@@ -20,6 +20,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -46,7 +51,6 @@
  /*
   * Tunable parameters.
   */
-char   *var_inet_protocols;
 int     var_throttle_time;
 char   *var_master_disable;
 

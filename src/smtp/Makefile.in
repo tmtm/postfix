@@ -93,12 +93,14 @@ smtp.o: ../../include/byte_mask.h
 smtp.o: ../../include/check_arg.h
 smtp.o: ../../include/debug_peer.h
 smtp.o: ../../include/deliver_request.h
+smtp.o: ../../include/delivered_hdr.h
 smtp.o: ../../include/dict.h
 smtp.o: ../../include/dns.h
 smtp.o: ../../include/dsn.h
 smtp.o: ../../include/dsn_buf.h
 smtp.o: ../../include/ext_prop.h
 smtp.o: ../../include/flush_clnt.h
+smtp.o: ../../include/fold_addr.h
 smtp.o: ../../include/header_body_checks.h
 smtp.o: ../../include/header_opts.h
 smtp.o: ../../include/htable.h
@@ -245,6 +247,7 @@ smtp_connect.o: ../../include/htable.h
 smtp_connect.o: ../../include/inet_addr_list.h
 smtp_connect.o: ../../include/inet_proto.h
 smtp_connect.o: ../../include/iostuff.h
+smtp_connect.o: ../../include/known_tcp_ports.h
 smtp_connect.o: ../../include/mail_addr.h
 smtp_connect.o: ../../include/mail_error.h
 smtp_connect.o: ../../include/mail_params.h
@@ -656,6 +659,7 @@ smtp_sasl_proto.o: ../../include/name_mask.h
 smtp_sasl_proto.o: ../../include/nvtable.h
 smtp_sasl_proto.o: ../../include/recipient_list.h
 smtp_sasl_proto.o: ../../include/resolve_clnt.h
+smtp_sasl_proto.o: ../../include/sasl_mech_filter.h
 smtp_sasl_proto.o: ../../include/scache.h
 smtp_sasl_proto.o: ../../include/sock_addr.h
 smtp_sasl_proto.o: ../../include/string_list.h
@@ -713,6 +717,7 @@ smtp_session.o: smtp_session.c
 smtp_state.o: ../../include/argv.h
 smtp_state.o: ../../include/attr.h
 smtp_state.o: ../../include/check_arg.h
+smtp_state.o: ../../include/debug_peer.h
 smtp_state.o: ../../include/deliver_request.h
 smtp_state.o: ../../include/dict.h
 smtp_state.o: ../../include/dns.h

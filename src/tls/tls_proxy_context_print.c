@@ -7,7 +7,7 @@
 /*	#include <tls_proxy.h>
 /*
 /*	int     tls_proxy_context_print(print_fn, stream, flags, ptr)
-/*	ATTR_PRINT_MASTER_FN print_fn;
+/*	ATTR_PRINT_COMMON_FN print_fn;
 /*	VSTREAM *stream;
 /*	int     flags;
 /*	void    *ptr;
@@ -53,7 +53,7 @@
 
 /* tls_proxy_context_print - send TLS session state over stream */
 
-int     tls_proxy_context_print(ATTR_PRINT_MASTER_FN print_fn, VSTREAM *fp,
+int     tls_proxy_context_print(ATTR_PRINT_COMMON_FN print_fn, VSTREAM *fp,
 				        int flags, void *ptr)
 {
     TLS_SESS_STATE *tp = (TLS_SESS_STATE *) ptr;
@@ -70,6 +70,8 @@ int     tls_proxy_context_print(ATTR_PRINT_MASTER_FN print_fn, VSTREAM *fp,
 				 STRING_OR_EMPTY(tp->peer_cert_fprint)),
 		   SEND_ATTR_STR(TLS_ATTR_PEER_PKEY_FPT,
 				 STRING_OR_EMPTY(tp->peer_pkey_fprint)),
+		   SEND_ATTR_INT(TLS_ATTR_SEC_LEVEL,
+				 tp->level),
 		   SEND_ATTR_INT(TLS_ATTR_PEER_STATUS,
 				 tp->peer_status),
 		   SEND_ATTR_STR(TLS_ATTR_CIPHER_PROTOCOL,

@@ -124,6 +124,12 @@
 /*	Available in Postfix 3.3 and later:
 /* .IP "\fBservice_name (read-only)\fR"
 /*	The master.cf service name of a Postfix daemon process.
+/* .PP
+/*	Available in Postfix 3.6 and later:
+/* .IP "\fBenable_threaded_bounces (no)\fR"
+/*	Enable non-delivery, success, and delay notifications that link
+/*	to the original message by including a References: and In-Reply-To:
+/*	header with the original Message-ID value.
 /* FILES
 /*	/var/spool/postfix/bounce/* non-delivery records
 /*	/var/spool/postfix/defer/* non-delivery records
@@ -197,6 +203,7 @@ char   *var_bounce_rcpt;
 char   *var_2bounce_rcpt;
 char   *var_delay_rcpt;
 char   *var_bounce_tmpl;
+bool    var_threaded_bounce;
 
  /*
   * We're single threaded, so we can avoid some memory allocation overhead.
@@ -528,6 +535,14 @@ static void bounce_service(VSTREAM *client, char *service_name, char **argv)
 	msg_fatal("malformed service name: %s", service_name);
 
     /*
+     * Announce the protocol.
+     */
+    attr_print(client, ATTR_FLAG_NONE,
+	       SEND_ATTR_STR(MAIL_ATTR_PROTO, MAIL_ATTR_PROTO_BOUNCE),
+	       ATTR_TYPE_END);
+    (void) vstream_fflush(client);
+
+    /*
      * Read and validate the first parameter of the client request. Let the
      * request-specific protocol routines take care of the remainder.
      */
@@ -660,6 +675,10 @@ int     main(int argc, char **argv)
 	VAR_BOUNCE_TMPL, DEF_BOUNCE_TMPL, &var_bounce_tmpl, 0, 0,
 	0,
     };
+    static const CONFIG_NBOOL_TABLE nbool_table[] = {
+	VAR_THREADED_BOUNCE, DEF_THREADED_BOUNCE, &var_threaded_bounce,
+	0,
+    };
 
     /*
      * Fingerprint executables and core dumps.
@@ -673,6 +692,7 @@ int     main(int argc, char **argv)
 		       CA_MAIL_SERVER_INT_TABLE(int_table),
 		       CA_MAIL_SERVER_STR_TABLE(str_table),
 		       CA_MAIL_SERVER_TIME_TABLE(time_table),
+		       CA_MAIL_SERVER_NBOOL_TABLE(nbool_table),
 		       CA_MAIL_SERVER_PRE_INIT(pre_jail_init),
 		       CA_MAIL_SERVER_POST_INIT(post_jail_init),
 		       CA_MAIL_SERVER_UNLIMITED,

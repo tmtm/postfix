@@ -32,6 +32,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -68,7 +73,7 @@ int     inet_addr_host(INET_ADDR_LIST *addr_list, const char *hostname)
     const char *hname;
     const char *serv;
     int     initial_count = addr_list->used;
-    INET_PROTO_INFO *proto_info;
+    const INET_PROTO_INFO *proto_info;
 
     /*
      * The use of square brackets around an IPv6 addresses is required, even

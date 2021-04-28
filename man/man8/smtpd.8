@@ -160,6 +160,12 @@ line, SMTP message content line, or TLS protocol message).
 Available in Postfix version 3.0 and later:
 .IP "\fBsmtpd_dns_reply_filter (empty)\fR"
 Optional filter for Postfix SMTP server DNS lookup results.
+.PP
+Available in Postfix version 3.6 and later:
+.IP "\fBsmtpd_relay_before_recipient_restrictions (see 'postconf -d' output)\fR"
+Evaluate smtpd_relay_restrictions before smtpd_recipient_restrictions.
+.IP "\fBknown_tcp_ports (lmtp=24, smtp=25, smtps=submissions=465, submission=587)\fR"
+Optional setting that avoids lookups in the \fBservices\fR(5) database.
 .SH "ADDRESS REWRITING CONTROLS"
 .na
 .nf
@@ -377,6 +383,11 @@ selected with \fBsmtpd_sasl_type\fR and \fBsmtpd_sasl_path\fR.
 Available in Postfix version 3.4 and later:
 .IP "\fBsmtpd_sasl_response_limit (12288)\fR"
 The maximum length of a SASL client's response to a server challenge.
+.PP
+Available in Postfix 3.6 and later:
+.IP "\fBsmtpd_sasl_mechanism_filter (!external, static:rest)\fR"
+If non\-empty, a filter for the SASL mechanism names that the
+Postfix SMTP server will announce in the EHLO response.
 .SH "STARTTLS SUPPORT CONTROLS"
 .na
 .nf
@@ -439,9 +450,9 @@ use with mandatory TLS encryption.
 .IP "\fBsmtpd_tls_mandatory_exclude_ciphers (empty)\fR"
 Additional list of ciphers or cipher types to exclude from the
 Postfix SMTP server cipher list at mandatory TLS security levels.
-.IP "\fBsmtpd_tls_mandatory_protocols (!SSLv2, !SSLv3)\fR"
-The SSL/TLS protocols accepted by the Postfix SMTP server with
-mandatory TLS encryption.
+.IP "\fBsmtpd_tls_mandatory_protocols (see 'postconf -d' output)\fR"
+TLS protocols accepted by the Postfix SMTP server with mandatory TLS
+encryption.
 .IP "\fBsmtpd_tls_received_header (no)\fR"
 Request that the Postfix SMTP server produces Received:  message
 headers that include information about the protocol and cipher used,
@@ -470,16 +481,15 @@ The OpenSSL cipherlist for "NULL" grade ciphers that provide
 authentication without encryption.
 .PP
 Available in Postfix version 2.5 and later:
-.IP "\fBsmtpd_tls_fingerprint_digest (md5)\fR"
-The message digest algorithm to construct remote SMTP
-client\-certificate
-fingerprints or public key fingerprints (Postfix 2.9 and later)
-for \fBcheck_ccert_access\fR and \fBpermit_tls_clientcerts\fR.
+.IP "\fBsmtpd_tls_fingerprint_digest (see 'postconf -d' output)\fR"
+The message digest algorithm to construct remote SMTP client\-certificate
+fingerprints or public key fingerprints (Postfix 2.9 and later) for
+\fBcheck_ccert_access\fR and \fBpermit_tls_clientcerts\fR.
 .PP
 Available in Postfix version 2.6 and later:
-.IP "\fBsmtpd_tls_protocols (!SSLv2, !SSLv3)\fR"
-List of TLS protocols that the Postfix SMTP server will exclude
-or include with opportunistic TLS encryption.
+.IP "\fBsmtpd_tls_protocols (see postconf -d output)\fR"
+TLS protocols accepted by the Postfix SMTP server with opportunistic
+TLS encryption.
 .IP "\fBsmtpd_tls_ciphers (medium)\fR"
 The minimum TLS cipher grade that the Postfix SMTP server
 will use with opportunistic TLS encryption.
@@ -611,12 +621,13 @@ Postfix mail system. The methods vary from making the software log
 a lot of detail, to running some daemon processes under control of
 a call tracer or debugger.
 .IP "\fBdebug_peer_level (2)\fR"
-The increment in verbose logging level when a remote client or
-server matches a pattern in the debug_peer_list parameter.
+The increment in verbose logging level when a nexthop destination,
+remote client or server name or network address matches a pattern
+given with the debug_peer_list parameter.
 .IP "\fBdebug_peer_list (empty)\fR"
-Optional list of remote client or server hostname or network
-address patterns that cause the verbose logging level to increase
-by the amount specified in $debug_peer_level.
+Optional list of nexthop destination, remote client or server
+name or network address patterns that, if matched, cause the verbose
+logging level to increase by the amount specified in $debug_peer_level.
 .IP "\fBerror_notice_recipient (postmaster)\fR"
 The recipient of postmaster notifications about mail delivery
 problems that are caused by policy, resource, software or protocol
@@ -677,7 +688,7 @@ mail on.
 .IP "\fBproxy_interfaces (empty)\fR"
 The network interface addresses that this mail system receives mail
 on by way of a proxy or network address translation unit.
-.IP "\fBinet_protocols (all)\fR"
+.IP "\fBinet_protocols (see 'postconf -d output')\fR"
 The Internet protocols Postfix will attempt to use when making
 or accepting connections.
 .IP "\fBlocal_recipient_maps (proxy:unix:passwd.byname $alias_maps)\fR"
@@ -1115,9 +1126,8 @@ The process name of a Postfix command or daemon process.
 .IP "\fBqueue_directory (see 'postconf -d' output)\fR"
 The location of the Postfix top\-level queue directory.
 .IP "\fBrecipient_delimiter (empty)\fR"
-The set of characters that can separate a user name from its
-extension (example: user+foo), or a .forward file name from its
-extension (example: .forward+foo).
+The set of characters that can separate an email address
+localpart, user name, or a .forward file name from its extension.
 .IP "\fBsmtpd_banner ($myhostname ESMTP $mail_name)\fR"
 The text that follows the 220 status code in the SMTP greeting
 banner.

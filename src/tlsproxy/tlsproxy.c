@@ -8,8 +8,8 @@
 /* DESCRIPTION
 /*	The \fBtlsproxy\fR(8) server implements a two-way TLS proxy. It
 /*	is used by the \fBpostscreen\fR(8) server to talk SMTP-over-TLS
-/*	with remote SMTP clients that are not whitelisted (including
-/*	clients whose whitelist status has expired), and by the
+/*	with remote SMTP clients that are not allowlisted (including
+/*	clients whose allowlist status has expired), and by the
 /*	\fBsmtp\fR(8) client to support TLS connection reuse, but it
 /*	should also work for non-SMTP protocols.
 /*
@@ -996,22 +996,7 @@ static int tlsp_client_start_pre_handshake(TLSP_STATE *state)
 {
     state->client_start_props->ctx = state->appl_state;
     state->client_start_props->fd = state->ciphertext_fd;
-    /* These predicates and warning belong inside tls_client_start(). */
-    if (!tls_dane_avail()			/* mandatory side effects!! */
-
-    /*
-     * Why not test for TLS_DANE_BASED()? Because the tlsproxy(8) client has
-     * already converted its DANE TLSA records into trust anchors, and
-     * therefore TLS_DANE_HASTA() will be true instead. That exercises the
-     * code path that updates the shared SSL_CTX with custom X.509
-     * verification callbacks for trust anchors.
-     */
-	&&TLS_DANE_HASTA(state->client_start_props->dane))
-	msg_warn("%s: DANE or local trust anchor based chain"
-		 " verification requested, but not available",
-		 state->client_start_props->namaddr);
-    else
-	state->tls_context = tls_client_start(state->client_start_props);
+    state->tls_context = tls_client_start(state->client_start_props);
     if (state->tls_context != 0)
 	return (TLSP_STAT_OK);
 
@@ -1080,7 +1065,7 @@ static int tlsp_server_start_pre_handshake(TLSP_STATE *state)
     /*
      * XXX Do we care about TLS session rate limits? Good postscreen(8)
      * clients will occasionally require the tlsproxy to renew their
-     * whitelist status, but bad clients hammering the server can suck up
+     * allowlist status, but bad clients hammering the server can suck up
      * lots of CPU cycles. Per-client concurrency limits in postscreen(8)
      * will divert only naive security "researchers".
      */
@@ -1203,8 +1188,7 @@ static void tlsp_log_config_diff(const char *server_cfg, const char *client_cfg)
 /* tlsp_client_init - initialize a TLS client engine */
 
 static TLS_APPL_STATE *tlsp_client_init(TLS_CLIENT_PARAMS *tls_params,
-				          TLS_CLIENT_INIT_PROPS *init_props,
-					        int dane_based)
+				          TLS_CLIENT_INIT_PROPS *init_props)
 {
     TLS_APPL_STATE *appl_state;
     VSTRING *param_buf;
@@ -1237,8 +1221,8 @@ static TLS_APPL_STATE *tlsp_client_init(TLS_CLIENT_PARAMS *tls_params,
     init_key = tls_proxy_client_init_with_names_to_string(
 						      init_buf, init_props);
     init_buf_for_hashing = vstring_alloc(100);
-    init_key_for_hashing = STR(vstring_sprintf(init_buf_for_hashing, "%s%d\n",
-					       init_key, dane_based));
+    init_key_for_hashing = STR(vstring_sprintf(init_buf_for_hashing, "%s\n",
+					       init_key));
     if (tlsp_pre_jail_done == 0) {
 	if (tlsp_pre_jail_client_param_key == 0
 	    || tlsp_pre_jail_client_init_key == 0) {
@@ -1435,16 +1419,7 @@ static void tlsp_get_request_event(int event, void *context)
 	    return;
 	}
 	state->appl_state = tlsp_client_init(state->tls_params,
-					     state->client_init_props,
-
-	/*
-	 * Why not test for TLS_DANE_BASED()? Because the tlsproxy(8) client
-	 * has already converted its DANE TLSA records into trust anchors,
-	 * and therefore TLS_DANE_HASTA() will be true instead. That
-	 * exercises the code path that updates the shared SSL_CTX with
-	 * custom X.509 verification callbacks for trust anchors.
-	 */
-		      TLS_DANE_HASTA(state->client_start_props->dane) != 0);
+					     state->client_init_props);
 	ready = state->appl_state != 0;
 	break;
     case TLS_PROXY_FLAG_ROLE_SERVER:
@@ -1505,6 +1480,12 @@ static void tlsp_service(VSTREAM *plaintext_stream,
 		    CA_VSTREAM_CTL_PATH("plaintext"),
 		    CA_VSTREAM_CTL_TIMEOUT(5),
 		    CA_VSTREAM_CTL_END);
+
+    (void) attr_print(plaintext_stream, ATTR_FLAG_NONE,
+		   SEND_ATTR_STR(MAIL_ATTR_PROTO, MAIL_ATTR_PROTO_TLSPROXY),
+		      ATTR_TYPE_END);
+    if (vstream_fflush(plaintext_stream) != 0)
+	msg_warn("write %s attribute: %m", MAIL_ATTR_PROTO);
 
     /*
      * Receive postscreen's remote SMTP client address/port and socket.
@@ -1731,7 +1712,6 @@ static void pre_jail_init_client(void)
     if (clnt_use_tls || var_tlsp_clnt_per_site[0] || var_tlsp_clnt_policy[0]) {
 	TLS_CLIENT_PARAMS tls_params;
 	TLS_CLIENT_INIT_PROPS init_props;
-	int     dane_based_mode;
 
 	tls_pre_jail_init(TLS_ROLE_CLIENT);
 
@@ -1758,11 +1738,8 @@ static void pre_jail_init_client(void)
 				    CAfile = var_tlsp_clnt_CAfile,
 				    CApath = var_tlsp_clnt_CApath,
 				    mdalg = var_tlsp_clnt_fpt_dgst);
-	for (dane_based_mode = 0; dane_based_mode < 2; dane_based_mode++) {
-	    if (tlsp_client_init(&tls_params, &init_props,
-				 dane_based_mode) == 0)
-		msg_warn("TLS client initialization failed");
-	}
+	if (tlsp_client_init(&tls_params, &init_props) == 0)
+	    msg_warn("TLS client initialization failed");
     }
 }
 

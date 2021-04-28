@@ -94,6 +94,8 @@
 #	utility is installed.
 # .IP \fB-DNO_POSIX_GETPW_R\fR
 #	Disable support for POSIX getpwnam_r/getpwuid_r.
+# .IP \fB-DNO_RES_NCALLS\fR
+#	Do not build with the threadsafe resolver(5) API (res_ninit() etc.).
 # .IP \fB-DNO_SIGSETJMP\fR
 #	Use setjmp()/longjmp() instead of sigsetjmp()/siglongjmp().
 #	By default, Postfix uses sigsetjmp()/siglongjmp() when they
@@ -290,6 +292,15 @@ case "$SYSTEM.$RELEASE" in
 		: ${PLUGIN_LD="${CC} -shared"}
 		;;
    FreeBSD.11*) SYSTYPE=FREEBSD11
+		: ${CC=cc}
+		: ${SHLIB_SUFFIX=.so}
+		: ${SHLIB_CFLAGS=-fPIC}
+		: ${SHLIB_LD="${CC} -shared"' -Wl,-soname,${LIB}'}
+		: ${SHLIB_RPATH='-Wl,-rpath,${SHLIB_DIR}'}
+		: ${SHLIB_ENV="LD_LIBRARY_PATH=`pwd`/lib"}
+		: ${PLUGIN_LD="${CC} -shared"}
+		;;
+   FreeBSD.12*) SYSTYPE=FREEBSD12
 		: ${CC=cc}
 		: ${SHLIB_SUFFIX=.so}
 		: ${SHLIB_CFLAGS=-fPIC}
@@ -1136,7 +1147,7 @@ esac
 : ${CC=gcc} ${OPT='-O'} ${DEBUG='-g'} ${AWK=awk} \
 ${WARN='-Wall -Wno-comment -Wformat -Wimplicit -Wmissing-prototypes \
 	-Wparentheses -Wstrict-prototypes -Wswitch -Wuninitialized \
-	-Wunused -Wno-missing-braces -fcommon'}
+	-Wunused -Wno-missing-braces -fno-common'}
 
 # Extract map type names from -DHAS_XXX compiler options.  We avoid
 # problems with tr(1) range syntax by using enumerations instead,

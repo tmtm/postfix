@@ -144,6 +144,12 @@
 /*	Available in Postfix version 3.0 and later:
 /* .IP "\fBsmtpd_dns_reply_filter (empty)\fR"
 /*	Optional filter for Postfix SMTP server DNS lookup results.
+/* .PP
+/*	Available in Postfix version 3.6 and later:
+/* .IP "\fBsmtpd_relay_before_recipient_restrictions (see 'postconf -d' output)\fR"
+/*	Evaluate smtpd_relay_restrictions before smtpd_recipient_restrictions.
+/* .IP "\fBknown_tcp_ports (lmtp=24, smtp=25, smtps=submissions=465, submission=587)\fR"
+/*	Optional setting that avoids lookups in the \fBservices\fR(5) database.
 /* ADDRESS REWRITING CONTROLS
 /* .ad
 /* .fi
@@ -345,6 +351,11 @@
 /*	Available in Postfix version 3.4 and later:
 /* .IP "\fBsmtpd_sasl_response_limit (12288)\fR"
 /*	The maximum length of a SASL client's response to a server challenge.
+/* .PP
+/*	Available in Postfix 3.6 and later:
+/* .IP "\fBsmtpd_sasl_mechanism_filter (!external, static:rest)\fR"
+/*	If non-empty, a filter for the SASL mechanism names that the
+/*	Postfix SMTP server will announce in the EHLO response.
 /* STARTTLS SUPPORT CONTROLS
 /* .ad
 /* .fi
@@ -405,9 +416,9 @@
 /* .IP "\fBsmtpd_tls_mandatory_exclude_ciphers (empty)\fR"
 /*	Additional list of ciphers or cipher types to exclude from the
 /*	Postfix SMTP server cipher list at mandatory TLS security levels.
-/* .IP "\fBsmtpd_tls_mandatory_protocols (!SSLv2, !SSLv3)\fR"
-/*	The SSL/TLS protocols accepted by the Postfix SMTP server with
-/*	mandatory TLS encryption.
+/* .IP "\fBsmtpd_tls_mandatory_protocols (see 'postconf -d' output)\fR"
+/*	TLS protocols accepted by the Postfix SMTP server with mandatory TLS
+/*	encryption.
 /* .IP "\fBsmtpd_tls_received_header (no)\fR"
 /*	Request that the Postfix SMTP server produces Received:  message
 /*	headers that include information about the protocol and cipher used,
@@ -436,16 +447,15 @@
 /*	authentication without encryption.
 /* .PP
 /*	Available in Postfix version 2.5 and later:
-/* .IP "\fBsmtpd_tls_fingerprint_digest (md5)\fR"
-/*	The message digest algorithm to construct remote SMTP
-/*	client-certificate
-/*	fingerprints or public key fingerprints (Postfix 2.9 and later)
-/*	for \fBcheck_ccert_access\fR and \fBpermit_tls_clientcerts\fR.
+/* .IP "\fBsmtpd_tls_fingerprint_digest (see 'postconf -d' output)\fR"
+/*	The message digest algorithm to construct remote SMTP client-certificate
+/*	fingerprints or public key fingerprints (Postfix 2.9 and later) for
+/*	\fBcheck_ccert_access\fR and \fBpermit_tls_clientcerts\fR.
 /* .PP
 /*	Available in Postfix version 2.6 and later:
-/* .IP "\fBsmtpd_tls_protocols (!SSLv2, !SSLv3)\fR"
-/*	List of TLS protocols that the Postfix SMTP server will exclude
-/*	or include with opportunistic TLS encryption.
+/* .IP "\fBsmtpd_tls_protocols (see postconf -d output)\fR"
+/*	TLS protocols accepted by the Postfix SMTP server with opportunistic
+/*	TLS encryption.
 /* .IP "\fBsmtpd_tls_ciphers (medium)\fR"
 /*	The minimum TLS cipher grade that the Postfix SMTP server
 /*	will use with opportunistic TLS encryption.
@@ -569,12 +579,13 @@
 /*	a lot of detail, to running some daemon processes under control of
 /*	a call tracer or debugger.
 /* .IP "\fBdebug_peer_level (2)\fR"
-/*	The increment in verbose logging level when a remote client or
-/*	server matches a pattern in the debug_peer_list parameter.
+/*	The increment in verbose logging level when a nexthop destination,
+/*	remote client or server name or network address matches a pattern
+/*	given with the debug_peer_list parameter.
 /* .IP "\fBdebug_peer_list (empty)\fR"
-/*	Optional list of remote client or server hostname or network
-/*	address patterns that cause the verbose logging level to increase
-/*	by the amount specified in $debug_peer_level.
+/*	Optional list of nexthop destination, remote client or server
+/*	name or network address patterns that, if matched, cause the verbose
+/*	logging level to increase by the amount specified in $debug_peer_level.
 /* .IP "\fBerror_notice_recipient (postmaster)\fR"
 /*	The recipient of postmaster notifications about mail delivery
 /*	problems that are caused by policy, resource, software or protocol
@@ -633,7 +644,7 @@
 /* .IP "\fBproxy_interfaces (empty)\fR"
 /*	The network interface addresses that this mail system receives mail
 /*	on by way of a proxy or network address translation unit.
-/* .IP "\fBinet_protocols (all)\fR"
+/* .IP "\fBinet_protocols (see 'postconf -d output')\fR"
 /*	The Internet protocols Postfix will attempt to use when making
 /*	or accepting connections.
 /* .IP "\fBlocal_recipient_maps (proxy:unix:passwd.byname $alias_maps)\fR"
@@ -1057,9 +1068,8 @@
 /* .IP "\fBqueue_directory (see 'postconf -d' output)\fR"
 /*	The location of the Postfix top-level queue directory.
 /* .IP "\fBrecipient_delimiter (empty)\fR"
-/*	The set of characters that can separate a user name from its
-/*	extension (example: user+foo), or a .forward file name from its
-/*	extension (example: .forward+foo).
+/*	The set of characters that can separate an email address
+/*	localpart, user name, or a .forward file name from its extension.
 /* .IP "\fBsmtpd_banner ($myhostname ESMTP $mail_name)\fR"
 /*	The text that follows the 220 status code in the SMTP greeting
 /*	banner.
@@ -1316,6 +1326,7 @@ char   *var_smtpd_sasl_realm;
 int     var_smtpd_sasl_resp_limit;
 char   *var_smtpd_sasl_exceptions_networks;
 char   *var_smtpd_sasl_type;
+char   *var_smtpd_sasl_mech_filter;
 char   *var_filter_xport;
 bool    var_broken_auth_clients;
 char   *var_perm_mx_networks;
@@ -1453,6 +1464,7 @@ char   *var_tlsproxy_service;
 
 char   *var_smtpd_uproxy_proto;
 int     var_smtpd_uproxy_tmout;
+bool    var_relay_before_rcpt_checks;
 
  /*
   * Silly little macros.
@@ -6025,7 +6037,7 @@ static void pre_jail_init(char *unused_name, char **unused_argv)
 {
 
     /*
-     * Initialize blacklist/etc. patterns before entering the chroot jail, in
+     * Initialize denylist/etc. patterns before entering the chroot jail, in
      * case they specify a filename pattern.
      */
     smtpd_noop_cmds = string_list_init(VAR_SMTPD_NOOP_CMDS, MATCH_FLAG_RETURN,
@@ -6403,6 +6415,7 @@ int     main(int argc, char **argv)
     };
     static const CONFIG_NBOOL_TABLE nbool_table[] = {
 	VAR_SMTPD_REC_DEADLINE, DEF_SMTPD_REC_DEADLINE, &var_smtpd_rec_deadline,
+	VAR_RELAY_BEFORE_RCPT_CHECKS, DEF_RELAY_BEFORE_RCPT_CHECKS, &var_relay_before_rcpt_checks,
 	0,
     };
     static const CONFIG_STR_TABLE str_table[] = {
@@ -6478,6 +6491,7 @@ int     main(int argc, char **argv)
 #endif
 	VAR_SMTPD_TLS_LEVEL, DEF_SMTPD_TLS_LEVEL, &var_smtpd_tls_level, 0, 0,
 	VAR_SMTPD_SASL_TYPE, DEF_SMTPD_SASL_TYPE, &var_smtpd_sasl_type, 1, 0,
+	VAR_SMTPD_SASL_MECH_FILTER, DEF_SMTPD_SASL_MECH_FILTER, &var_smtpd_sasl_mech_filter, 0, 0,
 	VAR_SMTPD_MILTERS, DEF_SMTPD_MILTERS, &var_smtpd_milters, 0, 0,
 	VAR_MILT_CONN_MACROS, DEF_MILT_CONN_MACROS, &var_milt_conn_macros, 0, 0,
 	VAR_MILT_HELO_MACROS, DEF_MILT_HELO_MACROS, &var_milt_helo_macros, 0, 0,

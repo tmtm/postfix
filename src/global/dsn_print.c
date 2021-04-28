@@ -7,7 +7,7 @@
 /*	#include <dsn_print.h>
 /*
 /*	int	dsn_print(print_fn, stream, flags, ptr)
-/*	ATTR_PRINT_MASTER_FN print_fn;
+/*	ATTR_PRINT_COMMON_FN print_fn;
 /*	VSTREAM *stream;
 /*	int	flags;
 /*	void	*ptr;
@@ -28,6 +28,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -45,7 +50,7 @@
 
 /* dsn_print - write DSN to stream */
 
-int     dsn_print(ATTR_PRINT_MASTER_FN print_fn, VSTREAM *fp,
+int     dsn_print(ATTR_PRINT_COMMON_FN print_fn, VSTREAM *fp,
 		          int flags, void *ptr)
 {
     DSN    *dsn = (DSN *) ptr;

@@ -259,7 +259,6 @@ char   *var_virt_alias_doms;
 char   *var_virt_mailbox_maps;
 char   *var_virt_mailbox_doms;
 char   *var_relay_rcpt_maps;
-char   *var_relay_domains;
 char   *var_canonical_maps;
 char   *var_send_canon_maps;
 char   *var_rcpt_canon_maps;
@@ -720,7 +719,7 @@ static void post_jail_init(char *service_name, char **unused_argv)
 	    && htable_locate(proxy_auth_maps, type_name) == 0) {
 	    (void) htable_enter(proxy_auth_maps, type_name, (void *) 0);
 	    if (msg_verbose)
-		msg_info("whitelisting %s from %s", type_name,
+		msg_info("allowlisting %s from %s", type_name,
 			 PROXY_MAP_PARAM_NAME(proxy_writer));
 	}
     }
@@ -746,6 +745,21 @@ static void pre_accept(char *unused_name, char **unused_argv)
     }
 }
 
+/* post_accept - anounce our protocol name */
+
+static void post_accept(VSTREAM *stream, char *unused_name, char **unused_argv,
+			        HTABLE *unused_attr)
+{
+
+    /*
+     * Announce the protocol.
+     */
+    attr_print(stream, ATTR_FLAG_NONE,
+	       SEND_ATTR_STR(MAIL_ATTR_PROTO, MAIL_ATTR_PROTO_PROXYMAP),
+	       ATTR_TYPE_END);
+    (void) vstream_fflush(stream);
+}
+
 MAIL_VERSION_STAMP_DECLARE;
 
 /* main - pass control to the multi-threaded skeleton */
@@ -760,7 +774,6 @@ int     main(int argc, char **argv)
 	VAR_VIRT_MAILBOX_MAPS, DEF_VIRT_MAILBOX_MAPS, &var_virt_mailbox_maps, 0, 0,
 	VAR_VIRT_MAILBOX_DOMS, DEF_VIRT_MAILBOX_DOMS, &var_virt_mailbox_doms, 0, 0,
 	VAR_RELAY_RCPT_MAPS, DEF_RELAY_RCPT_MAPS, &var_relay_rcpt_maps, 0, 0,
-	VAR_RELAY_DOMAINS, DEF_RELAY_DOMAINS, &var_relay_domains, 0, 0,
 	VAR_CANONICAL_MAPS, DEF_CANONICAL_MAPS, &var_canonical_maps, 0, 0,
 	VAR_SEND_CANON_MAPS, DEF_SEND_CANON_MAPS, &var_send_canon_maps, 0, 0,
 	VAR_RCPT_CANON_MAPS, DEF_RCPT_CANON_MAPS, &var_rcpt_canon_maps, 0, 0,
@@ -784,6 +797,7 @@ int     main(int argc, char **argv)
 		      CA_MAIL_SERVER_STR_TABLE(str_table),
 		      CA_MAIL_SERVER_POST_INIT(post_jail_init),
 		      CA_MAIL_SERVER_PRE_ACCEPT(pre_accept),
+		      CA_MAIL_SERVER_POST_ACCEPT(post_accept),
     /* XXX CA_MAIL_SERVER_SOLITARY if proxywrite */
 		      0);
 }

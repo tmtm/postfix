@@ -27,10 +27,10 @@ typedef struct {
   * of a global variable.
   */
 #define inet_proto_info() \
-    (inet_proto_table ? inet_proto_table : \
+    (inet_proto_table ? (const INET_PROTO_INFO*) inet_proto_table : \
 	inet_proto_init("default protocol setting", DEF_INET_PROTOCOLS))
 
-extern INET_PROTO_INFO *inet_proto_init(const char *, const char *);
+extern const INET_PROTO_INFO *inet_proto_init(const char *, const char *);
 extern INET_PROTO_INFO *inet_proto_table;
 
 #define INET_PROTO_NAME_IPV6	"ipv6"
@@ -46,6 +46,11 @@ extern INET_PROTO_INFO *inet_proto_table;
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 #endif

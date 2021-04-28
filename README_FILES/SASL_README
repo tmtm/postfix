@@ -1058,9 +1058,9 @@ username/password information.
     standard "AUTH=mmeetthhoodd....." syntax in response to the EHLO command; this
     requires no additional Postfix client configuration.
 
-  * The Postfix SMTP client does not support the obsolete "wrappermode"
-    protocol, which uses TCP port 465 on the SMTP server. See TLS_README for a
-    solution that uses the stunnel command.
+  * With the setting "smtp_tls_wrappermode = yes", the Postfix SMTP client
+    supports the "wrappermode" protocol, which uses TCP port 465 on the SMTP
+    server (Postfix 3.0 and later).
 
   * With the smtp_sasl_password_maps parameter, we configure the Postfix SMTP
     client to send username and password information to the mail gateway
@@ -1313,7 +1313,7 @@ BBuuiillddiinngg CCyyrruuss SSAASSLL ssuuppppoorrtt
 BBuuiillddiinngg tthhee CCyyrruuss SSAASSLL lliibbrraarryy
 
 Postfix works with cyrus-sasl-1.5.x or cyrus-sasl-2.1.x, which are available
-from ftp://ftp.andrew.cmu.edu/pub/cyrus-mail/.
+from https://github.com/cyrusimap/cyrus-sasl/releases.
 
     IImmppoorrttaanntt
 
@@ -1343,6 +1343,10 @@ Cyrus SASL version 2.1.x
     % mmaakkee ttiiddyy # if you have left-over files from a previous build
     % mmaakkee mmaakkeeffiilleess CCCCAARRGGSS==""--DDUUSSEE__SSAASSLL__AAUUTTHH --DDUUSSEE__CCYYRRUUSS__SSAASSLL \\
         --II//uussrr//llooccaall//iinncclluuddee//ssaassll"" AAUUXXLLIIBBSS==""--LL//uussrr//llooccaall//lliibb --llssaassll22""
+
+    If your Cyrus SASL shared library is in a directory that the RUN-TIME
+    linker does not know about, add a "-Wl,-R,/path/to/directory" option after
+    "-lsasl2".
 
 Cyrus SASL version 1.5.x
 

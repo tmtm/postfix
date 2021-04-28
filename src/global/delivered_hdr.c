@@ -67,6 +67,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -144,7 +149,7 @@ DELIVERED_HDR_INFO *delivered_hdr_init(VSTREAM *fp, off_t offset, int flags)
 	 && ((curr_type = rec_get(fp, info->buf, 0)) == REC_TYPE_NORM
 	     || curr_type == REC_TYPE_CONT);
 	 prev_type = curr_type) {
-	if (prev_type != REC_TYPE_NORM)
+	if (prev_type == REC_TYPE_CONT)
 	    continue;
 	if (is_header(STR(info->buf))) {
 	    if ((hdr = header_opts_find(STR(info->buf))) != 0
@@ -193,3 +198,69 @@ void    delivered_hdr_free(DELIVERED_HDR_INFO *info)
     htable_free(info->table, (void (*) (void *)) 0);
     myfree((void *) info);
 }
+
+#ifdef TEST
+
+#include <msg_vstream.h>
+#include <mail_params.h>
+
+char   *var_drop_hdrs;
+
+int     main(int arc, char **argv)
+{
+
+    /*
+     * We write test records to a VSTRING, then read with delivered_hdr_init.
+     */
+    VSTRING *mem_bp;
+    VSTREAM *mem_fp;
+    DELIVERED_HDR_INFO *dp;
+    struct test_case {
+	int     rec_type;
+	const char *content;
+	int     expect_find;
+    };
+    const struct test_case test_cases[] = {
+	REC_TYPE_CONT, "Delivered-To: one", 1,
+	REC_TYPE_NORM, "Delivered-To: two", 0,
+	REC_TYPE_NORM, "Delivered-To: three", 1,
+	0,
+    };
+    const struct test_case *tp;
+    int     actual_find;
+    int     errors;
+
+    msg_vstream_init(argv[0], VSTREAM_ERR);
+
+    var_drop_hdrs = mystrdup(DEF_DROP_HDRS);
+
+    mem_bp = vstring_alloc(VSTREAM_BUFSIZE);
+    if ((mem_fp = vstream_memopen(mem_bp, O_WRONLY)) == 0)
+	msg_panic("vstream_memopen O_WRONLY failed: %m");
+
+#define REC_PUT_LIT(fp, type, lit) rec_put((fp), (type), (lit), strlen(lit))
+
+    for (tp = test_cases; tp->content != 0; tp++)
+	REC_PUT_LIT(mem_fp, tp->rec_type, tp->content);
+
+    if (vstream_fclose(mem_fp))
+	msg_panic("vstream_fclose fail: %m");
+
+    if ((mem_fp = vstream_memopen(mem_bp, O_RDONLY)) == 0)
+	msg_panic("vstream_memopen O_RDONLY failed: %m");
+
+    dp = delivered_hdr_init(mem_fp, 0, FOLD_ADDR_ALL);
+
+    for (errors = 0, tp = test_cases; tp->content != 0; tp++) {
+	actual_find =
+	    delivered_hdr_find(dp, tp->content + sizeof("Delivered-To:"));
+	msg_info("test case: %c >%s<: %s (expected: %s)",
+		 tp->rec_type, tp->content,
+		 actual_find == tp->expect_find ? "PASS" : "FAIL",
+		 tp->expect_find ? "MATCH" : "NO MATCH");
+	errors += (actual_find != tp->expect_find);;
+    }
+    exit(errors);
+}
+
+#endif

@@ -36,6 +36,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -44,7 +49,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <stdio.h>			/* strerror() */
 #include <errno.h>
 #include <netdb.h>
 #include <string.h>
@@ -77,7 +81,7 @@ void    qmqpd_peer_init(QMQPD_STATE *state)
     struct sockaddr_storage ss;
     struct sockaddr *sa;
     SOCKADDR_SIZE sa_length;
-    INET_PROTO_INFO *proto_info = inet_proto_info();
+    const INET_PROTO_INFO *proto_info = inet_proto_info();
 
     sa = (struct sockaddr *) &ss;
     sa_length = sizeof(ss);

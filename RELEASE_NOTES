@@ -1,19 +1,19 @@
-This is the Postfix 3.5 (stable) release.
+This is the Postfix 3.6 (stable) release.
 
-The stable Postfix release is called postfix-3.5.x where 3=major
-release number, 5=minor release number, x=patchlevel.  The stable
+The stable Postfix release is called postfix-3.6.x where 3=major
+release number, 6=minor release number, x=patchlevel. The stable
 release never changes except for patches that address bugs or
 emergencies. Patches change the patchlevel and the release date.
 
 New features are developed in snapshot releases. These are called
-postfix-3.6-yyyymmdd where yyyymmdd is the release date (yyyy=year,
-mm=month, dd=day).  Patches are never issued for snapshot releases;
+postfix-3.7-yyyymmdd where yyyymmdd is the release date (yyyy=year,
+mm=month, dd=day). Patches are never issued for snapshot releases;
 instead, a new snapshot is released.
 
 The mail_release_date configuration parameter (format: yyyymmdd)
 specifies the release date of a stable release or snapshot release.
 
-If you upgrade from Postfix 3.3 or earlier, read RELEASE_NOTES-3.4
+If you upgrade from Postfix 3.4 or earlier, read RELEASE_NOTES-3.5
 before proceeding.
 
 License change
@@ -25,182 +25,253 @@ more recent Eclipse Public License 2.0. Recipients can choose to take
 the software under the license of their choice. Those who are more
 comfortable with the IPL can continue with that license.
 
-Runtime detection of DNSSEC support
+Major changes - internal protocol identification
+------------------------------------------------
+
+[Incompat 20200920] Internal protocols have changed. You need to
+"postfix stop" before updating, or before backing out to an earlier
+release, otherwise long-running daemons (pickup, qmgr, verify, tlsproxy,
+postscreen) may fail to communicate with the rest of Postfix, causing
+mail delivery delays until Postfix is restarted.
+
+This change does not affect message files in Postfix queue directories,
+only the communication between running Postfix programs.
+
+With this change, every Postfix internal service, including the postdrop
+command, announces the name of its protocol before doing any other I/O.
+Every Postfix client program, including the Postfix sendmail command,
+will verify that the protocol name matches what it is supposed to be.
+
+The purpose of this change is to produce better error messages, for
+example, when someone configures the discard daemon as a bounce
+service in master.cf, or vice versa.
+
+This change may break third-party programs that implement a
+Postfix-internal protocol such as qpsmtpd. Such programs have never
+been supported. Fortunately, this will be an easy fix: look at the
+first data from the cleanup daemon: if it is a protocol announcement,
+you're talking to Postfix 3.6 or later. That's the only real change.
+
+Major changes - tls
+-------------------
+
+[Incompat 20200705] The minimum supported OpenSSL version is 1.1.1,
+which will reach the end of life by 2023-09-11. Postfix 3.6 is
+expected to reach the end of support in 2025. Until then, Postfix
+will be updated as needed for compatibility with OpenSSL.
+
+The default fingerprint digest has changed from md5 to sha256 (Postfix
+3.6 with compatibility_level >= 3.6). With a lower compatibility_level
+setting, Postfix defaults to using md5, and logs a warning when a Postfix
+configuration specifies no explicit digest type.
+
+Export-grade Diffie-Hellman key exchange is no longer supported,
+and the tlsproxy_tls_dh512_param_file parameter is ignored,
+
+[Feature 20200906] The tlstype.pl helper script by Viktor Dukhovni
+reports TLS information per message delivery. This processes output
+from the collate.pl script. See auxiliary/collate/README.tlstype and
+auxiliary/collate/tlstype.pl.
+
+Major changes - compatibility level
 -----------------------------------
 
-The Postfix build system will no longer automatically disable DNSSEC
-support when it determines that Postfix will use libc-musl. This removes
-the earlier libc-musl workaround for Postfix 3.2.15, 3.3.10, 3.4.12,
-and 3.5.2.
+[Feature 20210109] Starting with Postfix version 3.6, the compatibility
+level is "3.6". In future Postfix releases, the compatibility level will
+be the Postfix version that introduced the last incompatible change. The
+level is formatted as 'major.minor.patch', where 'patch' is usually
+omitted and defaults to zero. Earlier compatibility levels are 0, 1 and 2.
 
-Now, when a Postfix process requests DNSSEC support (typically, for
-Postfix DANE support), the process may do a runtime test to determine if
-DNSSEC validation is available. DNSSEC support may be broken because of
-local configuration, libc incompatibility, or other infrastructure issues.
+This also introduces main.cf and master.cf support for the <=level,
+<level, and other operators to compare compatibility levels. With the
+standard <=, <, etc. operators, compatibility level 3.10 would be less
+than 3.9, which is undesirable.
 
-Background: DNSSEC validation is needed for Postfix DANE support;
-this ensures that Postfix receives TLSA records with secure TLS
-server certificate info. When DNSSEC validation is unavailable,
-mail deliveries using opportunistic DANE will not be protected by
-server certificate info in TLSA records, and mail deliveries using
-mandatory DANE will not be made at all.
+Major changes - services(5) override
+------------------------------------
 
-The dnssec_probe parameter specifies the DNS query type (default:
-"ns") and DNS query name (default: ".") that Postfix may use to
-determine whether DNSSEC validation is available. Specify an empty
-value to disable this feature.
+[Feature 20210418] Postfix no longer uses the services(5) database
+to look up the TCP ports for SMTP and LMTP services. Instead, this
+information is configured with the new known_tcp_ports configuration
+parameter (default: lmtp=24, smtp=25, smtps=submissions=465,
+submission=587). When a service is not specified in known_tcp_ports,
+Postfix will still query the services(5) database.
 
-By default, a Postfix process will send a DNSSEC probe after 1) the
-process made a DNS query that requested DNSSEC validation, 2) the
-process did not receive a DNSSEC validated response to this query
-or to an earlier query, and 3) the process did not already send a
-DNSSEC probe.
+Major changes - local_login_sender_maps
+---------------------------------------
 
-When the DNSSEC probe has no response, or when the response is not
-DNSSEC validated, Postfix logs a warning that DNSSEC validation may
-be unavailable. Examples:
+[Feature 20201025] Fine-grained control over the envelope sender address
+for submission with the Postfix sendmail (or postdrop) commands.
 
-warning: DNSSEC validation may be unavailable
-warning: reason: dnssec_probe 'ns:.' received a response that is not DNSSEC validated
-warning: reason: dnssec_probe 'ns:.' received no response: Server failure
+The local_login_sender_maps parameter (default: static:*) specifies
+a list of lookup tables that are searched by the UNIX login name, and
+that return a list of allowed envelope sender patterns separated by
+space or comma. The default is backwards-compatible: every user may
+specify any sender envelope address.
 
-This feature was backported from Postfix 3.6.
+This feature is enforced by the postdrop command. When no UNIX login
+name is available, the postdrop command will prepend "uid:" to the
+numerical UID and use that instead.
 
-libc-musl workaround for Postfix 3.2.15, 3.3.10, 3.4.12, and 3.5.2
-------------------------------------------------------------------
- 
-Security: this release disables DANE support on Linux systems with
-libc-musl, because libc-musl provides no indication whether DNS
-responses are authentic. This broke DANE support without a clear
-explanation.
+This feature ignores address extensions in the user-specified
+envelope sender address.
 
-Major changes - multiple relayhost in SMTP
-------------------------------------------
+Besides the special pattern "*" which allows any sender address,
+there are "<>" which matches an empty sender address, and the
+"@domain" wildcard pattern. More information about those can be found
+in the postconf(5) manpage.
 
-[Feature 20200111] the Postfix SMTP and LMTP client support a list
-of nexthop destinations separated by comma or whitespace. These
-destinations will be tried in the specified order.
+Example:
 
-The list form can be specified in relayhost, transport_maps,
-default_transport, and sender_dependent_default_transport_maps.
-
-Examples:
 /etc/postfix/main.cf:
-    relayhost = foo.example, bar.example
-    default_transport = smtp:foo.example, bar.example.
+    # Allow root and postfix full control, anyone else can only
+    # send mail as themselves. Use "uid:" followed by the numerical
+    # UID when the UID has no entry in the UNIX password file.
+    local_login_sender_maps =
+        inline:{ { root = *}, { postfix = * } },
+        pcre:/etc/postfix/login_senders
 
-NOTE: this is an SMTP and LMTP client feature. It does not work for
-other Postfix delivery agents.
+/etc/postfix/login_senders:
+   # Allow both the bare username and the user@domain forms.
+    /(.+)/ $1 $1@example.com
 
-Major changes - certificate access
+Major changes - order of relay and recipient restrictions
+---------------------------------------------------------
+
+[Incompat 20210131] With smtpd_relay_before_recipient_restrictions=yes,
+the Postfix SMTP server will evaluate smtpd_relay_restrictions before
+smtpd_recipient_restrictions. This is the default behavior with
+compatibility_level >= 3.6.
+
+This change makes the implemented behavior consistent with existing
+documentation. There is a backwards-compatibility warning that allows
+users to freeze historical behavior. See COMPATIBILITY_README for
+details.
+
+Major changes - respectful logging
 ----------------------------------
 
-[Feature 20190517] Search order support for check_ccert_access.
-Search order support for other tables is in design (canonical_maps,
-virtual_alias_maps, transport_maps, etc.).
+[Feature 20210220] Postfix version 3.6 deprecates terminology
+that implies white is better than black. Instead, Postfix prefers
+'allowlist', 'denylist', and variations on those words. This change
+affects Postfix documentation, and postscreen parameters and logging.
 
-The following check_ccert_access setting uses the built-in search
-order: it first looks up the client certificate fingerprint, then
-the client certificate public-key fingerprint, and it stops when a
-decision is made.
+To keep the old postscreen logging set "respectful_logging = no"
+in main.cf.
 
-/etc/postfix/main.cf:
-    smtpd_mumble_restrictions =
-        ...
-        check_ccert_access hash:/etc/postfix/ccert-access
-        ...
+Noel Jones assisted with the initial transition.
 
-The following setting, with explicit search order, produces the
-exact same result:
+Changes in documentation
+------------------------
 
-/etc/postfix/main.cf:
-    smtpd_mumble_restrictions =
-        ...
-        check_ccert_access {
-            hash:/etc/postfix/ccert-access {
-                search_order = cert_fingerprint, pubkey_fingerprint } }
-        ...
+Postfix documentation was updated to use 'allowlist', 'denylist', etc.
+These documentation changes do not affect Postfix behavior.
 
-Support is planned for other certificate features.
+Changes in parameter names
+--------------------------
 
-Major changes - dovecot usability
----------------------------------
+The following postscreen parameters replace names that contain 'blacklist'
+or 'whitelist':
 
-[Feature 20190615] The SMTP+LMTP delivery agent can now prepend
-Delivered-To, X-Original-To and Return-Path headers, just like the
-pipe(8) and local(8) delivery agents. 
+    postscreen_allowlist_interfaces
+    postscreen_denylist_action
+    postscreen_dnsbl_allowlist_threshold
 
-This uses the "flags=DORX" command-line flags in master.cf. See the
-smtp(8) manpage for details.
+These new parameters have backwards-compatible default settings
+that support the old parameter names, so that the name change should
+not affect Postfix behavior. This means that existing management tools
+that use the old parameter names should keep working as before.
 
-This obsoletes the "lmtp_assume_final = yes" setting, and replaces
-it with "flags=...X...", for consistency with the pipe(8) delivery
-agent.
+This compatibility safety net may break when some management tools
+use the new parameter names, and some use the old names, such that
+different tools will disagree on how Postfix works.
 
-Major changes - forced expiration
----------------------------------
+Changes in logging
+------------------
 
-[Feature 20200202] Support to force-expire email messages. This
-introduces new postsuper(1) command-line options to request expiration,
-and additional information in mailq(1) or postqueue(1) output.
+The following logging replaces forms that contain 'blacklist' or
+'whitelist':
 
-The forced-to-expire status is stored in a queue file attribute.
-An expired message is returned to the sender when the queue manager
-attempts to deliver that message (note that Postfix will never
-deliver messages in the hold queue).
+    postfix/postscreen[pid]: ALLOWLIST VETO [address]:port
+    postfix/postscreen[pid]: ALLOWLISTED [address]:port
+    postfix/postscreen[pid]: DENYLISTED [address]:port
 
-The postsuper(1) -e and -f options both set the forced-to-expire
-queue file attribute. The difference is that -f will also release
-a message if it is in the hold queue. With -e, such a message would
-not be returned to the sender until it is released with -f or -H.
+To avoid breaking logfile analysis tools, Postfix keeps logging the old
+forms by default, as long as the compatibility_level parameter setting
+is less than 3.6, and the respectful_logging parameter is not explicitly
+configured. As a reminder, Postfix will log the following:
 
-In the mailq(1) or postqueue(1) -p output, a forced-to-expire message
-is indicated with # after the queue file name. In postqueue(1) JSON
-output, there is a new per-message field "forced_expire" (with value
-true or false) that shows the forced-to-expire status.
+    postfix/postscreen[pid]: Using backwards-compatible default setting
+        respectful_logging=no for client [address]:port
 
-Major changes - haproxy2 protocol
----------------------------------
+To keep logging the old form, make the setting "respectful_logging =
+no" permanent in main.cf, for example:
 
-[Feature 20200112] Support for the haproxy v2 protocol. The Postfix
-implementation supports TCP over IPv4 and IPv6, as well as non-proxied
-connections; the latter are typically used for heartbeat tests.
+    # postconf "respectful_logging = no"
+    # postfix reload
 
-The haproxy v2 protocol introduces no additional Postfix configuration.
-The Postfix smtpd(8) and postscreen(8) daemons accept both v1 and
-v2 protocol versions.
+To stop the reminder, configure the respectful_logging parameter to
+"yes" or "no", or configure "compatibility_level = 3.6".
 
-Major changes - logging
------------------------
+Major changes - threaded bounces
+--------------------------------
 
-[Incompat 20191109] Postfix daemon processes now log the from= and
-to= addresses in external (quoted) form in non-debug logging (info,
-warning, etc.).  This means that when an address localpart contains
-spaces or other special characters, the localpart will be quoted,
-for example:
+[Feature 20201205] Support for threaded bounces. This allows mail
+readers to present a non-delivery, delayed delivery, or successful
+delivery notification in the same email thread as the original
+message.
 
-    from=<"name with spaces"@example.com>
+Unfortunately, this also makes it easy for users to mistakenly delete
+the whole email thread (all related messages), instead of deleting
+only the delivery status notification.
 
-Older Postfix versions would log the internal (unquoted) form:
+To enable, specify "enable_threaded_bounces = yes".
 
-    from=<name with spaces@example.com>
+Other changes - smtpd_sasl_mechanism_list
+-----------------------------------------
 
-The external and internal forms are identical for the vast majority
-of email addresses that contain no spaces or other special characters
-in the localpart.
+[Feature 20200906] The smtpd_sasl_mechanism_list parameter (default:
+!external, static:rest) prevents confusing errors when a SASL backend
+announces EXTERNAL support which Postfix does not support.
 
-Specify "info_log_address_format = internal" for backwards
-compatibility.
+Other changes - delivery logging
+--------------------------------
 
-The logging in external form is consistent with the address form
-that Postfix 3.2 and later prefer for table lookups. It is therefore
-the more useful form for non-debug logging.
+[Incompat 20200531] Postfix delivery agents now log an explicit record
+when delegating delivery to a different Postfix delivery agent.
 
-Major changes - IP address normalization
-----------------------------------------
+For example, with "best_mx_transport = local", an SMTP delivery
+agent will now log when a recipient will be delivered locally. This
+makes the delegating delivery agent visible, where it would otherwise
+have remained invisible, which would complicate troubleshooting.
 
-[Incompat 20190427] Postfix now normalizes IP addresses received
-with XCLIENT, XFORWARD, or with the HaProxy protocol, for consistency
-with direct connections to Postfix. This may change the appearance
-of logging, and the way that check_client_access will match subnets
-of an IPv6 address.
+  postfix/smtp[pid]: queueid: passing <recipient> to transport=local
+
+This will usually be followed by logging for an actual delivery:
+
+  postfix/local[pid]: queueid: to=<recipient>, relay=local, ...
+
+Other examples: the local delivery agent will log a record that it
+defers mailbox delivery through mailbox_transport or through
+fallback_transport.
+
+Other changes - error logging
+-----------------------------
+
+[Incompat 20200531] Postfix programs will now log "Application error"
+instead of "Success" or "Unknown error: 0" when an operation fails with
+errno == 0, i.e., the error originates from non-kernel code.
+
+Other changes - dns lookups
+---------------------------
+
+[Feature 20200509] The threadsafe resolver API (res_nxxx() calls)
+is now the default, not because the API is threadsafe, but because
+this is the API where new features are being added.
+
+To build old style, build with:
+
+    make makefiles CCARGS="-DNO_RES_NCALLS..."
+
+This is the default for systems that are known not to support the
+threadsafe resolver API.

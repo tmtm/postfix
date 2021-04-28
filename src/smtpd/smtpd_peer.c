@@ -125,7 +125,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <stdio.h>			/* strerror() */
 #include <errno.h>
 #include <netdb.h>
 #include <string.h>
@@ -152,7 +151,7 @@
 
 #include "smtpd.h"
 
-static INET_PROTO_INFO *proto_info;
+static const INET_PROTO_INFO *proto_info;
 
  /*
   * XXX If we make local port information available via logging, then we must

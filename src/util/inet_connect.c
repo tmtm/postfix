@@ -45,6 +45,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System interfaces. */
@@ -85,7 +90,7 @@ int     inet_connect(const char *addr, int block_mode, int timeout)
     int     aierr;
     int     sock;
     MAI_HOSTADDR_STR hostaddr;
-    INET_PROTO_INFO *proto_info;
+    const INET_PROTO_INFO *proto_info;
     int     found;
 
     /*

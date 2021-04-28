@@ -166,14 +166,7 @@ static const char server_session_id_context[] = "Postfix/TLS";
 
 #define GET_SID(s, v, lptr)	((v) = SSL_SESSION_get_id((s), (lptr)))
 
- /* OpenSSL 1.1.0 bitrot */
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 typedef const unsigned char *session_id_t;
-
-#else
-typedef unsigned char *session_id_t;
-
-#endif
 
 /* get_server_session_cb - callback to retrieve session from server cache */
 
@@ -349,6 +342,8 @@ TLS_APPL_STATE *tls_server_init(const TLS_SERVER_INIT_PROPS *props)
     int     scache_timeout;
     int     ticketable = 0;
     int     protomask;
+    int     min_proto;
+    int     max_proto;
     TLS_APPL_STATE *app_ctx;
     int     log_mask;
 
@@ -370,21 +365,10 @@ TLS_APPL_STATE *tls_server_init(const TLS_SERVER_INIT_PROPS *props)
      */
     tls_check_version();
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-
-    /*
-     * Initialize the OpenSSL library by the book! To start with, we must
-     * initialize the algorithms. We want cleartext error messages instead of
-     * just error codes, so we load the error_strings.
-     */
-    SSL_load_error_strings();
-    OpenSSL_add_ssl_algorithms();
-#endif
-
     /*
      * First validate the protocols. If these are invalid, we can't continue.
      */
-    protomask = tls_protocol_mask(props->protocols);
+    protomask = tls_proto_mask_lims(props->protocols, &min_proto, &max_proto);
     if (protomask == TLS_PROTOCOL_INVALID) {
 	/* tls_protocol_mask() logs no warning. */
 	msg_warn("Invalid TLS protocol list \"%s\": disabling TLS support",
@@ -527,17 +511,15 @@ TLS_APPL_STATE *tls_server_init(const TLS_SERVER_INIT_PROPS *props)
 
     SSL_CTX_set_options(server_ctx, off);
 
-    /* Enable all supported protocols */
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fUL
-    SSL_CTX_set_min_proto_version(server_ctx, 0);
-    SSL_CTX_set_min_proto_version(sni_ctx, 0);
-#endif
-
     /*
      * Global protocol selection.
      */
     if (protomask != 0)
 	SSL_CTX_set_options(server_ctx, TLS_SSL_OP_PROTOMASK(protomask));
+    SSL_CTX_set_min_proto_version(server_ctx, min_proto);
+    SSL_CTX_set_max_proto_version(server_ctx, max_proto);
+    SSL_CTX_set_min_proto_version(sni_ctx, min_proto);
+    SSL_CTX_set_max_proto_version(sni_ctx, max_proto);
 
     /*
      * Some sites may want to give the client less rope. On the other hand,
@@ -614,20 +596,6 @@ TLS_APPL_STATE *tls_server_init(const TLS_SERVER_INIT_PROPS *props)
     }
 
     /*
-     * 2015-12-05: Ephemeral RSA removed from OpenSSL 1.1.0-dev
-     */
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-
-    /*
-     * According to OpenSSL documentation, a temporary RSA key is needed when
-     * export ciphers are in use, because the certified key cannot be
-     * directly used.
-     */
-    SSL_CTX_set_tmp_rsa_callback(server_ctx, tls_tmp_rsa_cb);
-    SSL_CTX_set_tmp_rsa_callback(sni_ctx, tls_tmp_rsa_cb);
-#endif
-
-    /*
      * Diffie-Hellman key generation parameters can either be loaded from
      * files (preferred) or taken from compiled in values. First, set the
      * callback that will select the values when requested, then load the
@@ -635,19 +603,17 @@ TLS_APPL_STATE *tls_server_init(const TLS_SERVER_INIT_PROPS *props)
      * the error handling, since we do have default values compiled in, so we
      * will not abort but just log the error message.
      */
-    SSL_CTX_set_tmp_dh_callback(server_ctx, tls_tmp_dh_cb);
-    SSL_CTX_set_tmp_dh_callback(sni_ctx, tls_tmp_dh_cb);
     if (*props->dh1024_param_file != 0)
-	tls_set_dh_from_file(props->dh1024_param_file, 1024);
-    if (*props->dh512_param_file != 0)
-	tls_set_dh_from_file(props->dh512_param_file, 512);
+	tls_set_dh_from_file(props->dh1024_param_file);
+    tls_tmp_dh(server_ctx);
+    tls_tmp_dh(sni_ctx);
 
     /*
      * Enable EECDH if available, errors are not fatal, we just keep going
      * with any remaining key-exchange algorithms.
      */
-    tls_set_eecdh_curve(server_ctx, props->eecdh_grade);
-    tls_set_eecdh_curve(sni_ctx, props->eecdh_grade);
+    tls_auto_eecdh_curves(server_ctx, var_tls_eecdh_auto);
+    tls_auto_eecdh_curves(sni_ctx, var_tls_eecdh_auto);
 
     /*
      * If we want to check client certificates, we have to indicate it in

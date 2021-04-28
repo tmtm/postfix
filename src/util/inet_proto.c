@@ -15,9 +15,9 @@
 /* .in -4
 /*	} INET_PROTO_INFO;
 /*
-/*	INET_PROTO_INFO *inet_proto_init(context, protocols)
+/*	const INET_PROTO_INFO *inet_proto_init(context, protocols)
 /*
-/*	INET_PROTO_INFO *inet_proto_info()
+/*	const INET_PROTO_INFO *inet_proto_info()
 /* DESCRIPTION
 /*	inet_proto_init() converts a string with protocol names
 /*	into null-terminated lists of appropriate constants used
@@ -78,6 +78,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -177,7 +182,7 @@ static void inet_proto_free(INET_PROTO_INFO *pf)
 
 /* inet_proto_init - convert protocol names to library inputs */
 
-INET_PROTO_INFO *inet_proto_init(const char *context, const char *protocols)
+const INET_PROTO_INFO *inet_proto_init(const char *context, const char *protocols)
 {
     const char *myname = "inet_proto";
     INET_PROTO_INFO *pf;

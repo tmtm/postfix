@@ -1112,18 +1112,17 @@ static int smtp_start_tls(SMTP_STATE *state)
      * "QUIT".
      * 
      * See src/tls/tls_level.c and src/tls/tls.h. Levels above "encrypt" require
-     * matching.  Levels >= "dane" require CA or DNSSEC trust.
+     * matching.
      * 
-     * When DANE TLSA records specify an end-entity certificate, the trust and
-     * match bits always coincide, but it is fine to report the wrong
-     * end-entity certificate as untrusted rather than unmatched.
+     * NOTE: We use "IS_MATCHED" to satisfy policy, but "IS_SECURED" to log
+     * effective security.  Thus "half-dane" is never "Verified" only
+     * "Trusted", but matching is enforced here.
+     * 
+     * NOTE: When none of the TLSA records were usable, "dane" and "half-dane"
+     * fall back to "encrypt", updating the tls_context level accordingly, so
+     * we must check that here, and not state->tls->level.
      */
-    if (TLS_MUST_TRUST(state->tls->level))
-	if (!TLS_CERT_IS_TRUSTED(session->tls_context))
-	    return (smtp_site_fail(state, DSN_BY_LOCAL_MTA,
-				   SMTP_RESP_FAKE(&fake, "4.7.5"),
-				   "Server certificate not trusted"));
-    if (TLS_MUST_MATCH(state->tls->level))
+    if (TLS_MUST_MATCH(session->tls_context->level))
 	if (!TLS_CERT_IS_MATCHED(session->tls_context))
 	    return (smtp_site_fail(state, DSN_BY_LOCAL_MTA,
 				   SMTP_RESP_FAKE(&fake, "4.7.5"),
@@ -1179,7 +1178,8 @@ static void smtp_text_out(void *context, int rec_type,
 	if (state->space_left == var_smtp_line_limit
 	    && data_left > 0 && *data_start == '.')
 	    smtp_fputc('.', session->stream);
-	if (var_smtp_line_limit > 0 && data_left >= state->space_left) {
+	if (ENFORCING_SIZE_LIMIT(var_smtp_line_limit)
+	    && data_left >= state->space_left) {
 	    smtp_fputs(data_start, state->space_left, session->stream);
 	    data_start += state->space_left;
 	    data_left -= state->space_left;
@@ -1430,17 +1430,18 @@ static int smtp_out_add_header(SMTP_STATE *state, const char *label,
 
 static int smtp_out_add_headers(SMTP_STATE *state)
 {
-    if (smtp_cli_attr.flags & SMTP_CLI_FLAG_DELIVERED_TO)
-	if (smtp_out_add_header(state, "Delivered-To", "",
-			   state->request->rcpt_list.info->address, "") < 0)
+    /* Prepend headers in the same order as mail_copy.c. */
+    if (smtp_cli_attr.flags & SMTP_CLI_FLAG_RETURN_PATH)
+	if (smtp_out_add_header(state, "Return-Path", "<",
+				state->request->sender, ">") < 0)
 	    return (-1);
     if (smtp_cli_attr.flags & SMTP_CLI_FLAG_ORIG_RCPT)
 	if (smtp_out_add_header(state, "X-Original-To", "",
 			 state->request->rcpt_list.info->orig_addr, "") < 0)
 	    return (-1);
-    if (smtp_cli_attr.flags & SMTP_CLI_FLAG_RETURN_PATH)
-	if (smtp_out_add_header(state, "Return-Path", "<",
-				state->request->sender, ">") < 0)
+    if (smtp_cli_attr.flags & SMTP_CLI_FLAG_DELIVERED_TO)
+	if (smtp_out_add_header(state, "Delivered-To", "",
+			   state->request->rcpt_list.info->address, "") < 0)
 	    return (-1);
     return (0);
 }

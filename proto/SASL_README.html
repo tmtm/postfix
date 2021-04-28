@@ -5,7 +5,7 @@
 
 <title>Postfix SASL Howto</title>
 
-<meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 
 </head>
 
@@ -1697,10 +1697,9 @@ that use the non-standard "<code>AUTH=<em>method.</em>...</code>"
 syntax in response to the EHLO command; this requires no additional
 Postfix client configuration. </p> </li>
 
-<li> <p> The Postfix SMTP client does not support the obsolete
-"wrappermode" protocol, which uses TCP port <code>465</code> on the
-SMTP server.  See TLS_README for a solution that uses the
-<code>stunnel</code> command.  </p> </li>
+<li> <p> With the setting "smtp_tls_wrappermode = yes", the Postfix
+SMTP client supports the "wrappermode" protocol, which uses TCP
+port 465 on the SMTP server (Postfix 3.0 and later). </p> </li>
 
 <li> <p> With the <code>smtp_sasl_password_maps</code> parameter,
 we configure the Postfix SMTP client to send username and password
@@ -2078,7 +2077,7 @@ TLS_README for details.  </p>
 <h4><a name="build_sasl">Building the Cyrus SASL library</a></h4>
 
 <p> Postfix works with cyrus-sasl-1.5.x or cyrus-sasl-2.1.x, which are
-available from ftp://ftp.andrew.cmu.edu/pub/cyrus-mail/. </p>
+available from https://github.com/cyrusimap/cyrus-sasl/releases. </p>
 
 <blockquote>
 
@@ -2127,6 +2126,10 @@ definitions: </p>
 % <strong>make makefiles CCARGS="-DUSE_SASL_AUTH -DUSE_CYRUS_SASL \
     -I/usr/local/include/sasl" AUXLIBS="-L/usr/local/lib -lsasl2"</strong>
 </pre>
+
+<p> If your Cyrus SASL shared library is in a directory that the RUN-TIME
+linker does not know about, add a "-Wl,-R,/path/to/directory" option after
+"-lsasl2". </p>
 
 </dd>
 

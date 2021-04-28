@@ -37,11 +37,15 @@
 /*	when running as PID 1.
 /*	This command requires that multi-instance support is
 /*	disabled (i.e. the multi_instance_directories parameter
-/*	value must be empty). When running Postfix inside a container,
-/*	mount the container host's /dev/log socket inside the
-/*	container (example: "docker run -v /dev/log:/dev/log ...")
-/*	and specify a distinct Postfix "syslog_name" prefix that
-/*	identifies logging from the Postfix instance.
+/*	value must be empty). 
+/*
+/*	When running Postfix inside a container, see MAILLOG_README
+/*	for logging to stdout. Postfix logs to syslog by default,
+/*	which requires a) running a syslogd process inside the
+/*	container, or b) mounting the container host's /dev/log
+/*	socket inside the container (example: "docker run -v
+/*	/dev/log:/dev/log ..."), and c) a distinct Postfix "syslog_name"
+/*	prefix that identifies logging from the Postfix instance.
 /* .IP \fBstop\fR
 /*	Stop the Postfix mail system in an orderly fashion. If
 /*	possible, running processes are allowed to terminate at
@@ -189,6 +193,9 @@
 /*	caches, pseudo-random numbers).
 /* .PP
 /*	Available in Postfix version 3.0 and later:
+/* .IP "\fBcompatibility_level (0)\fR"
+/*	A safety net that causes Postfix to run with backwards-compatible
+/*	default settings after an upgrade to a newer Postfix version.
 /* .IP "\fBmeta_directory (see 'postconf -d' output)\fR"
 /*	The location of non-executable files that are shared among
 /*	multiple Postfix instances, such as postfix-files, dynamicmaps.cf,
@@ -252,8 +259,9 @@
 /* .fi
 /*	Prior to Postfix version 2.6, all of the following files
 /*	were in \fB$config_directory\fR. Some files are now in
-/*	\fB$daemon_directory\fR so that they can be shared among
-/*	multiple instances that run the same Postfix version.
+/*	\fB$daemon_directory\fR or \fB$meta_directory\fR so that they
+/*	can be shared among multiple instances that run the same Postfix
+/*	version.
 /*
 /*	Use the command "\fBpostconf config_directory\fR" or
 /*	"\fBpostconf daemon_directory\fR" to expand the names
@@ -263,10 +271,10 @@
 /*
 /*	$config_directory/main.cf, Postfix configuration parameters
 /*	$config_directory/master.cf, Postfix daemon processes
-/*	$daemon_directory/postfix-files, file/directory permissions
 /*	$daemon_directory/postfix-script, administrative commands
 /*	$daemon_directory/post-install, post-installation configuration
-/*	$daemon_directory/dynamicmaps.cf, plug-in database clients
+/*	$meta_directory/dynamicmaps.cf, plug-in database clients
+/*	$meta_directory/postfix-files, file/directory permissions
 /* SEE ALSO
 /*	Commands:
 /*	postalias(1), create/update/query alias database
@@ -320,7 +328,7 @@
 /*	bounce(8), defer(8), trace(8), Delivery status reports
 /*	cleanup(8), canonicalize and enqueue message
 /*	discard(8), Postfix discard delivery agent
-/*	dnsblog(8), DNS black/whitelist logger
+/*	dnsblog(8), DNS allow/denylist logger
 /*	error(8), Postfix error delivery agent
 /*	flush(8), Postfix fast ETRN service
 /*	local(8), Postfix local delivery agent
@@ -434,6 +442,7 @@
 #include <mail_version.h>
 #include <mail_parm_split.h>
 #include <maillog_client.h>
+#include <compat_level.h>
 
 /* Additional installation parameters. */
 
@@ -577,14 +586,14 @@ int     main(int argc, char **argv)
      * Alert the sysadmin that the backwards-compatible settings are still in
      * effect.
      */
-    if (var_compat_level < CUR_COMPAT_LEVEL) {
+    if (compat_level < compat_level_from_string(LAST_COMPAT_LEVEL, msg_panic)) {
 	msg_info("Postfix is running with backwards-compatible default "
 		 "settings");
 	msg_info("See http://www.postfix.org/COMPATIBILITY_README.html "
 		 "for details");
 	msg_info("To disable backwards compatibility use \"postconf "
-		 VAR_COMPAT_LEVEL "=%d\" and \"postfix reload\"",
-		 CUR_COMPAT_LEVEL);
+		 VAR_COMPAT_LEVEL "=%s\" and \"postfix reload\"",
+		 LAST_COMPAT_LEVEL);
     }
     check_setenv("PATH", ROOT_PATH);		/* sys_defs.h */
     check_setenv(CONF_ENV_PATH, var_config_dir);/* mail_conf.h */

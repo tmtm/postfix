@@ -331,11 +331,13 @@
 /*	The email address form that will be used in non-debug logging
 /*	(info, warning, etc.).
 /* .PP
-/*	Available in Postfix 3.5.9 and later:
+/*	Available in Postfix 3.6 and later:
 /* .IP "\fBdnssec_probe (ns:.)\fR"
 /*	The DNS query type (default: "ns") and DNS query name (default:
 /*	".") that Postfix may use to determine whether DNSSEC validation
 /*	is available.
+/* .IP "\fBknown_tcp_ports (lmtp=24, smtp=25, smtps=submissions=465, submission=587)\fR"
+/*	Optional setting that avoids lookups in the \fBservices\fR(5) database.
 /* MIME PROCESSING CONTROLS
 /* .ad
 /* .fi
@@ -454,9 +456,9 @@
 /*	Optional lookup tables with the Postfix SMTP client TLS security
 /*	policy by next-hop destination; when a non-empty value is specified,
 /*	this overrides the obsolete smtp_tls_per_site parameter.
-/* .IP "\fBsmtp_tls_mandatory_protocols (!SSLv2, !SSLv3)\fR"
-/*	List of SSL/TLS protocols that the Postfix SMTP client will use with
-/*	mandatory TLS encryption.
+/* .IP "\fBsmtp_tls_mandatory_protocols (see 'postconf -d' output)\fR"
+/*	TLS protocols that the Postfix SMTP client will use with mandatory
+/*	TLS encryption.
 /* .IP "\fBsmtp_tls_scert_verifydepth (9)\fR"
 /*	The verification depth for remote SMTP server certificates.
 /* .IP "\fBsmtp_tls_secure_cert_match (nexthop, dot-nexthop)\fR"
@@ -499,14 +501,14 @@
 /*	List of acceptable remote SMTP server certificate fingerprints for
 /*	the "fingerprint" TLS security level (\fBsmtp_tls_security_level\fR =
 /*	fingerprint).
-/* .IP "\fBsmtp_tls_fingerprint_digest (md5)\fR"
+/* .IP "\fBsmtp_tls_fingerprint_digest (see 'postconf -d' output)\fR"
 /*	The message digest algorithm used to construct remote SMTP server
 /*	certificate fingerprints.
 /* .PP
 /*	Available in Postfix version 2.6 and later:
-/* .IP "\fBsmtp_tls_protocols (!SSLv2, !SSLv3)\fR"
-/*	List of TLS protocols that the Postfix SMTP client will exclude or
-/*	include with opportunistic TLS encryption.
+/* .IP "\fBsmtp_tls_protocols (see postconf -d output)\fR"
+/*	TLS protocols that the Postfix SMTP client will use with
+/*	opportunistic TLS encryption.
 /* .IP "\fBsmtp_tls_ciphers (medium)\fR"
 /*	The minimum TLS cipher grade that the Postfix SMTP client
 /*	will use with opportunistic TLS encryption.
@@ -548,7 +550,7 @@
 /*	legacy SMTPS protocol instead of using the STARTTLS command.
 /* .PP
 /*	Available in Postfix version 3.1 and later:
-/* .IP "\fBsmtp_tls_dane_insecure_mx_policy (dane)\fR"
+/* .IP "\fBsmtp_tls_dane_insecure_mx_policy (see 'postconf -d' output)\fR"
 /*	The TLS policy for MX hosts with "secure" TLSA records when the
 /*	nexthop destination security level is \fBdane\fR, but the MX
 /*	record was found via an "insecure" MX lookup.
@@ -708,12 +710,13 @@
 /* .ad
 /* .fi
 /* .IP "\fBdebug_peer_level (2)\fR"
-/*	The increment in verbose logging level when a remote client or
-/*	server matches a pattern in the debug_peer_list parameter.
+/*	The increment in verbose logging level when a nexthop destination,
+/*	remote client or server name or network address matches a pattern
+/*	given with the debug_peer_list parameter.
 /* .IP "\fBdebug_peer_list (empty)\fR"
-/*	Optional list of remote client or server hostname or network
-/*	address patterns that cause the verbose logging level to increase
-/*	by the amount specified in $debug_peer_level.
+/*	Optional list of nexthop destination, remote client or server
+/*	name or network address patterns that, if matched, cause the verbose
+/*	logging level to increase by the amount specified in $debug_peer_level.
 /* .IP "\fBerror_notice_recipient (postmaster)\fR"
 /*	The recipient of postmaster notifications about mail delivery
 /*	problems that are caused by policy, resource, software or protocol
@@ -744,7 +747,7 @@
 /* .IP "\fBinet_interfaces (all)\fR"
 /*	The network interface addresses that this mail system receives
 /*	mail on.
-/* .IP "\fBinet_protocols (all)\fR"
+/* .IP "\fBinet_protocols (see 'postconf -d output')\fR"
 /*	The Internet protocols Postfix will attempt to use when making
 /*	or accepting connections.
 /* .IP "\fBipc_timeout (3600s)\fR"
@@ -944,7 +947,6 @@ int     var_smtp_data1_tmout;
 int     var_smtp_data2_tmout;
 int     var_smtp_rset_tmout;
 int     var_smtp_quit_tmout;
-char   *var_inet_interfaces;
 char   *var_notify_classes;
 int     var_smtp_skip_5xx_greeting;
 int     var_ign_mx_lookup_err;
@@ -1222,6 +1224,8 @@ static int deliver_message(const char *service, DELIVER_REQUEST *request)
     state->src = request->fp;
     state->service = service;
     state->misc_flags |= smtp_addr_pref;
+    state->debug_peer_per_nexthop =
+	debug_peer_check(request->nexthop, "noaddr");
     SMTP_RCPT_INIT(state);
 
     /*
@@ -1447,6 +1451,7 @@ static void pre_init(char *unused_name, char **unused_argv)
 			    CApath = var_smtp_tls_CApath,
 			    mdalg = var_smtp_tls_fpt_dgst);
 	smtp_tls_list_init();
+	tls_dane_loglevel(VAR_LMTP_SMTP(TLS_LOGLEVEL), var_smtp_tls_loglevel);
 #else
 	msg_warn("TLS has been selected, but TLS support is not compiled in");
 #endif

@@ -49,6 +49,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -70,6 +75,7 @@
 #include <dsb_scan.h>
 #include <defer.h>
 #include <rcpt_print.h>
+#include <info_log_addr_form.h>
 
 #define DELIVER_PASS_DEFER	1
 #define DELIVER_PASS_UNKNOWN	2
@@ -78,15 +84,13 @@
 
 static int deliver_pass_initial_reply(VSTREAM *stream)
 {
-    int     stat;
-
     if (attr_scan(stream, ATTR_FLAG_STRICT,
-		  RECV_ATTR_INT(MAIL_ATTR_STATUS, &stat),
-		  ATTR_TYPE_END) != 1) {
+		  RECV_ATTR_STREQ(MAIL_ATTR_PROTO, MAIL_ATTR_PROTO_DELIVER),
+		  ATTR_TYPE_END) != 0) {
 	msg_warn("%s: malformed response", VSTREAM_PATH(stream));
-	stat = -1;
+	return (-1);
     }
-    return (stat);
+    return (0);
 }
 
 /* deliver_pass_send_request - send delivery request to delivery process */
@@ -182,6 +186,9 @@ int     deliver_pass(const char *class, const char *service,
     /*
      * Initialize.
      */
+    msg_info("%s: passing <%s> to transport=%s",
+	     request->queue_id, info_log_addr_form_recipient(rcpt->address),
+	     transport);
     stream = mail_connect_wait(class, transport);
     dsb = dsb_create();
 

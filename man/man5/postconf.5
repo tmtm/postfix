@@ -982,6 +982,17 @@ warning: To disable backwards compatibility use "postconf
 .ft R
 .in -4
 .PP
+Starting with Postfix version 3.6, the compatibility level in
+the above warning message is the Postfix version that introduced
+the last incompatible change. The level is formatted as
+\fImajor.minor.patch\fR, where \fIpatch\fR is usually omitted and
+defaults to zero. Earlier compatibility levels are 0, 1 and 2.
+.PP
+NOTE: this also introduces support for the "<level",
+"<=level", and other operators to compare compatibility levels.
+With the standard operators "<", "<=", etc., compatibility
+level "3.10" would be smaller than "3.9" which is undesirable.
+.PP
 This feature is available in Postfix 3.0 and later.
 .SH config_directory (default: see "postconf \-d" output)
 The default location of the Postfix main.cf and master.cf
@@ -994,8 +1005,8 @@ and commands).
 The "\-c" command\-line option (commands only).
 .br
 .PP
-With Postfix command that run with set\-gid privileges, a
-config_directory override requires either root privileges, or it
+With Postfix commands that run with set\-gid privileges, a
+config_directory override either requires root privileges, or it
 requires that the directory is listed with the alternate_config_directories
 parameter in the default main.cf file.
 .SH confirm_delay_cleared (default: no)
@@ -1104,12 +1115,17 @@ software.
 .PP
 This feature is available in Postfix 2.5 and later.
 .SH debug_peer_level (default: 2)
-The increment in verbose logging level when a remote client or
-server matches a pattern in the debug_peer_list parameter.
+The increment in verbose logging level when a nexthop destination,
+remote client or server name or network address matches a pattern
+given with the debug_peer_list parameter.
+.PP
+Per\-nexthop debug logging is available in Postfix 3.6 and later.
 .SH debug_peer_list (default: empty)
-Optional list of remote client or server hostname or network
-address patterns that cause the verbose logging level to increase
-by the amount specified in $debug_peer_level.
+Optional list of nexthop destination, remote client or server
+name or network address patterns that, if matched, cause the verbose
+logging level to increase by the amount specified in $debug_peer_level.
+.PP
+Per\-nexthop debug logging is available in Postfix 3.6 and later.
 .PP
 Specify domain names, network/netmask patterns, "/file/name"
 patterns or "type:table" lookup tables. The right\-hand side result
@@ -1586,7 +1602,7 @@ See reject_unknown_reverse_client_hostname for more details.
 The hostname given in HELO or EHLO command or empty string.
 .br
 .IP "\fB$rbl_class\fR"
-The blacklisted entity type: Client host, Helo command, Sender
+The denylisted entity type: Client host, Helo command, Sender
 address, or Recipient address.
 .br
 .IP "\fB$rbl_code\fR"
@@ -1597,14 +1613,14 @@ reply. With Postfix version 2.3 and later this information may be followed
 by an RFC 3463 enhanced status code.
 .br
 .IP "\fB$rbl_domain\fR"
-The RBL domain where $rbl_what is blacklisted.
+The RBL domain where $rbl_what is denylisted.
 .br
 .IP "\fB$rbl_reason\fR"
-The reason why $rbl_what is blacklisted, or an empty string.
+The reason why $rbl_what is denylisted, or an empty string.
 .br
 .IP "\fB$rbl_what\fR"
-The entity that is blacklisted (an IP address, a hostname, a domain
-name, or an email address whose domain was blacklisted).
+The entity that is denylisted (an IP address, a hostname, a domain
+name, or an email address whose domain was denylisted).
 .br
 .IP "\fB$recipient\fR"
 The recipient address or <> in case of the null address.
@@ -1894,7 +1910,7 @@ A debugging aid to artificially delay DNS responses.
 This feature is available in Postfix 2.8.
 .SH dnsblog_service_name (default: dnsblog)
 The name of the \fBdnsblog\fR(8) service entry in master.cf. This
-service performs DNS white/blacklist lookups.
+service performs DNS allow/denylist lookups.
 .PP
 This feature is available in Postfix 2.8 and later.
 .SH dnssec_probe (default: ns:.)
@@ -1949,8 +1965,8 @@ cached. If Postfix runs on a network where the DNS root zone is not
 reachable, specify a different probe, or specify an empty dnssec_probe
 value to disable the feature.
 .PP
-This feature was backported from Postfix 3.6 to Postfix versions
-3.5.9, 3.4.19, 3.3.16. 3.2.21.
+This feature is available in Postfix 3.6 and later. It was backported
+to Postfix versions 3.5.9, 3.4.19, 3.3.16. 3.2.21.
 .SH dont_remove (default: 0)
 Don't remove queue files and save them to the "saved" mail queue.
 This is a debugging aid.  To inspect the envelope information and
@@ -1968,6 +1984,11 @@ The sender_dependent_default_transport_maps search string that
 will be used instead of the null sender address.
 .PP
 This feature is available in Postfix 2.7 and later.
+.SH empty_address_local_login_sender_maps_lookup_key (default: <>)
+The lookup key to be used in local_login_sender_maps tables, instead
+of the null sender address.
+.PP
+This feature is available in Postfix 3.6 and later.
 .SH empty_address_recipient (default: MAILER\-DAEMON)
 The recipient of mail addressed to the null address.  Postfix does
 not accept such addresses in SMTP commands, but they may still be
@@ -2103,6 +2124,24 @@ This feature is available in Postfix 2.1 and later. Postfix
 version 2.0 behaves as if this parameter is always set to \fByes\fR.
 Postfix versions before 2.0 have no support for the original recipient
 address.
+.SH enable_threaded_bounces (default: no)
+Enable non\-delivery, success, and delay notifications that link
+to the original message by including a References: and In\-Reply\-To:
+header with the original Message\-ID value. There are advantages and
+disadvantages to consider.
+.IP "\fB advantage \fR"
+This allows mail readers to present
+a delivery status notification in the same email thread as the original
+message.
+.br
+.IP "\fB disadvantage \fR"
+This makes it easy for users to
+mistakenly delete the whole email thread (all related messages),
+instead of deleting only the non\-delivery notification.
+.br
+.br
+.PP
+This feature is available in Postfix 3.6 and later.
 .SH error_notice_recipient (default: postmaster)
 The recipient of postmaster notifications about mail delivery
 problems that are caused by policy, resource, software or protocol
@@ -2540,7 +2579,7 @@ inet_interfaces = 192.168.1.2, 127.0.0.1
 .fi
 .ad
 .ft R
-.SH inet_protocols (default: all)
+.SH inet_protocols (default: see 'postconf \-d output')
 The Internet protocols Postfix will attempt to use when making
 or accepting connections. Specify one or more of "ipv4"
 or "ipv6", separated by whitespace or commas. The form
@@ -2702,6 +2741,21 @@ Time units: s (seconds), m (minutes), h (hours), d (days), w (weeks).
 The default time unit is s (seconds).
 .PP
 This feature is available in Postfix 2.1 and later.
+.SH known_tcp_ports (default: lmtp=24, smtp=25, smtps=submissions=465, submission=587)
+Optional setting that avoids lookups in the \fBservices\fR(5) database.
+This feature was implemented to address inconsistencies in the name
+of the port "465" service. The ABNF is:
+.sp
+.in +4
+known_tcp_ports = empty | name\-to\-port *("," name\-to\-port)
+.br
+name\-to\-port = 1*(service\-name "=') port\-number
+.in -4
+.PP
+Whitespace is optional but it cannot appear inside a service
+name or port number.
+.PP
+This feature is available in Postfix 3.6 and later.
 .SH line_length_limit (default: 2048)
 Upon input, long lines are chopped up into pieces of at most
 this length; upon delivery, long lines are reconstructed.
@@ -3261,7 +3315,7 @@ The LMTP\-specific version of the smtp_tls_fingerprint_cert_match
 configuration parameter.  See there for details.
 .PP
 This feature is available in Postfix 2.5 and later.
-.SH lmtp_tls_fingerprint_digest (default: md5)
+.SH lmtp_tls_fingerprint_digest (default: see "postconf \-d" output)
 The LMTP\-specific version of the smtp_tls_fingerprint_digest
 configuration parameter.  See there for details.
 .PP
@@ -3291,7 +3345,7 @@ The LMTP\-specific version of the smtp_tls_mandatory_exclude_ciphers
 configuration parameter.  See there for details.
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH lmtp_tls_mandatory_protocols (default: !SSLv2, !SSLv3)
+.SH lmtp_tls_mandatory_protocols (default: see postconf \-d output)
 The LMTP\-specific version of the smtp_tls_mandatory_protocols
 configuration parameter. See there for details.
 .PP
@@ -3311,7 +3365,7 @@ The LMTP\-specific version of the smtp_tls_policy_maps
 configuration parameter. See there for details.
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH lmtp_tls_protocols (default: !SSLv2, !SSLv3)
+.SH lmtp_tls_protocols (default: see postconf \-d output)
 The LMTP\-specific version of the smtp_tls_protocols configuration
 parameter. See there for details.
 .PP
@@ -3461,6 +3515,15 @@ The fingerprint digest algorithm is configurable via the
 smtpd_tls_fingerprint_digest parameter (hard\-coded as md5 prior to
 Postfix version 2.5).
 .br
+The default algorithm is \fBsha256\fR with Postfix >= 3.6
+and the \fBcompatibility_level\fR set to 3.6 or higher. With Postfix
+<= 3.5, the default algorithm is \fBmd5\fR.  The best\-practice
+algorithm is now \fBsha256\fR. Recent advances in hash function
+cryptanalysis have led to md5 and sha1 being deprecated in favor of
+sha256.  However, as long as there are no known "second pre\-image"
+attacks against the older algorithms, their use in this context, though
+not recommended, is still likely safe.
+.br
 .IP "\fBpermit_tls_all_clientcerts \fR"
 Append the domain name in $myorigin or $mydomain when the
 remote SMTP client TLS certificate is successfully verified, regardless of
@@ -3524,6 +3587,64 @@ local_header_rewrite_clients = permit_mynetworks,
 .ad
 .ft R
 .in -4
+.SH local_login_sender_maps (default: static:*)
+A list of lookup tables that are searched by the UNIX login name,
+and that return a list of allowed envelope sender patterns separated
+by space or comma. These sender patterns are enforced by the Postfix
+\fBpostdrop\fR(1) command. The default is backwards\-compatible:
+every user may specify any sender envelope address.
+.PP
+When no UNIX login name is available, the \fBpostdrop\fR(1) command will
+prepend "\fBuid:\fR" to the numerical UID and use that instead.
+.PP
+This feature ignores address extensions in the user\-specified
+envelope sender address.
+.PP
+The following sender patterns are special; these cannot be used
+as part of a longer pattern.
+.IP "\fB * \fR
+This pattern allows any envelope sender address.
+.br
+.IP "\fB <> \fR"
+This pattern allows the empty
+envelope sender address. See the
+empty_address_local_login_sender_maps_lookup_key configuration
+parameter.
+.br
+.IP "\fB @\fR\fIdomain\fR"
+This pattern allows an
+envelope sender address when the '\fB@\fR' and \fIdomain\fR part
+match.
+.br
+.br
+.PP
+Examples:
+.PP
+.nf
+.na
+.ft C
+/etc/postfix/main.cf:
+    # Allow root and postfix full control, anyone else can only
+    # send mail as themselves. Use "uid:" followed by the numerical
+    # UID when the UID has no entry in the UNIX password file.
+    local_login_sender_maps =
+        inline:{ { root = *}, { postfix = * } },
+        pcre:/etc/postfix/login_senders
+.fi
+.ad
+.ft R
+.PP
+.nf
+.na
+.ft C
+/etc/postfix/login_senders:
+   # Allow both the bare username and the user@domain forms.
+    /(.+)/ $1 $1@example.com/
+.fi
+.ad
+.ft R
+.PP
+This feature is available in Postfix 3.6 and later.
 .SH local_recipient_maps (default: proxy:unix:passwd.byname $alias_maps)
 Lookup tables with all names or addresses of local recipients:
 a recipient address is local when its domain matches $mydestination,
@@ -4242,7 +4363,7 @@ by default.
 .ft R
 .PP
 The milter_header_checks mechanism could also be used for
-whitelisting. For example it could be used to skip heavy content
+allowlisting. For example it could be used to skip heavy content
 inspection for DKIM\-signed mail from known friendly domains.
 .PP
 This feature is available in Postfix 2.7, and as an optional
@@ -4813,13 +4934,13 @@ and enabled instances are processed in reverse order.
 .PP
 This feature is available in Postfix 2.6 and later.
 .SH postscreen_access_list (default: permit_mynetworks)
-Permanent white/blacklist for remote SMTP client IP addresses.
+Permanent allow/denylist for remote SMTP client IP addresses.
 \fBpostscreen\fR(8) searches this list immediately after a remote SMTP
 client connects.  Specify a comma\- or whitespace\-separated list of
 commands (in upper or lower case) or lookup tables. The search stops
 upon the first command that fires for the client IP address.
 .IP "\fB permit_mynetworks \fR"
-Whitelist the client and
+Allowlist the client and
 terminate the search if the client IP address matches $mynetworks.
 Do not subject the client to any before/after 220 greeting tests.
 Pass the connection immediately to a Postfix SMTP server process.
@@ -4838,15 +4959,15 @@ support for substring matching like \fBsmtpd\fR(8). Use CIDR tables
 instead.
 .br
 .IP "\fB permit \fR"
-Whitelist the client and terminate
+Allowlist the client and terminate
 the search. Do not subject the client to any before/after 220
 greeting tests. Pass the connection immediately to a Postfix SMTP
 server process.
 .br
 .IP "\fB reject \fR"
-Blacklist the client and terminate
+Denylist the client and terminate
 the search. Subject the client to the action configured with the
-postscreen_blacklist_action configuration parameter.
+postscreen_denylist_action configuration parameter.
 .br
 .IP "\fB dunno \fR"
 All \fBpostscreen\fR(8) access lists
@@ -4870,7 +4991,8 @@ Example:
 /etc/postfix/main.cf:
     postscreen_access_list = permit_mynetworks,
         cidr:/etc/postfix/postscreen_access.cidr
-    postscreen_blacklist_action = enforce
+    # Postfix < 3.6 use postscreen_blacklist_action.
+    postscreen_denylist_action = enforce
 .fi
 .ad
 .ft R
@@ -4880,7 +5002,7 @@ Example:
 .ft C
 /etc/postfix/postscreen_access.cidr:
     # Rules are evaluated in the order as specified.
-    # Blacklist 192.168.* except 192.168.0.1.
+    # Denylist 192.168.* except 192.168.0.1.
     192.168.0.1         dunno
     192.168.0.0/16      reject
 .fi
@@ -4888,6 +5010,58 @@ Example:
 .ft R
 .PP
 This feature is available in Postfix 2.8.
+.SH postscreen_allowlist_interfaces (default: static:all)
+A list of local \fBpostscreen\fR(8) server IP addresses where a
+non\-allowlisted remote SMTP client can obtain \fBpostscreen\fR(8)'s temporary
+allowlist status. This status is required before the client can
+talk to a Postfix SMTP server process.  By default, a client can
+obtain \fBpostscreen\fR(8)'s allowlist status on any local \fBpostscreen\fR(8)
+server IP address.
+.PP
+When \fBpostscreen\fR(8) listens on both primary and backup MX
+addresses, the postscreen_allowlist_interfaces parameter can be
+configured to give the temporary allowlist status only when a client
+connects to a primary MX address. Once a client is allowlisted it
+can talk to a Postfix SMTP server on any address. Thus, clients
+that connect only to backup MX addresses will never become allowlisted,
+and will never be allowed to talk to a Postfix SMTP server process.
+.PP
+Specify a list of network addresses or network/netmask patterns,
+separated by commas and/or whitespace. The netmask specifies the
+number of bits in the network part of a host address. Continue long
+lines by starting the next line with whitespace.
+.PP
+You can also specify "/file/name" or "type:table" patterns.  A
+"/file/name" pattern is replaced by its contents; a "type:table"
+lookup table is matched when a table entry matches a lookup string
+(the lookup result is ignored).
+.PP
+The list is matched left to right, and the search stops on the
+first match. Specify "!pattern" to exclude an address or network
+block from the list.
+.PP
+Note: IP version 6 address information must be specified inside
+[] in the postscreen_allowlist_interfaces value, and in files
+specified with "/file/name".  IP version 6 addresses contain the
+":" character, and would otherwise be confused with a "type:table"
+pattern.
+.PP
+Example:
+.PP
+.nf
+.na
+.ft C
+/etc/postfix/main.cf:
+    # Don't allowlist connections to the backup IP address.
+    # Postfix < 3.6 use postscreen_whitelist_interfaces.
+    postscreen_allowlist_interfaces = !168.100.189.8, static:all
+.fi
+.ad
+.ft R
+.PP
+This feature is available in Postfix 3.6 and later.
+.PP
+Available as postscreen_whitelist_interfaces in Postfix 2.9 \- 3.5.
 .SH postscreen_bare_newline_action (default: ignore)
 The action that \fBpostscreen\fR(8) takes when a remote SMTP client sends
 a bare newline character, that is, a newline not preceded by carriage
@@ -4932,27 +5106,9 @@ one\-letter suffix that specifies the time unit).  Time units: s
 .PP
 This feature is available in Postfix 2.8.
 .SH postscreen_blacklist_action (default: ignore)
-The action that \fBpostscreen\fR(8) takes when a remote SMTP client is
-permanently blacklisted with the postscreen_access_list parameter.
-Specify one of the following:
-.IP "\fBignore\fR (default)"
-Ignore  this result. Allow other tests to complete.  Repeat
-this test the next time the client connects.
-This option is useful for testing and collecting statistics
-without blocking mail.
-.br
-.IP "\fBenforce\fR"
-Allow other tests to complete. Reject attempts to deliver mail
-with a 550 SMTP reply, and log the helo/sender/recipient information.
-Repeat this test the next time the client connects.
-.br
-.IP "\fBdrop\fR"
-Drop the connection immediately with a 521 SMTP reply. Repeat
-this test the next time the client connects.
-.br
-.br
+Renamed to postscreen_denylist_action in Postfix 3.6.
 .PP
-This feature is available in Postfix 2.8.
+This feature is available in Postfix 2.8 \- 3.5.
 .SH postscreen_cache_cleanup_interval (default: 12h)
 The amount of time between \fBpostscreen\fR(8) cache cleanup runs.
 Cache cleanup increases the load on the cache database and should
@@ -4982,7 +5138,7 @@ approach see the \fBmemcache_table\fR(5) manpage.
 This feature is available in Postfix 2.8.
 .SH postscreen_cache_retention_time (default: 7d)
 The amount of time that \fBpostscreen\fR(8) will cache an expired
-temporary whitelist entry before it is removed. This prevents clients
+temporary allowlist entry before it is removed. This prevents clients
 from being logged as "NEW" just because their cache entry expired
 an hour ago. It also prevents the cache from filling up with clients
 that passed some deep protocol test once and never came back.
@@ -5019,6 +5175,30 @@ The time limit to read an entire command line with \fBpostscreen\fR(8)'s
 built\-in SMTP protocol engine.
 .PP
 This feature is available in Postfix 2.8.
+.SH postscreen_denylist_action (default: ignore)
+The action that \fBpostscreen\fR(8) takes when a remote SMTP client is
+permanently denylisted with the postscreen_access_list parameter.
+Specify one of the following:
+.IP "\fBignore\fR (default)"
+Ignore  this result. Allow other tests to complete.  Repeat
+this test the next time the client connects.
+This option is useful for testing and collecting statistics
+without blocking mail.
+.br
+.IP "\fBenforce\fR"
+Allow other tests to complete. Reject attempts to deliver mail
+with a 550 SMTP reply, and log the helo/sender/recipient information.
+Repeat this test the next time the client connects.
+.br
+.IP "\fBdrop\fR"
+Drop the connection immediately with a 521 SMTP reply. Repeat
+this test the next time the client connects.
+.br
+.br
+.PP
+This feature is available in Postfix 3.6 and later.
+.PP
+Available as postscreen_blacklist_action in Postfix 2.8 \- 3.5.
 .SH postscreen_disable_vrfy_command (default: $disable_vrfy_command)
 Disable the SMTP VRFY command in the \fBpostscreen\fR(8) daemon.  See
 disable_vrfy_command for details.
@@ -5062,6 +5242,22 @@ this test the next time the client connects.
 .br
 .PP
 This feature is available in Postfix 2.8.
+.SH postscreen_dnsbl_allowlist_threshold (default: 0)
+Allow a remote SMTP client to skip "before" and "after 220
+greeting" protocol tests, based on its combined DNSBL score as
+defined with the postscreen_dnsbl_sites parameter.
+.PP
+Specify a negative value to enable this feature. When a client
+passes the postscreen_dnsbl_allowlist_threshold without having
+failed other tests, all pending or disabled tests are flagged as
+completed with a time\-to\-live value equal to postscreen_dnsbl_ttl.
+When a test was already completed, its time\-to\-live value is updated
+if it was less than postscreen_dnsbl_ttl.
+.PP
+This feature is available in Postfix 3.6 and later.
+.PP
+Available as postscreen_dnsbl_whitelist_threshold in Postfix 2.11
+\- 3.5.
 .SH postscreen_dnsbl_max_ttl (default: ${postscreen_dnsbl_ttl?{$postscreen_dnsbl_ttl}:{1}}h)
 The maximum amount of time that \fBpostscreen\fR(8) will use the
 result from a successful DNS\-based reputation test before a
@@ -5121,7 +5317,7 @@ Example:
 .PP
 This feature is available in Postfix 2.8.
 .SH postscreen_dnsbl_sites (default: empty)
-Optional list of DNS white/blacklist domains, filters and weight
+Optional list of DNS allow/denylist domains, filters and weight
 factors. When the list is non\-empty, the \fBdnsblog\fR(8) daemon will
 query these domains with the IP addresses of remote SMTP clients,
 and \fBpostscreen\fR(8) will update an SMTP client's DNSBL score with
@@ -5148,7 +5344,7 @@ When no "*weight" is specified, \fBpostscreen\fR(8) increments
 the remote SMTP client's DNSBL score by 1.  Otherwise, the weight must be
 an integral number, and \fBpostscreen\fR(8) adds the specified weight to
 the remote SMTP client's DNSBL score.  Specify a negative number for
-whitelisting.
+allowlisting.
 .IP \(bu
 When one postscreen_dnsbl_sites entry produces multiple
 DNSBL responses, \fBpostscreen\fR(8) applies the weight at most once.
@@ -5203,18 +5399,9 @@ one\-letter suffix that specifies the time unit).  Time units: s
 This feature is available in Postfix 2.8\-3.0. It was
 replaced by postscreen_dnsbl_max_ttl in Postfix 3.1.
 .SH postscreen_dnsbl_whitelist_threshold (default: 0)
-Allow a remote SMTP client to skip "before" and "after 220
-greeting" protocol tests, based on its combined DNSBL score as
-defined with the postscreen_dnsbl_sites parameter.
+Renamed to postscreen_dnsbl_allowlist_threshold in Postfix 3.6.
 .PP
-Specify a negative value to enable this feature. When a client
-passes the postscreen_dnsbl_whitelist_threshold without having
-failed other tests, all pending or disabled tests are flagged as
-completed with a time\-to\-live value equal to postscreen_dnsbl_ttl.
-When a test was already completed, its time\-to\-live value is updated
-if it was less than postscreen_dnsbl_ttl.
-.PP
-This feature is available in Postfix 2.11.
+This feature is available in Postfix 2.11 \- 3.5.
 .SH postscreen_enforce_tls (default: $smtpd_enforce_tls)
 Mandatory TLS: announce STARTTLS support to remote SMTP clients, and
 require that clients use TLS encryption.  See smtpd_postscreen_enforce_tls
@@ -5255,7 +5442,7 @@ this test the next time the client connects.
 .br
 .br
 .PP
-In either case, \fBpostscreen\fR(8) will not whitelist the remote SMTP client
+In either case, \fBpostscreen\fR(8) will not allowlist the remote SMTP client
 IP address.
 .PP
 This feature is available in Postfix 2.8.
@@ -5391,10 +5578,10 @@ receive a 421 response.
 .PP
 This feature is available in Postfix 2.8.
 .SH postscreen_pre_queue_limit (default: $default_process_limit)
-The number of non\-whitelisted clients that can be waiting for
+The number of non\-allowlisted clients that can be waiting for
 a decision whether they will receive service from a real Postfix
 SMTP server
-process. When this queue is full, all non\-whitelisted clients will
+process. When this queue is full, all non\-allowlisted clients will
 receive a 421 response.
 .PP
 This feature is available in Postfix 2.8.
@@ -5451,54 +5638,9 @@ one\-letter suffix that specifies the time unit).  Time units: s
 .PP
 This feature is available in Postfix 2.8.
 .SH postscreen_whitelist_interfaces (default: static:all)
-A list of local \fBpostscreen\fR(8) server IP addresses where a
-non\-whitelisted remote SMTP client can obtain \fBpostscreen\fR(8)'s temporary
-whitelist status. This status is required before the client can
-talk to a Postfix SMTP server process.  By default, a client can
-obtain \fBpostscreen\fR(8)'s whitelist status on any local \fBpostscreen\fR(8)
-server IP address.
+Renamed to postscreen_allowlist_interfaces in Postfix 3.6.
 .PP
-When \fBpostscreen\fR(8) listens on both primary and backup MX
-addresses, the postscreen_whitelist_interfaces parameter can be
-configured to give the temporary whitelist status only when a client
-connects to a primary MX address. Once a client is whitelisted it
-can talk to a Postfix SMTP server on any address. Thus, clients
-that connect only to backup MX addresses will never become whitelisted,
-and will never be allowed to talk to a Postfix SMTP server process.
-.PP
-Specify a list of network addresses or network/netmask patterns,
-separated by commas and/or whitespace. The netmask specifies the
-number of bits in the network part of a host address. Continue long
-lines by starting the next line with whitespace.
-.PP
-You can also specify "/file/name" or "type:table" patterns.  A
-"/file/name" pattern is replaced by its contents; a "type:table"
-lookup table is matched when a table entry matches a lookup string
-(the lookup result is ignored).
-.PP
-The list is matched left to right, and the search stops on the
-first match. Specify "!pattern" to exclude an address or network
-block from the list.
-.PP
-Note: IP version 6 address information must be specified inside
-[] in the postscreen_whitelist_interfaces value, and in files
-specified with "/file/name".  IP version 6 addresses contain the
-":" character, and would otherwise be confused with a "type:table"
-pattern.
-.PP
-Example:
-.PP
-.nf
-.na
-.ft C
-/etc/postfix/main.cf:
-    # Don't whitelist connections to the backup IP address.
-    postscreen_whitelist_interfaces = !168.100.189.8, static:all
-.fi
-.ad
-.ft R
-.PP
-This feature is available in Postfix 2.9 and later.
+This feature is available in Postfix 2.9 \- 3.5.
 .SH prepend_delivered_header (default: command, file, forward)
 The message delivery contexts where the Postfix \fBlocal\fR(8) delivery
 agent prepends a Delivered\-To:  message header with the address
@@ -5873,17 +6015,19 @@ recipient_canonical_maps = hash:/etc/postfix/recipient_canonical
 .ad
 .ft R
 .SH recipient_delimiter (default: empty)
-The set of characters that can separate a user name from its
-extension (example: user+foo), or a .forward file name from its
-extension (example: .forward+foo).  Basically, the software tries
-user+foo and .forward+foo before trying user and .forward.  This
-implementation recognizes one delimiter character and one extension
-per email address or .forward file name.
+The set of characters that can separate an email address
+localpart, user name, or a .forward file name from its extension.
+For example, with "recipient_delimiter = +", the software tries
+user+foo@example.com before trying user@example.com, user+foo before
+trying user, and .forward+foo before trying .forward.
 .PP
-When the recipient_delimiter set contains multiple characters
-(Postfix 2.11 and later), a user name or .forward file name is
+More formally, an email address localpart or user name is
 separated from its extension by the first character that matches
-the recipient_delimiter set.
+the recipient_delimiter set. The delimiter character and extension
+may then be used to generate an extended .forward file name. This
+implementation recognizes one delimiter character and one extension
+per email address localpart or email address. With Postfix 2.10 and
+earler, the recipient_delimiter specifies a single character.
 .PP
 See \fBcanonical\fR(5), \fBlocal\fR(8), \fBrelocated\fR(5) and \fBvirtual\fR(5) for the
 effects of recipient_delimiter on lookups in aliases, canonical,
@@ -5959,6 +6103,15 @@ feature.  The fingerprint digest algorithm is configurable via the
 smtpd_tls_fingerprint_digest parameter (hard\-coded as md5 prior to
 Postfix version 2.5).
 .PP
+The default algorithm is \fBsha256\fR with Postfix >= 3.6
+and the \fBcompatibility_level\fR set to 3.6 or higher. With Postfix
+<= 3.5, the default algorithm is \fBmd5\fR.  The best\-practice
+algorithm is now \fBsha256\fR. Recent advances in hash function
+cryptanalysis have led to md5 and sha1 being deprecated in favor of
+sha256.  However, as long as there are no known "second pre\-image"
+attacks against the older algorithms, their use in this context, though
+not recommended, is still likely safe.
+.PP
 Postfix lookup tables are in the form of (key, value) pairs.
 Since we only need the key, the value can be chosen freely, e.g.
 the name of the user or host:
@@ -5977,10 +6130,6 @@ relay_clientcerts = hash:/etc/postfix/relay_clientcerts
 For more fine\-grained control, use check_ccert_access to select
 an appropriate \fBaccess\fR(5) policy for each client.
 See RESTRICTION_CLASS_README.
-.PP
-\fBNote:\fR Postfix 2.9.0-2.9.5 computed the public key
-fingerprint incorrectly. To use public\-key fingerprints, upgrade
-to Postfix 2.9.6 or later.
 .PP
 This feature is available with Postfix version 2.2.
 .SH relay_destination_concurrency_limit (default: $default_destination_concurrency_limit)
@@ -6260,6 +6409,11 @@ Resolve "user@ipaddress" as "user@[ipaddress]", instead of
 rejecting the address as invalid.
 .PP
 This feature is available in Postfix 2.3 and later.
+.SH respectful_logging (default: see 'postconf \-d' output)
+Avoid logging that implies white is better than black. Instead
+use 'allowlist', 'denylist', and variations of those words.
+.PP
+This feature is available in Postfix 3.6 and later.
 .SH rewrite_service_name (default: rewrite)
 The name of the address rewriting service. This service rewrites
 addresses to standard form and resolves them to a (delivery method,
@@ -6907,7 +7061,7 @@ lookups through nsswitch.conf or equivalent mechanisms.
 .IP \(bu
 The Postfix SMTP/LMTP client uses smtp_dns_reply_filter
 and lmtp_dns_reply_filter only to discover a remote SMTP or LMTP
-service (record types MX, A, AAAAA, and TLSA).  These lookups are
+service (record types MX, A, AAAA, and TLSA).  These lookups are
 also made to implement the features reject_unverified_sender and
 reject_unverified_recipient.
 .IP \(bu
@@ -6915,7 +7069,7 @@ The Postfix SMTP/LMTP client defers mail delivery when
 a filter removes all lookup results from a successful query.
 .IP \(bu
 Postfix SMTP server uses smtpd_dns_reply_filter only to
-look up MX, A, AAAAA, and TXT records to implement the features
+look up MX, A, AAAA, and TXT records to implement the features
 reject_unknown_helo_hostname, reject_unknown_sender_domain,
 reject_unknown_recipient_domain, reject_rbl_*, and reject_rhsbl_*.
 .IP \(bu
@@ -7166,7 +7320,7 @@ The maximal length of message header and body lines that Postfix
 will send via SMTP. This limit does not include the <CR><LF>
 at the end of each line.  Longer lines are broken by inserting
 "<CR><LF><SPACE>", to minimize the damage to MIME
-formatted mail.
+formatted mail. Specify zero to disable this limit.
 .PP
 The Postfix limit of 998 characters not including <CR><LF>
 is consistent with the SMTP limit of 1000 characters including
@@ -7988,7 +8142,7 @@ handshake fails, mail may be sent in the clear.
 The TLSA records will signal a requirement to use TLS.  While
 TLS encryption will be required, authentication will not be performed.
 .br
-.IP "\fBdane\fR (default)"
+.IP "\fBdane\fR"
 The TLSA records will be used just as with "secure" MX records.
 TLS encryption will be required, and, if at least one of the TLSA
 records is "usable", authentication will be required.  When
@@ -7999,8 +8153,7 @@ authentication succeeds, it will be logged only as "Trusted", not
 The default setting for Postfix >= 3.6 is "dane" with
 "smtp_tls_security_level = dane", otherwise "may". This behavior
 was backported to Postfix versions 3.5.9, 3.4.19, 3.3.16. 3.2.21.
-With earlier
-Postfix versions the default setting was always "dane".
+With earlier Postfix versions the default setting was always "dane".
 .PP
 Though with "insecure" MX records an active attacker can
 compromise SMTP transport security by returning forged MX records,
@@ -8134,6 +8287,10 @@ is a message digest of the server certificate (or public key). The
 digest algorithm is selected via the \fBsmtp_tls_fingerprint_digest\fR
 parameter.
 .PP
+The colons between each pair of nibbles in the fingerprint value
+are optional (Postfix >= 3.6). These were required in earlier
+Postfix releases.
+.PP
 When an \fBsmtp_tls_policy_maps\fR table entry specifies the
 "fingerprint" security level, any "match" attributes in that entry specify
 the list of valid fingerprints for the corresponding destination. Multiple
@@ -8153,10 +8310,10 @@ another, and both keys are trusted just prior to the transition.
 .ft C
 relayhost = [mailhub.example.com]
 smtp_tls_security_level = fingerprint
-smtp_tls_fingerprint_digest = md5
+smtp_tls_fingerprint_digest = sha256
 smtp_tls_fingerprint_cert_match =
-    3D:95:34:51:24:66:33:B9:D2:40:99:C0:C1:17:0B:D1
-    EC:3B:2D:B0:5B:B1:FB:6D:20:A3:9D:72:F6:8D:12:35
+    cd:fc:d8:db:f8:c4:82:96:6c:...:28:71:e8:f5:8d:a5:0d:9b:d4:a6
+    dd:5c:ef:f5:c3:bc:64:25:36:...:99:36:06:ce:40:ef:de:2e:ad:a4
 .fi
 .ad
 .ft R
@@ -8171,7 +8328,7 @@ As in the example above, we show two matching fingerprints:
 .ft C
 /etc/postfix/main.cf:
     smtp_tls_policy_maps = hash:/etc/postfix/tls_policy
-    smtp_tls_fingerprint_digest = md5
+    smtp_tls_fingerprint_digest = sha256
 .fi
 .ad
 .ft R
@@ -8183,15 +8340,15 @@ As in the example above, we show two matching fingerprints:
 .ft C
 /etc/postfix/tls_policy:
     example.com fingerprint
-        match=3D:95:34:51:24:66:33:B9:D2:40:99:C0:C1:17:0B:D1
-        match=EC:3B:2D:B0:5B:B1:FB:6D:20:A3:9D:72:F6:8D:12:35
+        match=51:e9:af:2e:1e:40:1f:...:64:0a:30:35:2d:09:16:31:5a:eb:82:76
+        match=b6:b4:72:34:e2:59:cd:...:c2:ca:63:0d:4d:cc:2c:7d:84:de:e6:2f
 .fi
 .ad
 .ft R
 .in -4
 .PP
 This feature is available in Postfix 2.5 and later.
-.SH smtp_tls_fingerprint_digest (default: md5)
+.SH smtp_tls_fingerprint_digest (default: see "postconf \-d" output)
 The message digest algorithm used to construct remote SMTP server
 certificate fingerprints. At the "fingerprint" TLS security level
 (\fBsmtp_tls_security_level\fR = fingerprint), the server certificate is
@@ -8203,18 +8360,19 @@ algorithm. With a digest algorithm resistant to "second pre\-image"
 attacks, it is not feasible to create a new public key and a matching
 certificate (or public/private key\-pair) that has the same fingerprint.
 .PP
-The default algorithm is \fBmd5\fR; this is consistent with
-the backwards compatible setting of the digest used to verify client
-certificates in the SMTP server.
+The default algorithm is \fBsha256\fR with Postfix >= 3.6
+and the \fBcompatibility_level\fR set to 3.6 or higher. With Postfix
+<= 3.5, the default algorithm is \fBmd5\fR.
 .PP
-The best practice algorithm is now \fBsha1\fR. Recent advances in hash
-function cryptanalysis have led to md5 being deprecated in favor of sha1.
-However, as long as there are no known "second pre\-image" attacks
-against md5, its use in this context can still be considered safe.
+The best\-practice algorithm is now \fBsha256\fR. Recent advances in hash
+function cryptanalysis have led to md5 and sha1 being deprecated in favor of
+sha256.  However, as long as there are no known "second pre\-image" attacks
+against the older algorithms, their use in this context, though not
+recommended, is still likely safe.
 .PP
 While additional digest algorithms are often available with OpenSSL's
 libcrypto, only those used by libssl in SSL cipher suites are available to
-Postfix. For now this means just md5 or sha1.
+Postfix.  You'll likely find support for md5, sha1, sha256 and sha512.
 .PP
 To find the fingerprint of a specific certificate file, with a
 specific digest algorithm, run:
@@ -8236,8 +8394,8 @@ For example:
 .nf
 .na
 .ft C
-$ openssl x509 \-noout \-fingerprint \-sha1 \-in cert.pem
-SHA1 Fingerprint=D4:6A:AB:19:24:79:F8:32:BB:A6:CB:66:82:C0:8E:9B:EE:29:A8:1A
+$ openssl x509 \-noout \-fingerprint \-sha256 \-in cert.pem
+SHA256 Fingerprint=D4:6A:AB:19:24:...:BB:A6:CB:66:82:C0:8E:9B:EE:29:A8:1A
 .fi
 .ad
 .ft R
@@ -8251,36 +8409,19 @@ key always in "PEM" format. We pipe the result to another OpenSSL
 command that converts the key to DER and then to the "dgst" command
 to compute the fingerprint.
 .PP
-The actual command to transform the key to DER format depends
-on the version of OpenSSL used. With OpenSSL 1.0.0 and later, the
-"pkey" command supports all key types. With OpenSSL 0.9.8 and
-earlier, the key type is always RSA (nobody uses DSA, and EC
-keys are not fully supported by 0.9.8), so the "rsa" command is
-used.
+The actual command to transform the key to DER format depends on the
+version of OpenSSL used. As of OpenSSL 1.0.0, the "pkey" command supports
+all key types.
 .sp
 .in +4
 .nf
 .na
 .ft C
-# OpenSSL 1.0 with all certificates and SHA\-1 fingerprints.
+# OpenSSL >= 1.0 with SHA\-256 fingerprints.
 $ openssl x509 \-in cert.pem \-noout \-pubkey |
     openssl pkey \-pubin \-outform DER |
-    openssl dgst \-sha1 \-c
-(stdin)= 64:3f:1f:f6:e5:1e:d4:2a:56:8b:fc:09:1a:61:98:b5:bc:7c:60:58
-.fi
-.ad
-.ft R
-.in -4
-.sp
-.in +4
-.nf
-.na
-.ft C
-# OpenSSL 0.9.8 with RSA certificates and MD5 fingerprints.
-$ openssl x509 \-in cert.pem \-noout \-pubkey |
-    openssl rsa \-pubin \-outform DER |
-    openssl dgst \-md5 \-c
-(stdin)= f4:62:60:f6:12:8f:d5:8d:28:4d:13:a7:db:b2:ff:50
+    openssl dgst \-sha256 \-c
+(stdin)= 64:3f:1f:f6:e5:1e:d4:2a:56:...:fc:09:1a:61:98:b5:bc:7c:60:58
 .fi
 .ad
 .ft R
@@ -8289,10 +8430,6 @@ $ openssl x509 \-in cert.pem \-noout \-pubkey |
 The Postfix SMTP server and client log the peer (leaf) certificate
 fingerprint and public key fingerprint when the TLS loglevel is 2 or
 higher.
-.PP
-\fBNote:\fR Postfix 2.9.0-2.9.5 computed the public key
-fingerprint incorrectly. To use public\-key fingerprints, upgrade
-to Postfix 2.9.6 or later.
 .PP
 This feature is available in Postfix 2.5 and later.
 .SH smtp_tls_force_insecure_host_tlsa_lookup (default: no)
@@ -8430,78 +8567,102 @@ specified on a per\-destination basis via the TLS policy "exclude"
 attribute. See smtp_tls_policy_maps for notes and examples.
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH smtp_tls_mandatory_protocols (default: !SSLv2, !SSLv3)
-List of SSL/TLS protocols that the Postfix SMTP client will use with
-mandatory TLS encryption.  In main.cf the values are separated by
-whitespace, commas or colons. In the policy table "protocols" attribute
-(see smtp_tls_policy_maps) the only valid separator is colon. An
-empty value means allow all protocols. The valid protocol names, (see
-\\fBfBSSL_get_version\fR(3)\fR), are "SSLv2", "SSLv3" and "TLSv1". The
-default value is "!SSLv2, !SSLv3" for Postfix releases after the
-middle of 2015, "!SSLv2" for older releases.
+.SH smtp_tls_mandatory_protocols (default: see "postconf \-d" output)
+TLS protocols that the Postfix SMTP client will use with mandatory
+TLS encryption.  In main.cf the values are separated by whitespace,
+commas or colons. In the policy table "protocols" attribute (see
+smtp_tls_policy_maps) the only valid separator is colon. An empty value
+means allow all protocols.
 .PP
-With Postfix >= 2.5 the parameter syntax was expanded to support
-protocol exclusions. One can explicitly exclude "SSLv2" by setting
-"smtp_tls_mandatory_protocols = !SSLv2". To exclude both "SSLv2" and
-"SSLv3" set "smtp_tls_mandatory_protocols = !SSLv2, !SSLv3". Listing
-the protocols to include, rather than protocols to exclude, is
-supported, but not recommended. The exclusion form more closely
-matches the underlying OpenSSL interface semantics.
+The valid protocol names (see \fBSSL_get_version\fR(3)) are "SSLv2",
+"SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2" and "TLSv1.3".  Starting with
+Postfix 3.6, the default value is ">=TLSv1", which sets TLS 1.0 as
+the lowest supported TLS protocol version (see below).  Older releases
+use the "!" exclusion syntax, also described below.
 .PP
-The range of protocols advertised by an SSL/TLS client must be
-contiguous.  When a protocol version is enabled, disabling any
-higher version implicitly disables all versions above that higher version.
-Thus, for example (assuming the OpenSSL library supports both SSLv2
-and SSLv3):
+As of Postfix 3.6, the preferred way to limit the range of
+acceptable protocols is to set a lowest acceptable TLS protocol version
+and/or a highest acceptable TLS protocol version.  To set the lower
+bound include an element of the form: ">=\fIversion\fR" where
+\fIversion\fR is a either one of the TLS protocol names listed above,
+or a hexadecimal number corresponding to the desired TLS protocol
+version (0301 for TLS 1.0, 0302 for TLS 1.1, etc.).  For the upper
+bound, use "<=\fIversion\fR".  There must be no whitespace between
+the ">=" or "<=" symbols and the protocol name or number.
+.PP
+Hexadecimal protocol numbers make it possible to specify protocol
+bounds for TLS versions that are known to OpenSSL, but might not be
+known to Postfix.  They cannot be used with the legacy exclusion syntax.
+Leading "0" or "0x" prefixes are supported, but not required.
+Therefore, "301", "0301", "0x301" and "0x0301" are all equivalent to
+"TLSv1".  Hexadecimal versions unknown to OpenSSL will fail to set the
+upper or lower bound, and a warning will be logged.  Hexadecimal
+versions should only be used when Postfix is linked with some future
+version of OpenSSL that supports TLS 1.4 or later, but Postfix does not
+yet support a symbolic name for that protocol version.
+.PP
+Hexadecimal example (Postfix >= 3.6):
 .sp
 .in +4
 .nf
 .na
 .ft C
-smtp_tls_mandatory_protocols = !SSLv2, !TLSv1
+# Allow only TLS 1.2 through (hypothetical) TLS 1.4, once supported
+# in some future version of OpenSSL (presently a warning is logged).
+smtp_tls_mandatory_protocols = >=TLSv1.2, <=0305
+# Allow only TLS 1.2 and up:
+smtp_tls_mandatory_protocols = >=0x0303
 .fi
 .ad
 .ft R
 .in -4
-also disables any protocols version higher than TLSv1 leaving
-only "SSLv3" enabled.
 .PP
-Note: As of OpenSSL 1.0.1 two new protocols are defined, "TLSv1.1"
-and "TLSv1.2". When Postfix <= 2.5 is linked against OpenSSL 1.0.1
-or later, these, or any other new protocol versions, cannot be
-disabled except by also disabling "TLSv1" (typically leaving just
-"SSLv3").  The latest patch levels of Postfix >= 2.6, and all
-versions of Postfix >= 2.10 can explicitly disable support for
-"TLSv1.1" or "TLSv1.2".
+With Postfix < 3.6 there is no support for a minimum or maximum
+version, and the protocol range is configured via protocol exclusions.
+To require at least TLS 1.0, set "smtp_tls_mandatory_protocols = !SSLv2,
+!SSLv3". Listing the protocols to include, rather than protocols to
+exclude, is supported, but not recommended.  The exclusion syntax more
+accurately matches the underlying OpenSSL interface.
 .PP
-OpenSSL 1.1.1 introduces support for "TLSv1.3".  With Postfix
->= 3.4 (or patch releases >= 3.0.14, 3.1.10, 3.2.7 and 3.3.2)
-this can be disabled, if need be, via "!TLSv1.3".
+When using the exclusion syntax, take care to ensure that the range
+of protocols supported by the Postfix SMTP client is contiguous.  When
+a protocol version is enabled, disabling any higher version implicitly
+disables all versions above that higher version.  Thus, for example:
+.sp
+.in +4
+.nf
+.na
+.ft C
+smtp_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1.1
+.fi
+.ad
+.ft R
+.in -4
 .PP
-At the dane and
-dane\-only security
-levels, when usable TLSA records are obtained for the remote SMTP
-server, the Postfix SMTP client is obligated to include the SNI TLS
-extension in its SSL client hello message.  This may help the remote
-SMTP server live up to its promise to provide a certificate that
-matches its TLSA records.  Since TLS extensions require TLS 1.0 or
-later, the Postfix SMTP client must disable "SSLv2" and "SSLv3" when
-SNI is required.  If you use "dane" or "dane\-only" do not disable
-TLSv1, except perhaps via the policy table for destinations which
-you are sure will support "TLSv1.1" or "TLSv1.2".
+also disables any protocols version higher than TLSv1.1 leaving
+only "TLSv1" enabled.
+.PP
+Support for "TLSv1.3" was introduced in OpenSSL 1.1.1.  Disabling
+this protocol via "!TLSv1.3" is supported since Postfix 3.4 (or patch
+releases >= 3.0.14, 3.1.10, 3.2.7 and 3.3.2).
+.PP
+While the vast majority of SMTP servers with DANE TLSA records now
+support at least TLS 1.2, a few still only support TLS 1.0.  If you use
+"dane" or "dane\-only" it is best to not disable TLSv1, except perhaps
+via the policy table for destinations which you are sure will support
+"TLSv1.2".
 .PP
 See the documentation of the smtp_tls_policy_maps parameter and
 TLS_README for more information about security levels.
 .PP
 Example:
-.PP
 .nf
 .na
 .ft C
-# Preferred syntax with Postfix >= 2.5:
-smtp_tls_mandatory_protocols = !SSLv2, !SSLv3
+# Preferred syntax with Postfix >= 3.6:
+smtp_tls_mandatory_protocols = >=TLSv1.2, <=TLSv1.3
 # Legacy syntax:
-smtp_tls_mandatory_protocols = TLSv1
+smtp_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
 .fi
 .ad
 .ft R
@@ -8737,8 +8898,12 @@ Example:
 .ft C
 /etc/postfix/main.cf:
     smtp_tls_policy_maps = hash:/etc/postfix/tls_policy
-    # Postfix 2.5 and later
-    smtp_tls_fingerprint_digest = md5
+    # Postfix 2.5 and later.
+    #
+    # The default digest is sha256 with Postfix >= 3.6 and
+    # compatibility level >= 3.
+    #
+    smtp_tls_fingerprint_digest = sha256
 .fi
 .ad
 .ft R
@@ -8756,8 +8921,8 @@ Example:
     [mail.example.org]:587      secure match=nexthop
     # Postfix 2.5 and later
     [thumb.example.org]          fingerprint
-        match=EC:3B:2D:B0:5B:B1:FB:6D:20:A3:9D:72:F6:8D:12:35
-        match=3D:95:34:51:24:66:33:B9:D2:40:99:C0:C1:17:0B:D1
+        match=b6:b4:72:34:e2:59:cd:...:c2:ca:63:0d:4d:cc:2c:7d:84:de:e6:2f
+        match=51:e9:af:2e:1e:40:1f:...:64:0a:30:35:2d:09:16:31:5a:eb:82:76
 .fi
 .ad
 .ft R
@@ -8769,59 +8934,91 @@ DNS forgery. Do not use the \fBhostname\fR strategy for secure\-channel
 configurations in environments where DNS security is not assured.
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH smtp_tls_protocols (default: !SSLv2, !SSLv3)
-List of TLS protocols that the Postfix SMTP client will exclude or
-include with opportunistic TLS encryption. The default value is
-"!SSLv2, !SSLv3" for Postfix releases after the middle of 2015,
-"!SSLv2" for older releases. Before Postfix 2.6, the Postfix SMTP
-client would use all protocols with opportunistic TLS.
+.SH smtp_tls_protocols (default: see postconf \-d output)
+TLS protocols that the Postfix SMTP client will use with
+opportunistic TLS encryption.  In main.cf the values are separated by
+whitespace, commas or colons. In the policy table "protocols" attribute
+(see smtp_tls_policy_maps) the only valid separator is colon.  An empty
+value means allow all protocols.
 .PP
-In main.cf the values are separated by whitespace, commas or
-colons. In the policy table (see smtp_tls_policy_maps) the only valid
-separator is colon. An empty value means allow all protocols. The valid
-protocol names, (see \\fBfBSSL_get_version\fR(3)\fR), are "SSLv2", "SSLv3"
-and "TLSv1".
+The valid protocol names (see \fBSSL_get_version\fR(3)) are "SSLv2",
+"SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2" and "TLSv1.3".  Starting with
+Postfix 3.6, the default value is ">=TLSv1", which sets TLS 1.0 as
+the lowest supported TLS protocol version (see below).  Older releases
+use the "!" exclusion syntax, also described below.
 .PP
-The range of protocols advertised by an SSL/TLS client must be
-contiguous.  When a protocol version is enabled, disabling any
-higher version implicitly disables all versions above that higher version.
-Thus, for example (assuming the OpenSSL library supports both SSLv2
-and SSLv3):
+As of Postfix 3.6, the preferred way to limit the range of
+acceptable protocols is to set the lowest acceptable TLS protocol
+version and/or the highest acceptable TLS protocol version.  To set the
+lower bound include an element of the form: ">=\fIversion\fR" where
+\fIversion\fR is a either one of the TLS protocol names listed above,
+or a hexadecimal number corresponding to the desired TLS protocol
+version (0301 for TLS 1.0, 0302 for TLS 1.1, etc.).  For the upper
+bound, use "<=\fIversion\fR".  There must be no whitespace between
+the ">=" or "<=" symbols and the protocol name or number.
+.PP
+Hexadecimal protocol numbers make it possible to specify protocol
+bounds for TLS versions that are known to OpenSSL, but might not be
+known to Postfix.  They cannot be used with the legacy exclusion syntax.
+Leading "0" or "0x" prefixes are supported, but not required.
+Therefore, "301", "0301", "0x301" and "0x0301" are all equivalent to
+"TLSv1".  Hexadecimal versions unknown to OpenSSL will fail to set the
+upper or lower bound, and a warning will be logged.  Hexadecimal
+versions should only be used when Postfix is linked with some future
+version of OpenSSL that supports TLS 1.4 or later, but Postfix does not
+yet support a symbolic name for that protocol version.
+.PP
+Hexadecimal example (Postfix >= 3.6):
 .sp
 .in +4
 .nf
 .na
 .ft C
-smtp_tls_protocols = !SSLv2, !TLSv1
+# Allow only TLS 1.0 through (hypothetical) TLS 1.4, once supported
+# in some future version of OpenSSL (presently a warning is logged).
+smtp_tls_protocols = >=TLSv1, <=0305
+# Allow only TLS 1.0 and up:
+smtp_tls_protocols = >=0x0301
 .fi
 .ad
 .ft R
 .in -4
-also disables any protocols version higher than TLSv1 leaving
-only "SSLv3" enabled.
 .PP
-Note: As of OpenSSL 1.0.1 two new protocols are defined, "TLSv1.1"
-and "TLSv1.2". The latest patch levels of Postfix >= 2.6, and all
-versions of Postfix >= 2.10 can explicitly disable support for
-"TLSv1.1" or "TLSv1.2"
+With Postfix < 3.6 there is no support for a minimum or maximum
+version, and the protocol range is configured via protocol exclusions.
+To require at least TLS 1.0, set "smtp_tls_protocols = !SSLv2, !SSLv3".
+Listing the protocols to include, rather than protocols to exclude, is
+supported, but not recommended.  The exclusion form more accurately
+matches the underlying OpenSSL interface.
 .PP
-OpenSSL 1.1.1 introduces support for "TLSv1.3".  With Postfix
->= 3.4 (or patch releases >= 3.0.14, 3.1.10, 3.2.7 and 3.3.2)
-this can be disabled, if need be, via "!TLSv1.3".
+When using the exclusion syntax, take care to ensure that the range of
+protocols advertised by an SSL/TLS client is contiguous.  When a protocol
+version is enabled, disabling any higher version implicitly disables all
+versions above that higher version.  Thus, for example:
+.sp
+.in +4
+.nf
+.na
+.ft C
+smtp_tls_protocols = !SSLv2, !SSLv3, !TLSv1.1
+.fi
+.ad
+.ft R
+.in -4
+also disables any protocols version higher than TLSv1.1 leaving
+only "TLSv1" enabled.
 .PP
-To include a protocol list its name, to exclude it, prefix the name
-with a "!" character. To exclude SSLv2 for opportunistic TLS set
-"smtp_tls_protocols = !SSLv2". To exclude both "SSLv2" and "SSLv3" set
-"smtp_tls_protocols = !SSLv2, !SSLv3". Explicitly listing the protocols to
-include, rather than protocols to exclude, is supported, but not
-recommended.  The exclusion form more closely matches the underlying
-OpenSSL interface semantics.
+Support for "TLSv1.3" was introduced in OpenSSL 1.1.1.  Disabling
+this protocol via "!TLSv1.3" is supported since Postfix 3.4 (or patch
+releases >= 3.0.14, 3.1.10, 3.2.7 and 3.3.2).
 .PP
 Example:
 .nf
 .na
 .ft C
-# TLSv1 or better:
+# Preferred syntax with Postfix >= 3.6:
+smtp_tls_protocols = >=TLSv1, <=TLSv1.3
+# Legacy syntax:
 smtp_tls_protocols = !SSLv2, !SSLv3
 .fi
 .ad
@@ -9000,12 +9197,13 @@ smtp_tls_security_level = none
 .ft C
 # Opportunistic TLS.
 smtp_tls_security_level = may
-# Postfix >= 2.6:
 # Do not tweak opportunistic ciphers or protocol unless it is essential
 # to do so (if a security vulnerability is found in the SSL library that
 # can be mitigated by disabling a particular protocol or raising the
-# cipher grade from "export" to "low" or "medium").
-smtp_tls_ciphers = export
+# cipher grade).
+smtp_tls_ciphers = medium
+smtp_tls_protocols = >=TLSv1
+# Legacy (Postfix < 3.6) syntax:
 smtp_tls_protocols = !SSLv2, !SSLv3
 .fi
 .ad
@@ -9024,22 +9222,12 @@ smtp_tls_mandatory_ciphers = high
 .nf
 .na
 .ft C
-# Mandatory TLS verification of hostname or nexthop domain.
-smtp_tls_security_level = verify
-smtp_tls_mandatory_ciphers = high
-smtp_tls_verify_cert_match = hostname, nexthop, dot\-nexthop
-.fi
-.ad
-.ft R
-.PP
-.nf
-.na
-.ft C
-# Secure channel TLS with exact nexthop name match.
+# Authenticated TLS 1.2 or better matching the nexthop domain or a
+# subdomain.
 smtp_tls_security_level = secure
-smtp_tls_mandatory_protocols = TLSv1
 smtp_tls_mandatory_ciphers = high
-smtp_tls_secure_cert_match = nexthop
+smtp_tls_mandatory_protocols = >=TLSv1.2
+smtp_tls_secure_cert_match = nexthop, dot\-nexthop
 .fi
 .ad
 .ft R
@@ -9050,15 +9238,15 @@ smtp_tls_secure_cert_match = nexthop
 # Certificate fingerprint verification (Postfix >= 2.5).
 # The CA\-less "fingerprint" security level only scales to a limited
 # number of destinations. As a global default rather than a per\-site
-# setting, this is practical when mail for all recipients is sent
+# setting, this is practical only when mail for all recipients is sent
 # to a central mail hub.
 relayhost = [mailhub.example.com]
 smtp_tls_security_level = fingerprint
-smtp_tls_mandatory_protocols = !SSLv2, !SSLv3
+smtp_tls_mandatory_protocols = >=TLSv1.2
 smtp_tls_mandatory_ciphers = high
 smtp_tls_fingerprint_cert_match =
-    3D:95:34:51:24:66:33:B9:D2:40:99:C0:C1:17:0B:D1
-    EC:3B:2D:B0:5B:B1:FB:6D:20:A3:9D:72:F6:8D:12:35
+    3D:95:34:51:...:40:99:C0:C1
+    EC:3B:2D:B0:...:A3:9D:72:F6
 .fi
 .ad
 .ft R
@@ -9202,8 +9390,8 @@ separator is the colon character.
 Patterns specify domain names, or domain name suffixes:
 .IP "\fIexample.com\fR"
 Match the \fIexample.com\fR domain,
-i.e. one of the names the server certificate must be \fIexample.com\fR,
-upper and lower case distinctions are ignored.
+i.e. one of the names in the server certificate must be \fIexample.com\fR.
+Upper and lower case distinctions are ignored.
 .br
 .IP "\fI.example.com\fR"
 Match subdomains of the \fIexample.com\fR domain, i.e. match
@@ -9587,6 +9775,14 @@ Postfix version 2.5).  This feature requires "smtpd_tls_ask_ccert
 = yes" and is available with Postfix version
 2.2 and later.
 .br
+The default algorithm is \fBsha256\fR with Postfix >= 3.6
+and the \fBcompatibility_level\fR set to 3.6 or higher. With Postfix
+<= 3.5, the default algorithm is \fBmd5\fR.  The best\-practice
+algorithm is now \fBsha256\fR. Recent advances in hash function
+cryptanalysis have led to md5 and sha1 being deprecated in favor of
+sha256.  However, as long as there are no known "second pre\-image"
+attacks against the older algorithms, their use in this context, though
+not recommended, is still likely safe.
 .br
 Alternatively, check_ccert_access accepts an explicit search
 order (Postfix 3.5 and later). The default search order as described
@@ -9606,21 +9802,23 @@ least significant octets. See the \fBaccess\fR(5) manual page for details.
 Search the specified \fBaccess\fR(5) database for the IP addresses for the
 client hostname, and execute the corresponding action.  Note: a result
 of "OK" is not allowed for safety reasons. Instead, use DUNNO in order
-to exclude specific hosts from blacklists.  This feature is available
+to exclude specific hosts from denylists.  This feature is available
 in Postfix 3.0 and later.
 .br
 .IP "\fBcheck_client_mx_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the MX hosts for the
-client hostname, and execute the corresponding action.  Note: a result
+client hostname, and execute the corresponding action.  If no MX
+record is found, look up A or AAAA records, just like the Postfix
+SMTP client would. Note: a result
 of "OK" is not allowed for safety reasons. Instead, use DUNNO in order
-to exclude specific hosts from blacklists.  This feature is available
+to exclude specific hosts from denylists.  This feature is available
 in Postfix 2.7 and later.
 .br
 .IP "\fBcheck_client_ns_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the DNS servers for
 the client hostname, and execute the corresponding action.  Note: a
 result of "OK" is not allowed for safety reasons. Instead, use DUNNO
-in order to exclude specific hosts from blacklists.  This feature is
+in order to exclude specific hosts from denylists.  This feature is
 available in Postfix 2.7 and later.
 .br
 .IP "\fBcheck_reverse_client_hostname_access \fItype:table\fR\fR"
@@ -9629,28 +9827,30 @@ client hostname, parent domains, client IP address, or networks
 obtained by stripping least significant octets. See the \fBaccess\fR(5)
 manual page for details.  Note: a result of "OK" is not allowed for
 safety reasons.  Instead, use DUNNO in order to exclude specific
-hosts from blacklists.  This feature is available in Postfix 2.6
+hosts from denylists.  This feature is available in Postfix 2.6
 and later.
 .br
 .IP "\fBcheck_reverse_client_hostname_a_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the IP addresses for the
 unverified reverse client hostname, and execute the corresponding
 action.  Note: a result of "OK" is not allowed for safety reasons.
-Instead, use DUNNO in order to exclude specific hosts from blacklists.
+Instead, use DUNNO in order to exclude specific hosts from denylists.
 This feature is available in Postfix 3.0 and later.
 .br
 .IP "\fBcheck_reverse_client_hostname_mx_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the MX hosts for the
 unverified reverse client hostname, and execute the corresponding
-action.  Note: a result of "OK" is not allowed for safety reasons.
-Instead, use DUNNO in order to exclude specific hosts from blacklists.
+action.  If no MX record is found, look up A or AAAA records, just
+like the Postfix SMTP client would.
+Note: a result of "OK" is not allowed for safety reasons.
+Instead, use DUNNO in order to exclude specific hosts from denylists.
 This feature is available in Postfix 2.7 and later.
 .br
 .IP "\fBcheck_reverse_client_hostname_ns_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the DNS servers for
 the unverified reverse client hostname, and execute the corresponding
 action.  Note: a result of "OK" is not allowed for safety reasons.
-Instead, use DUNNO in order to exclude specific hosts from blacklists.
+Instead, use DUNNO in order to exclude specific hosts from denylists.
 This feature is available in Postfix 2.7 and later.
 .br
 .IP "\fBcheck_sasl_access \fItype:table\fR\fR"
@@ -9694,6 +9894,15 @@ smtpd_tls_fingerprint_digest parameter (hard\-coded as md5 prior to
 Postfix version 2.5).  This feature requires "smtpd_tls_ask_ccert
 = yes" and is available with Postfix version 2.2 and later.
 .br
+The default algorithm is \fBsha256\fR with Postfix >= 3.6
+and the \fBcompatibility_level\fR set to 3.6 or higher. With Postfix
+<= 3.5, the default algorithm is \fBmd5\fR.  The best\-practice
+algorithm is now \fBsha256\fR. Recent advances in hash function
+cryptanalysis have led to md5 and sha1 being deprecated in favor of
+sha256.  However, as long as there are no known "second pre\-image"
+attacks against the older algorithms, their use in this context, though
+not recommended, is still likely safe.
+.br
 .IP "\fBreject_rbl_client \fIrbl_domain=d.d.d.d\fR\fR"
 Reject the request when the reversed client network address is
 listed with the A record "\fId.d.d.d\fR" under \fIrbl_domain\fR
@@ -9721,7 +9930,7 @@ reversed client network address is listed with any A record under
 .br
 For safety, permit_dnswl_client is silently
 ignored when it would override reject_unauth_destination.  The
-result is DEFER_IF_REJECT when whitelist lookup fails.  This feature
+result is DEFER_IF_REJECT when allowlist lookup fails.  This feature
 is available in Postfix 2.8 and later.
 .br
 .IP "\fBreject_rhsbl_client \fIrbl_domain=d.d.d.d\fR\fR"
@@ -9746,14 +9955,14 @@ is a number, or a pattern inside "[]" that contains one or more
 "\fI=d.d.d.d\fR" is specified, accept the request when the client
 hostname is listed with any A record under \fIrhswl_domain\fR.
 .br
-Caution: client name whitelisting is fragile, since the client
+Caution: client name allowlisting is fragile, since the client
 name lookup can fail due to temporary outages.  Client name
-whitelisting should be used only to reduce false positives in e.g.
+allowlisting should be used only to reduce false positives in e.g.
 DNS\-based blocklists, and not for making access rule exceptions.
 .br
 For safety, permit_rhswl_client is silently ignored when it
 would override reject_unauth_destination.  The result is DEFER_IF_REJECT
-when whitelist lookup fails.  This feature is available in Postfix
+when allowlist lookup fails.  This feature is available in Postfix
 2.8 and later.
 .br
 .IP "\fBreject_rhsbl_reverse_client \fIrbl_domain=d.d.d.d\fR\fR"
@@ -9819,13 +10028,13 @@ the SMTP server reply code (default: 450).
 .br
 .IP "\fBdefer_if_permit\fR"
 Defer the request if some later restriction would result in an
-explicit or implicit PERMIT action.  This is useful when a blacklisting
+explicit or implicit PERMIT action.  This is useful when a denylisting
 feature fails due to a temporary problem.  This feature is available
 in Postfix version 2.1 and later.
 .br
 .IP "\fBdefer_if_reject\fR"
 Defer the request if some later restriction would result in a
-REJECT action.  This is useful when a whitelisting feature fails
+REJECT action.  This is useful when an allowlisting feature fails
 due to a temporary problem.  This feature is available in Postfix
 version 2.1 and later.
 .br
@@ -10261,7 +10470,7 @@ simply skip check_helo_access by not sending HELO or EHLO).
 Search the specified \fBaccess\fR(5) database for the IP addresses for
 the HELO or EHLO hostname, and execute the corresponding action.
 Note 1: a result of "OK" is not allowed for safety reasons. Instead,
-use DUNNO in order to exclude specific hosts from blacklists.  Note
+use DUNNO in order to exclude specific hosts from denylists.  Note
 2: specify "smtpd_helo_required = yes" to fully enforce this
 restriction (without "smtpd_helo_required = yes", a client can
 simply skip check_helo_a_access by not sending HELO or EHLO).  This
@@ -10270,8 +10479,10 @@ feature is available in Postfix 3.0 and later.
 .IP "\fBcheck_helo_mx_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the MX hosts for
 the HELO or EHLO hostname, and execute the corresponding action.
+If no MX record is found, look up A or AAAA records, just like the
+Postfix SMTP client would.
 Note 1: a result of "OK" is not allowed for safety reasons. Instead,
-use DUNNO in order to exclude specific hosts from blacklists.  Note
+use DUNNO in order to exclude specific hosts from denylists.  Note
 2: specify "smtpd_helo_required = yes" to fully enforce this
 restriction (without "smtpd_helo_required = yes", a client can
 simply skip check_helo_mx_access by not sending HELO or EHLO).  This
@@ -10281,7 +10492,7 @@ feature is available in Postfix 2.1 and later.
 Search the specified \fBaccess\fR(5) database for the DNS servers
 for the HELO or EHLO hostname, and execute the corresponding action.
 Note 1: a result of "OK" is not allowed for safety reasons. Instead,
-use DUNNO in order to exclude specific hosts from blacklists.  Note
+use DUNNO in order to exclude specific hosts from denylists.  Note
 2: specify "smtpd_helo_required = yes" to fully enforce this
 restriction (without "smtpd_helo_required = yes", a client can
 simply skip check_helo_ns_access by not sending HELO or EHLO). This
@@ -10665,21 +10876,23 @@ corresponding action.
 Search the specified \fBaccess\fR(5) database for the IP addresses for
 the RCPT TO domain, and execute the corresponding action.  Note:
 a result of "OK" is not allowed for safety reasons. Instead, use
-DUNNO in order to exclude specific hosts from blacklists.  This
+DUNNO in order to exclude specific hosts from denylists.  This
 feature is available in Postfix 3.0 and later.
 .br
 .IP "\fBcheck_recipient_mx_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the MX hosts for
-the RCPT TO domain, and execute the corresponding action.  Note:
+the RCPT TO domain, and execute the corresponding action.  If no
+MX record is found, look up A or AAAA records, just like the Postfix
+SMTP client would. Note:
 a result of "OK" is not allowed for safety reasons. Instead, use
-DUNNO in order to exclude specific hosts from blacklists.  This
+DUNNO in order to exclude specific hosts from denylists.  This
 feature is available in Postfix 2.1 and later.
 .br
 .IP "\fBcheck_recipient_ns_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the DNS servers
 for the RCPT TO domain, and execute the corresponding action.
 Note: a result of "OK" is not allowed for safety reasons. Instead,
-use DUNNO in order to exclude specific hosts from blacklists.  This
+use DUNNO in order to exclude specific hosts from denylists.  This
 feature is available in Postfix 2.1 and later.
 .br
 .IP "\fBpermit_auth_destination\fR"
@@ -10985,6 +11198,18 @@ not null.
 .br
 .PP
 This feature is available in Postfix 2.1 and later.
+.SH smtpd_relay_before_recipient_restrictions (default: see "postconf \-d" output)
+Evaluate smtpd_relay_restrictions before smtpd_recipient_restrictions.
+Historically, smtpd_relay_restrictions was evaluated after
+smtpd_recipient_restrictions, contradicting documented behavior.
+.PP
+Background: the smtpd_relay_restrictions feature is primarily
+designed to enforce a mail relaying policy, while
+smtpd_recipient_restrictions is primarily designed to enforce spam
+blocking policy. Both are evaluated while replying to the RCPT TO
+command, and both support the same features.
+.PP
+This feature is available in Postfix 3.6 and later.
 .SH smtpd_relay_restrictions (default: permit_mynetworks, permit_sasl_authenticated, defer_unauth_destination)
 Access restrictions for mail relay control that the Postfix
 SMTP server applies in the context of the RCPT TO command, before
@@ -11167,6 +11392,30 @@ smtpd_sasl_local_domain = $myhostname
 .fi
 .ad
 .ft R
+.SH smtpd_sasl_mechanism_filter (default: !external, static:rest)
+If non\-empty, a filter for the SASL mechanism names that the
+Postfix SMTP server will announce in the EHLO response. By default,
+the Postfix SMTP server will not announce the EXTERNAL mechanism,
+because Postfix support for that is not implemented.
+.PP
+Specify mechanism names, "/file/name" patterns, or "type:table"
+lookup tables, separated by comma or whitespace. The right\-hand
+side result from "type:table" lookups is ignored. Specify "!pattern"
+to exclude a mechanism name from the list.
+.PP
+Examples:
+.PP
+.nf
+.na
+.ft C
+smtpd_sasl_mechanism_filter = !external, !gssapi, static:rest
+smtpd_sasl_mechanism_filter = login, plain
+smtpd_sasl_mechanism_filter = /etc/postfix/smtpd_mechs
+.fi
+.ad
+.ft R
+.PP
+This feature is available in Postfix 3.6 and later.
 .SH smtpd_sasl_path (default: smtpd)
 Implementation\-specific information that the Postfix SMTP server
 passes through to
@@ -11310,21 +11559,23 @@ corresponding action.
 Search the specified \fBaccess\fR(5) database for the IP addresses for
 the MAIL FROM domain, and execute the corresponding action.  Note:
 a result of "OK" is not allowed for safety reasons. Instead, use
-DUNNO in order to exclude specific hosts from blacklists.  This
+DUNNO in order to exclude specific hosts from denylists.  This
 feature is available in Postfix 3.0 and later.
 .br
 .IP "\fBcheck_sender_mx_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the MX hosts for
-the MAIL FROM domain, and execute the corresponding action.  Note:
+the MAIL FROM domain, and execute the corresponding action.  If no
+MX record is found, look up A or AAAA records, just like the Postfix
+SMTP client would. Note:
 a result of "OK" is not allowed for safety reasons. Instead, use
-DUNNO in order to exclude specific hosts from blacklists.  This
+DUNNO in order to exclude specific hosts from denylists.  This
 feature is available in Postfix 2.1 and later.
 .br
 .IP "\fBcheck_sender_ns_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the DNS servers
 for the MAIL FROM domain, and execute the corresponding action.
 Note: a result of "OK" is not allowed for safety reasons. Instead,
-use DUNNO in order to exclude specific hosts from blacklists.  This
+use DUNNO in order to exclude specific hosts from denylists.  This
 feature is available in Postfix 2.1 and later.
 .br
 .IP "\fBreject_authenticated_sender_login_mismatch\fR"
@@ -11907,6 +12158,13 @@ This feature is available in Postfix 2.2 and later.
 File with DH parameters that the Postfix SMTP server should
 use with non\-export EDH ciphers.
 .PP
+The best\-practice choice of parameters uses a 2048\-bit prime.  This is fine,
+despite the historical "1024" in the parameter name.  Do not be tempted to use
+much larger values, performance degrades quickly, and you may also cease to
+interoperate with some mainstream SMTP clients.  As of Postfix 3.1, the
+compiled\-in default prime is 2048\-bits, and it is not strictly necessary,
+though perhaps somewhat beneficial to generate custom DH parameters.
+.PP
 Instead of using the exact same parameter sets as distributed
 with other TLS packages, it is more secure to generate your own
 set of parameters with something like the following commands:
@@ -11915,9 +12173,11 @@ set of parameters with something like the following commands:
 .nf
 .na
 .ft C
-openssl dhparam \-out /etc/postfix/dh512.pem 512
-openssl dhparam \-out /etc/postfix/dh1024.pem 1024
 openssl dhparam \-out /etc/postfix/dh2048.pem 2048
+openssl dhparam \-out /etc/postfix/dh1024.pem 1024
+# As of Postfix 3.6, export\-grade 512\-bit DH parameters are no longer
+# supported or needed.
+openssl dhparam \-out /etc/postfix/dh512.pem 512
 .fi
 .ad
 .ft R
@@ -11951,6 +12211,9 @@ File with DH parameters that the Postfix SMTP server should
 use with export\-grade EDH ciphers.  The default SMTP server cipher
 grade is "medium" with Postfix releases after the middle of 2015,
 and as a result export\-grade cipher suites are by default not used.
+.PP
+With Postfix >= 3.6 export\-grade Diffie\-Hellman key exchange
+is no longer supported, and this parameter is silently ignored.
 .PP
 See also the discussion under the smtpd_tls_dh1024_param_file
 configuration parameter.
@@ -12014,32 +12277,32 @@ This feature is available in Postfix 2.6 and later, when Postfix is
 compiled and linked with OpenSSL 1.0.0 or later.
 .SH smtpd_tls_eecdh_grade (default: see "postconf \-d" output)
 The Postfix SMTP server security grade for ephemeral elliptic\-curve
-Diffie\-Hellman (EECDH) key exchange.
+Diffie\-Hellman (EECDH) key exchange.   As of Postfix 3.6, the value of
+this parameter is always ignored, and Postfix behaves as though the
+\fBauto\fR value (described below) was chosen.
 .PP
 The available choices are:
+.IP "\fBauto\fR"
+Use the most preferred curve that is
+supported by both the client and the server.  This setting requires
+Postfix >= 3.2 compiled and linked with OpenSSL >= 1.0.2.  This
+is the default setting under the above conditions (and the only
+setting used with Postfix >= 3.6).
+.br
 .IP "\fBnone\fR"
 Don't use EECDH. Ciphers based on EECDH key
 exchange will be disabled. This is the default in Postfix versions
 2.6 and 2.7.
 .br
 .IP "\fBstrong\fR"
-Use EECDH with approximately 128
-bits of security at a reasonable computational cost. This is the
-current best\-practice trade\-off between security and computational
-efficiency. This is the default in Postfix version 2.8 and later.
+Use EECDH with approximately 128 bits of
+security at a reasonable computational cost. This is the default in
+Postfix versions 2.8-3.5.
 .br
 .IP "\fBultra\fR"
 Use EECDH with approximately 192 bits of
 security at computational cost that is approximately twice as high
-as 128 bit strength ECC. Barring significant progress in attacks on
-elliptic curve crypto\-systems, the "strong" curve is sufficient for most
-users.
-.br
-.IP "\fBauto\fR"
-Use the most preferred curve that is
-supported by both the client and the server.  This setting requires
-Postfix >= 3.2 compiled and linked with OpenSSL >= 1.0.2.  This
-is the default setting under the above conditions.
+as 128 bit strength ECC.
 .br
 .br
 .PP
@@ -12087,22 +12350,24 @@ and "DES\-CBC3\-MD5". The last setting disables ciphers that use "EDH"
 key exchange with RSA authentication.
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH smtpd_tls_fingerprint_digest (default: md5)
-The message digest algorithm to construct remote SMTP
-client\-certificate
-fingerprints or public key fingerprints (Postfix 2.9 and later)
-for \fBcheck_ccert_access\fR and \fBpermit_tls_clientcerts\fR. The
-default algorithm is \fBmd5\fR, for backwards compatibility with Postfix
-releases prior to 2.5.
+.SH smtpd_tls_fingerprint_digest (default: see "postconf \-d" output)
+The message digest algorithm to construct remote SMTP client\-certificate
+fingerprints or public key fingerprints (Postfix 2.9 and later) for
+\fBcheck_ccert_access\fR and \fBpermit_tls_clientcerts\fR.
 .PP
-Advances in hash
-function cryptanalysis have led to md5 being deprecated in favor of sha1.
-However, as long as there are no known "second pre\-image" attacks
-against md5, its use in this context can still be considered safe.
+The default algorithm is \fBsha256\fR with Postfix >= 3.6
+and the \fBcompatibility_level\fR set to 3.6 or higher. With Postfix
+<= 3.5, the default algorithm is \fBmd5\fR.
+.PP
+The best\-practice algorithm is now \fBsha256\fR. Recent advances in hash
+function cryptanalysis have led to md5 and sha1 being deprecated in favor of
+sha256.  However, as long as there are no known "second pre\-image" attacks
+against the older algorithms, their use in this context, though not
+recommended, is still likely safe.
 .PP
 While additional digest algorithms are often available with OpenSSL's
 libcrypto, only those used by libssl in SSL cipher suites are available to
-Postfix.
+Postfix.  You'll likely find support for md5, sha1, sha256 and sha512.
 .PP
 To find the fingerprint of a specific certificate file, with a
 specific digest algorithm, run:
@@ -12124,8 +12389,8 @@ For example:
 .nf
 .na
 .ft C
-$ openssl x509 \-noout \-fingerprint \-sha1 \-in cert.pem
-SHA1 Fingerprint=D4:6A:AB:19:24:79:F8:32:BB:A6:CB:66:82:C0:8E:9B:EE:29:A8:1A
+$ openssl x509 \-noout \-fingerprint \-sha256 \-in cert.pem
+SHA256 Fingerprint=D4:6A:AB:19:24:...:A6:CB:66:82:C0:8E:9B:EE:29:A8:1A
 .fi
 .ad
 .ft R
@@ -12139,36 +12404,16 @@ key always in "PEM" format. We pipe the result to another OpenSSL
 command that converts the key to DER and then to the "dgst" command
 to compute the fingerprint.
 .PP
-The actual command to transform the key to DER format depends
-on the version of OpenSSL used. With OpenSSL 1.0.0 and later, the
-"pkey" command supports all key types. With OpenSSL 0.9.8 and
-earlier, the key type is always RSA (nobody uses DSA, and EC
-keys are not fully supported by 0.9.8), so the "rsa" command is
-used.
+Example:
 .sp
 .in +4
 .nf
 .na
 .ft C
-# OpenSSL 1.0 with all certificates and SHA\-1 fingerprints.
 $ openssl x509 \-in cert.pem \-noout \-pubkey |
     openssl pkey \-pubin \-outform DER |
-    openssl dgst \-sha1 \-c
+    openssl dgst \-sha256 \-c
 (stdin)= 64:3f:1f:f6:e5:1e:d4:2a:56:8b:fc:09:1a:61:98:b5:bc:7c:60:58
-.fi
-.ad
-.ft R
-.in -4
-.sp
-.in +4
-.nf
-.na
-.ft C
-# OpenSSL 0.9.8 with RSA certificates and MD5 fingerprints.
-$ openssl x509 \-in cert.pem \-noout \-pubkey |
-    openssl rsa \-pubin \-outform DER |
-    openssl dgst \-md5 \-c
-(stdin)= f4:62:60:f6:12:8f:d5:8d:28:4d:13:a7:db:b2:ff:50
 .fi
 .ad
 .ft R
@@ -12178,18 +12423,14 @@ The Postfix SMTP server and client log the peer (leaf) certificate
 fingerprint and public key fingerprint when the TLS loglevel is 2 or
 higher.
 .PP
-\fBNote:\fR Postfix 2.9.0-2.9.5 computed the public key
-fingerprint incorrectly. To use public\-key fingerprints, upgrade
-to Postfix 2.9.6 or later.
-.PP
-Example: client\-certificate access table, with sha1 fingerprints:
+Example: client\-certificate access table, with sha256 fingerprints:
 .sp
 .in +4
 .nf
 .na
 .ft C
 /etc/postfix/main.cf:
-    smtpd_tls_fingerprint_digest = sha1
+    smtpd_tls_fingerprint_digest = sha256
     smtpd_client_restrictions =
         check_ccert_access hash:/etc/postfix/access,
         reject
@@ -12201,9 +12442,9 @@ Example: client\-certificate access table, with sha1 fingerprints:
 .ft C
 /etc/postfix/access:
     # Action folded to next line...
-    AF:88:7C:AD:51:95:6F:36:96:F6:01:FB:2E:48:CD:AB:49:25:A2:3B
+    AF:88:7C:AD:51:95:6F:36:96:...:01:FB:2E:48:CD:AB:49:25:A2:3B
         OK
-    85:16:78:FD:73:6E:CE:70:E0:31:5F:0D:3C:C8:6D:C4:2C:24:59:E1
+    85:16:78:FD:73:6E:CE:70:E0:...:5F:0D:3C:C8:6D:C4:2C:24:59:E1
         permit_auth_destination
 .fi
 .ad
@@ -12326,80 +12567,147 @@ works in addition to the exclusions listed with smtpd_tls_exclude_ciphers
 (see there for syntax details).
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH smtpd_tls_mandatory_protocols (default: !SSLv2, !SSLv3)
-The SSL/TLS protocols accepted by the Postfix SMTP server with
-mandatory TLS encryption. If the list is empty, the server supports
-all available SSL/TLS protocol versions.  A non\-empty value is a
-list of protocol names separated by whitespace, commas or colons.
-The supported protocol names are "SSLv2", "SSLv3" and "TLSv1", and
-are not case sensitive. The default value is "!SSLv2, !SSLv3" for
-Postfix releases after the middle of 2015, "!SSLv2" for older
-releases.
+.SH smtpd_tls_mandatory_protocols (default: see "postconf \-d" output)
+TLS protocols accepted by the Postfix SMTP server with mandatory TLS
+encryption.  If the list is empty, the server supports all available TLS
+protocol versions.  A non\-empty value is a list of protocol names to
+include or exclude, separated by whitespace, commas or colons.
 .PP
-With Postfix >= 2.5 the parameter syntax was expanded to support
-protocol exclusions. One can explicitly exclude "SSLv2" by setting
-"smtpd_tls_mandatory_protocols = !SSLv2". To exclude both "SSLv2" and
-"SSLv3" set "smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3". Listing
-the protocols to include, rather than protocols to exclude, is
-supported, but not recommended. The exclusion form more closely
-matches the underlying OpenSSL interface semantics.
+The valid protocol names (see \fBSSL_get_version\fR(3)) are "SSLv2",
+"SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2" and "TLSv1.3".  Starting with
+Postfix 3.6, the default value is ">=TLSv1", which sets TLS 1.0 as
+the lowest supported TLS protocol version (see below).  Older releases
+use the "!" exclusion syntax, also described below.
 .PP
-Note: As of OpenSSL 1.0.1 two new protocols are defined, "TLSv1.1"
-and "TLSv1.2". When Postfix <= 2.5 is linked against OpenSSL 1.0.1
-or later, these, or any other new protocol versions, cannot be
-disabled.  The latest patch levels of Postfix >= 2.6, and all
-versions of Postfix >= 2.10 can disable support for "TLSv1.1" or
-"TLSv1.2".
+As of Postfix 3.6, the preferred way to limit the range of
+acceptable protocols is to set the lowest acceptable TLS protocol
+version and/or the highest acceptable TLS protocol version.  To set the
+lower bound include an element of the form: ">=\fIversion\fR" where
+\fIversion\fR is a either one of the TLS protocol names listed above,
+or a hexadecimal number corresponding to the desired TLS protocol
+version (0301 for TLS 1.0, 0302 for TLS 1.1, etc.).  For the upper
+bound, use "<=\fIversion\fR".  There must be no whitespace between
+the ">=" or "<=" symbols and the protocol name or number.
 .PP
-OpenSSL 1.1.1 introduces support for "TLSv1.3".  With Postfix
->= 3.4 (or patch releases >= 3.0.14, 3.1.10, 3.2.7 and 3.3.2)
-this can be disabled, if need be, via "!TLSv1.3".
+Hexadecimal protocol numbers make it possible to specify protocol
+bounds for TLS versions that are known to OpenSSL, but might not be
+known to Postfix.  They cannot be used with the legacy exclusion syntax.
+Leading "0" or "0x" prefixes are supported, but not required.
+Therefore, "301", "0301", "0x301" and "0x0301" are all equivalent to
+"TLSv1".  Hexadecimal versions unknown to OpenSSL will fail to set the
+upper or lower bound, and a warning will be logged.  Hexadecimal
+versions should only be used when Postfix is linked with some future
+version of OpenSSL that supports TLS 1.4 or later, but Postfix does not
+yet support a symbolic name for that protocol version.
+.PP
+Hexadecimal example (Postfix >= 3.6):
+.sp
+.in +4
+.nf
+.na
+.ft C
+# Allow only TLS 1.2 through (hypothetical) TLS 1.4, once supported
+# in some future version of OpenSSL (presently a warning is logged).
+smtpd_tls_mandatory_protocols = >=TLSv1.2, <=0305
+# Allow only TLS 1.2 and up:
+smtpd_tls_mandatory_protocols = >=0x0303
+.fi
+.ad
+.ft R
+.in -4
+.PP
+With Postfix < 3.6 there is no support for a minimum or maximum
+version, and the protocol range is configured via protocol exclusions.
+To require at least TLS 1.0, set "smtpd_tls_mandatory_protocols =
+!SSLv2, !SSLv3".  Listing the protocols to include, rather than
+protocols to exclude, is supported, but not recommended.  The exclusion
+form more accurately matches the underlying OpenSSL interface.
+.PP
+Support for "TLSv1.3" was introduced in OpenSSL 1.1.1.  Disabling
+this protocol via "!TLSv1.3" is supported since Postfix 3.4 (or patch
+releases >= 3.0.14, 3.1.10, 3.2.7 and 3.3.2).
 .PP
 Example:
 .PP
 .nf
 .na
 .ft C
-# Preferred syntax with Postfix >= 2.5:
-smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3
+# Preferred syntax with Postfix >= 3.6:
+smtpd_tls_mandatory_protocols = >=TLSv1.2, <=TLSv1.3
 # Legacy syntax:
-smtpd_tls_mandatory_protocols = TLSv1
+smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
 .fi
 .ad
 .ft R
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH smtpd_tls_protocols (default: !SSLv2, !SSLv3)
-List of TLS protocols that the Postfix SMTP server will exclude
-or include with opportunistic TLS encryption. The default value is
-"!SSLv2, !SSLv3" for Postfix releases after the middle of 2015,
-empty for older releases allowing all protocols to be
-used with opportunistic TLS.  A non\-empty value is a list of protocol
-names separated by whitespace, commas or colons.  The supported
-protocol names are "SSLv2", "SSLv3" and "TLSv1", and are not case
-sensitive.
+.SH smtpd_tls_protocols (default: see postconf \-d output)
+TLS protocols accepted by the Postfix SMTP server with opportunistic
+TLS encryption. If the list is empty, the server supports all available
+TLS protocol versions.  A non\-empty value is a list of protocol names to
+include or exclude, separated by whitespace, commas or colons.
 .PP
-Note: As of OpenSSL 1.0.1 two new protocols are defined, "TLSv1.1"
-and "TLSv1.2". The latest patch levels of Postfix >= 2.6, and all
-versions of Postfix >= 2.10 can disable support for "TLSv1.1" or
-"TLSv1.2".
+The valid protocol names (see \fBSSL_get_version\fR(3)) are "SSLv2",
+"SSLv3", "TLSv1", "TLSv1.1", "TLSv1.2" and "TLSv1.3".  Starting with
+Postfix 3.6, the default value is ">=TLSv1", which sets TLS 1.0 as
+the lowest supported TLS protocol version (see below).  Older releases
+use the "!" exclusion syntax, also described below.
 .PP
-OpenSSL 1.1.1 introduces support for "TLSv1.3".  With Postfix
->= 3.4 (or patch releases >= 3.0.14, 3.1.10, 3.2.7 and 3.3.2)
-this can be disabled, if need be, via "!TLSv1.3".
+As of Postfix 3.6, the preferred way to limit the range of
+acceptable protocols is to set the lowest acceptable TLS protocol
+version and/or the highest acceptable TLS protocol version.  To set the
+lower bound include an element of the form: ">=\fIversion\fR" where
+\fIversion\fR is a either one of the TLS protocol names listed above,
+or a hexadecimal number corresponding to the desired TLS protocol
+version (0301 for TLS 1.0, 0302 for TLS 1.1, etc.).  For the upper
+bound, use "<=\fIversion\fR".  There must be no whitespace between
+the ">=" or "<=" symbols and the protocol name or number.
 .PP
-To include a protocol list its name, to exclude it, prefix the name
-with a "!" character. To exclude SSLv2 for opportunistic TLS set
-"smtpd_tls_protocols = !SSLv2". To exclude both "SSLv2" and "SSLv3" set
-"smtpd_tls_protocols = !SSLv2, !SSLv3". Explicitly listing the protocols to
-include, rather than protocols to exclude, is supported, but not
-recommended.  The exclusion form more closely matches the underlying
-OpenSSL interface semantics.
+Hexadecimal protocol numbers make it possible to specify protocol
+bounds for TLS versions that are known to OpenSSL, but might not be
+known to Postfix.  They cannot be used with the legacy exclusion syntax.
+Leading "0" or "0x" prefixes are supported, but not required.
+Therefore, "301", "0301", "0x301" and "0x0301" are all equivalent to
+"TLSv1".  Hexadecimal versions unknown to OpenSSL will fail to set the
+upper or lower bound, and a warning will be logged.  Hexadecimal
+versions should only be used when Postfix is linked with some future
+version of OpenSSL that supports TLS 1.4 or later, but Postfix does not
+yet support a symbolic name for that protocol version.
+.PP
+Hexadecimal example (Postfix >= 3.6):
+.sp
+.in +4
+.nf
+.na
+.ft C
+# Allow only TLS 1.0 through (hypothetical) TLS 1.4, once supported
+# in some future version of OpenSSL (presently a warning is logged).
+smtpd_tls_protocols = >=TLSv1, <=0305
+# Allow only TLS 1.0 and up:
+smtpd_tls_protocols = >=0x0301
+.fi
+.ad
+.ft R
+.in -4
+.PP
+With Postfix < 3.6 there is no support for a minimum or maximum
+version, and the protocol range is configured via protocol exclusions.
+To require at least TLS 1.0, set "smtpd_tls_protocols = !SSLv2, !SSLv3".
+Listing the protocols to include, rather than protocols to exclude, is
+supported, but not recommended.  The exclusion form more accurately
+matches the underlying OpenSSL interface.
+.PP
+Support for "TLSv1.3" was introduced in OpenSSL 1.1.1.  Disabling
+this protocol via "!TLSv1.3" is supported since Postfix 3.4 (or patch
+releases >= 3.0.14, 3.1.10, 3.2.7 and 3.3.2).
 .PP
 Example:
 .nf
 .na
 .ft C
+# Preferred syntax with Postfix >= 3.6:
+smtpd_tls_protocols = >=TLSv1, <=TLSv1.3
+# Legacy syntax:
 smtpd_tls_protocols = !SSLv2, !SSLv3
 .fi
 .ad
@@ -12891,7 +13199,7 @@ bug work\-arounds to disable.
 If the value of the parameter is a hexadecimal long integer starting
 with "0x", the bug work\-arounds corresponding to the bits specified in
 its value are removed from the \fBSSL_OP_ALL\fR work\-around bit\-mask
-(see openssl/ssl.h and SSL_CTX_\fBset_options\fR(3)). You can specify more
+(see openssl/ssl.h and \fBSSL_CTX_set_options\fR(3)). You can specify more
 bits than are present in SSL_OP_ALL, excess bits are ignored. Specifying
 0xFFFFFFFF disables all bug\-workarounds on a 32\-bit system. This should
 also be sufficient on 64\-bit systems, until OpenSSL abandons support
@@ -12909,17 +13217,17 @@ OpenSSL 1.0.0.
 .br
 .IP "\fBDONT_INSERT_EMPTY_FRAGMENTS\fR"
 See
-SSL_CTX_\fBset_options\fR(3)
+\fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBLEGACY_SERVER_CONNECT\fR"
-See SSL_CTX_\fBset_options\fR(3)
+See \fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBMICROSOFT_BIG_SSLV3_BUFFER\fR"
 See
-SSL_CTX_\fBset_options\fR(3)
+\fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBMICROSOFT_SESS_ID_BUG\fR"
-See SSL_CTX_\fBset_options\fR(3)
+See \fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBMSIE_SSLV2_RSA_PADDING\fR"
 also aliased as
@@ -12928,7 +13236,7 @@ default with OpenSSL versions that may predate the fix. Fixed in
 OpenSSL 0.9.7h and OpenSSL 0.9.8a.
 .br
 .IP "\fBNETSCAPE_CHALLENGE_BUG\fR"
-See SSL_CTX_\fBset_options\fR(3)
+See \fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBNETSCAPE_REUSE_CIPHER_CHANGE_BUG\fR"
 also aliased
@@ -12938,25 +13246,25 @@ OpenSSL 0.9.8q and OpenSSL 1.0.0c.
 .br
 .IP "\fBSSLEAY_080_CLIENT_DH_BUG\fR"
 See
-SSL_CTX_\fBset_options\fR(3)
+\fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBSSLREF2_REUSE_CERT_TYPE_BUG\fR"
 See
-SSL_CTX_\fBset_options\fR(3)
+\fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBTLS_BLOCK_PADDING_BUG\fR"
-See SSL_CTX_\fBset_options\fR(3)
+See \fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBTLS_D5_BUG\fR"
-See SSL_CTX_\fBset_options\fR(3)
+See \fBSSL_CTX_set_options\fR(3)
 .br
 .IP "\fBTLS_ROLLBACK_BUG\fR"
-See SSL_CTX_\fBset_options\fR(3).
+See \fBSSL_CTX_set_options\fR(3).
 This is disabled in OpenSSL 0.9.7 and later. Nobody should still
 be using 0.9.6!
 .br
 .IP "\fBTLSEXT_PADDING\fR"
-Postfix >= 3.4. See SSL_CTX_\fBset_options\fR(3).
+Postfix >= 3.4. See \fBSSL_CTX_set_options\fR(3).
 .br
 .br
 .PP
@@ -13337,7 +13645,7 @@ solution.
 .PP
 If the value of the parameter is a hexadecimal long integer
 starting with "0x", the options corresponding to the bits specified
-in its value are enabled (see openssl/ssl.h and SSL_CTX_\fBset_options\fR(3)).
+in its value are enabled (see openssl/ssl.h and \fBSSL_CTX_set_options\fR(3)).
 You can only enable options not already controlled by other Postfix
 settings.  For example, you cannot disable protocols or enable
 server cipher preference.  Do not attempt to turn all features by
@@ -13347,16 +13655,16 @@ if/when they're no longer enabled by default.  The supported values
 include:
 .IP "\fBENABLE_MIDDLEBOX_COMPAT\fR"
 Postfix >= 3.4. See
-SSL_CTX_\fBset_options\fR(3).
+\fBSSL_CTX_set_options\fR(3).
 .br
 .IP "\fBLEGACY_SERVER_CONNECT\fR"
-See SSL_CTX_\fBset_options\fR(3).
+See \fBSSL_CTX_set_options\fR(3).
 .br
 .IP "\fBNO_TICKET\fR"
 Enabled by default when needed in
 fully\-patched Postfix >= 2.7.  Not needed at all for Postfix >=
 2.11, unless for some reason you do not want to support TLS session
-resumption.  Best not set explicitly.  See SSL_CTX_\fBset_options\fR(3).
+resumption.  Best not set explicitly.  See \fBSSL_CTX_set_options\fR(3).
 .br
 .IP "\fBNO_COMPRESSION\fR"
 Disable SSL compression even if
@@ -13366,14 +13674,14 @@ and compression before encryption does not always improve security.
 .IP "\fBNO_RENEGOTIATION\fR"
 Postfix >= 3.4.  This can
 reduce opportunities for a potential CPU exhaustion attack.  See
-SSL_CTX_\fBset_options\fR(3).
+\fBSSL_CTX_set_options\fR(3).
 .br
 .IP "\fBNO_SESSION_RESUMPTION_ON_RENEGOTIATION\fR"
 Postfix
->= 3.4. See SSL_CTX_\fBset_options\fR(3).
+>= 3.4. See \fBSSL_CTX_set_options\fR(3).
 .br
 .IP "\fBPRIORITIZE_CHACHA\fR"
-Postfix >= 3.4. See SSL_CTX_\fBset_options\fR(3).
+Postfix >= 3.4. See \fBSSL_CTX_set_options\fR(3).
 .br
 .br
 .PP
@@ -13605,6 +13913,9 @@ should use with export\-grade EDH ciphers. See smtpd_tls_dh512_param_file
 for further details.  The default SMTP server cipher grade is
 "medium" with Postfix releases after the middle of 2015, and as a
 result export\-grade cipher suites are by default not used.
+.PP
+With Postfix >= 3.6 export\-grade Diffie\-Hellman key exchange
+is no longer supported, and this parameter is silently ignored.
 .PP
 This feature is available in Postfix 2.8 and later.
 .SH tlsproxy_tls_dkey_file (default: $smtpd_tls_dkey_file)

@@ -45,7 +45,6 @@ typedef struct BOUNCE_TEMPLATE {
 #define IS_FAILURE_TEMPLATE(t)	((t)->class[0] == BOUNCE_TMPL_CLASS_FAILURE[0])
 #define IS_DELAY_TEMPLATE(t)	((t)->class[0] == BOUNCE_TMPL_CLASS_DELAY[0])
 #define IS_SUCCESS_TEMPLATE(t)	((t)->class[0] == BOUNCE_TMPL_CLASS_SUCCESS[0])
-#define IS_VERIFY_TEMPLATE(t)	((t)->class[0] == BOUNCE_TMPL_CLASS_verify[0])
 
 #define bounce_template_encoding(t)	((t)->mime_encoding)
 #define bounce_template_charset(t)	((t)->mime_charset)
@@ -89,6 +88,11 @@ void    bounce_templates_dump(VSTREAM *, BOUNCE_TEMPLATES *);
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 #endif
