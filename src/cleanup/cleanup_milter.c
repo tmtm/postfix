@@ -2548,6 +2548,16 @@ int     main(int unused_argc, char **argv)
 	    } else {
 		msg_warn("bad verbose argument");
 	    }
+	} else if (strcmp(argv->argv[0], "line_length_limit") == 0) {
+	    if (argv->argc != 2) {
+		msg_warn("bad line_length_limit argument count: %ld",
+			 (long) argv->argc);
+	    } else if (alldig(argv->argv[1]) == 0) {
+		msg_warn("bad line_length_limit argument count: %ld",
+			 (long) argv->argc);
+	    } else if ((var_line_limit = atoi(argv->argv[1])) < DEF_LINE_LIMIT) {
+		msg_warn("bad line_length_limit argument");
+	    }
 	} else if (strcmp(argv->argv[0], "open") == 0) {
 	    if (state->dst != 0) {
 		msg_info("closing %s", VSTREAM_PATH(state->dst));
@@ -2665,10 +2675,13 @@ int     main(int unused_argc, char **argv)
 		    msg_warn("open %s file: %m", argv->argv[1]);
 		} else {
 		    buf = vstring_alloc(100);
-		    cleanup_repl_body(state, MILTER_BODY_START, buf);
+		    cleanup_repl_body(state, MILTER_BODY_START,
+				      REC_TYPE_NORM, buf);
 		    while (vstring_get_nonl(buf, fp) != VSTREAM_EOF)
-			cleanup_repl_body(state, MILTER_BODY_LINE, buf);
-		    cleanup_repl_body(state, MILTER_BODY_END, buf);
+			cleanup_repl_body(state, MILTER_BODY_LINE,
+					  REC_TYPE_NORM, buf);
+		    cleanup_repl_body(state, MILTER_BODY_END,
+				      REC_TYPE_NORM, buf);
 		    vstring_free(buf);
 		    vstream_fclose(fp);
 		}

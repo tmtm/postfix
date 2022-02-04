@@ -78,7 +78,7 @@
 /*	the major field ranges from 0..COMPAT_MAJOR_SHIFT47 or more
 /*	(11 bits or more).
 /*
-/*	This would be a great use case for fucntions returning
+/*	This would be a great use case for functions returning
 /*	StatusOr<compat_level_t> or StatusOr<string>, but is it a bit
 /*	late for a port to C++.
 /* LICENSE
@@ -106,6 +106,7 @@
   */
 #include <mac_expand.h>
 #include <msg.h>
+#include <sane_strtol.h>
 
  /*
   * For easy comparison we convert a three-number compatibility level into
@@ -157,22 +158,21 @@ long    compat_level_from_string(const char *str,
     char   *remainder;
 
     start = str;
-    errno = 0;
-    major = strtol(start, &remainder, 10);
+    major = sane_strtol(start, &remainder, 10);
     if (start < remainder && (*remainder == 0 || *remainder == '.')
 	&& errno != ERANGE && GOOD_MAJOR(major)) {
 	res = ENCODE_MAJOR(major);
 	if (*remainder == 0)
 	    return res;
 	start = remainder + 1;
-	minor = strtol(start, &remainder, 10);
+	minor = sane_strtol(start, &remainder, 10);
 	if (start < remainder && (*remainder == 0 || *remainder == '.')
 	    && errno != ERANGE && GOOD_MINOR(minor)) {
 	    res |= ENCODE_MINOR(minor);
 	    if (*remainder == 0)
 		return (res);
 	    start = remainder + 1;
-	    patch = strtol(start, &remainder, 10);
+	    patch = sane_strtol(start, &remainder, 10);
 	    if (start < remainder && *remainder == 0 && errno != ERANGE
 		&& GOOD_PATCH(patch)) {
 		return (res | ENCODE_PATCH(patch));
@@ -408,6 +408,7 @@ static void test_convert(void)
 						     msg_warn)) < 0)
 	    continue;
 	msg_info("%s -> 0x%lx", vstring_str(buf), compat_level);
+	errno = ERANGE;
 	if ((as_string = compat_level_to_string(compat_level,
 						msg_warn)) == 0)
 	    continue;

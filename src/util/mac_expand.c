@@ -42,29 +42,29 @@
 /*
 /*	The following substitutions are supported:
 /* .IP "$name, ${name}"
-/*	Unconditional attribute-based substition. The result is the
+/*	Unconditional attribute-based substitution. The result is the
 /*	named attribute value (empty if the attribute is not defined)
 /*	after optional further named attribute substitution.
 /* .IP "${name?text}, ${name?{text}}"
-/*	Conditional attribute-based substition. If the named attribute
+/*	Conditional attribute-based substitution. If the named attribute
 /*	value is non-empty, the result is the given text, after
 /*	named attribute expansion and relational expression evaluation.
 /*	Otherwise, the result is empty.  Whitespace before or after
 /*	{text} is ignored.
 /* .IP "${name:text}, ${name:{text}}"
-/*	Conditional attribute-based substition. If the attribute
+/*	Conditional attribute-based substitution. If the attribute
 /*	value is empty or undefined, the expansion is the given
 /*	text, after named attribute expansion and relational expression
 /*	evaluation.  Otherwise, the result is empty.  Whitespace
 /*	before or after {text} is ignored.
 /* .IP "${name?{text1}:{text2}}, ${name?{text1}:text2}"
-/*	Conditional attribute-based substition. If the named attribute
+/*	Conditional attribute-based substitution. If the named attribute
 /*	value is non-empty, the result is text1.  Otherwise, the
 /*	result is text2. In both cases the result is subject to
 /*	named attribute expansion and relational expression evaluation.
 /*	Whitespace before or after {text1} or {text2} is ignored.
 /* .IP "${{text1} == ${text2} ? {text3} : {text4}}"
-/*	Relational expression-based substition.  First, the content
+/*	Relational expression-based substitution.  First, the content
 /*	of {text1} and ${text2} is subjected to named attribute and
 /*	relational expression-based substitution.  Next, the relational
 /*	expression is evaluated. If it evaluates to "true", the
@@ -177,6 +177,7 @@
 #include <mymalloc.h>
 #include <stringops.h>
 #include <name_code.h>
+#include <sane_strtol.h>
 #include <mac_parse.h>
 #include <mac_expand.h>
 
@@ -274,8 +275,7 @@ static long atol_or_die(const char *strval)
     long    result;
     char   *remainder;
 
-    errno = 0;
-    result = strtol(strval, &remainder, 10);
+    result = sane_strtol(strval, &remainder, 10);
     if (*strval == 0 /* can't happen */ || *remainder != 0 || errno == ERANGE)
 	msg_fatal("mac_exp_eval: bad conversion: %s", strval);
     return (result);
@@ -620,7 +620,7 @@ static int mac_expand_callback(int type, VSTRING *buf, void *ptr)
 
 	    /*
 	     * Look up the named parameter. Todo: allow the lookup function
-	     * to specify if the result is safe for $name expanson.
+	     * to specify if the result is safe for $name expansion.
 	     */
 	    lookup = mc->lookup(start, lookup_mode, mc->context);
 	}

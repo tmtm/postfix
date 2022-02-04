@@ -212,7 +212,7 @@
 /* .PP
 /*	Other configuration parameters:
 /* .IP "\fBimport_environment (see 'postconf -d' output)\fR"
-/*	The list of environment parameters that a privileged Postfix
+/*	The list of environment variables that a privileged Postfix
 /*	process will import from a non-Postfix parent process, or name=value
 /*	environment overrides.
 /* .IP "\fBsyslog_facility (mail)\fR"
@@ -280,6 +280,7 @@
 /*	postalias(1), create/update/query alias database
 /*	postcat(1), examine Postfix queue file
 /*	postconf(1), Postfix configuration utility
+/*	postdrop(1), Postfix mail posting utility
 /*	postfix(1), Postfix control program
 /*	postfix-tls(1), Postfix TLS management
 /*	postkick(1), trigger Postfix daemon
@@ -587,8 +588,7 @@ int     main(int argc, char **argv)
      * effect.
      */
     if (compat_level < compat_level_from_string(LAST_COMPAT_LEVEL, msg_panic)) {
-	msg_info("Postfix is running with backwards-compatible default "
-		 "settings");
+	msg_info("Postfix is using backwards-compatible default settings");
 	msg_info("See http://www.postfix.org/COMPATIBILITY_README.html "
 		 "for details");
 	msg_info("To disable backwards compatibility use \"postconf "

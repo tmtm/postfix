@@ -133,7 +133,7 @@
 /* .IP "\fBsmtpd_command_filter (empty)\fR"
 /*	A mechanism to transform commands from remote SMTP clients.
 /* .PP
-/*	Available in Postfix version 2.9 and later:
+/*	Available in Postfix version 2.9 - 3.6:
 /* .IP "\fBsmtpd_per_record_deadline (normal: no, overload: yes)\fR"
 /*	Change the behavior of the smtpd_timeout and smtpd_starttls_timeout
 /*	time limits, from a
@@ -150,6 +150,17 @@
 /*	Evaluate smtpd_relay_restrictions before smtpd_recipient_restrictions.
 /* .IP "\fBknown_tcp_ports (lmtp=24, smtp=25, smtps=submissions=465, submission=587)\fR"
 /*	Optional setting that avoids lookups in the \fBservices\fR(5) database.
+/* .PP
+/*	Available in Postfix version 3.7 and later:
+/* .IP "\fBsmtpd_per_request_deadline (normal: no, overload: yes)\fR"
+/*	Change the behavior of the smtpd_timeout and smtpd_starttls_timeout
+/*	time limits, from a time limit per plaintext or TLS read or write
+/*	call, to a combined time limit for receiving a complete SMTP request
+/*	and for sending a complete SMTP response.
+/* .IP "\fBsmtpd_min_data_rate (500)\fR"
+/*	The minimum plaintext data transfer rate in bytes/second for
+/*	DATA and BDAT requests, when deadlines are enabled with
+/*	smtpd_per_request_deadline.
 /* ADDRESS REWRITING CONTROLS
 /* .ad
 /* .fi
@@ -711,8 +722,12 @@
 /*	The maximal number of recipients that the Postfix SMTP server
 /*	accepts per message delivery request.
 /* .IP "\fBsmtpd_timeout (normal: 300s, overload: 10s)\fR"
-/*	The time limit for sending a Postfix SMTP server response and for
-/*	receiving a remote SMTP client request.
+/*	When the Postfix SMTP server wants to send an SMTP server
+/*	response, how long the Postfix SMTP server will wait for an underlying
+/*	network write operation to complete; and when the Postfix SMTP
+/*	server Postfix wants to receive an SMTP client request, how long
+/*	the Postfix SMTP server will wait for an underlying network read
+/*	operation to complete.
 /* .IP "\fBsmtpd_history_flush_threshold (100)\fR"
 /*	The maximal number of lines in the Postfix SMTP server command history
 /*	before it is flushed upon receipt of EHLO, RSET, or end of DATA.
@@ -749,7 +764,7 @@
 /*	remote SMTP client is allowed to negotiate with this service per
 /*	time unit.
 /* .PP
-/*	Available in Postfix version 2.9 and later:
+/*	Available in Postfix version 2.9 - 3.6:
 /* .IP "\fBsmtpd_per_record_deadline (normal: no, overload: yes)\fR"
 /*	Change the behavior of the smtpd_timeout and smtpd_starttls_timeout
 /*	time limits, from a
@@ -762,6 +777,19 @@
 /*	The maximal number of AUTH commands that any client is allowed to
 /*	send to this service per time unit, regardless of whether or not
 /*	Postfix actually accepts those commands.
+/* .PP
+/*	Available in Postfix version 3.7 and later:
+/* .IP "\fBsmtpd_per_request_deadline (normal: no, overload: yes)\fR"
+/*	Change the behavior of the smtpd_timeout and smtpd_starttls_timeout
+/*	time limits, from a time limit per plaintext or TLS read or write
+/*	call, to a combined time limit for receiving a complete SMTP request
+/*	and for sending a complete SMTP response.
+/* .IP "\fBsmtpd_min_data_rate (500)\fR"
+/*	The minimum plaintext data transfer rate in bytes/second for
+/*	DATA and BDAT requests, when deadlines are enabled with
+/*	smtpd_per_request_deadline.
+/* .IP "\fBheader_from_format (standard)\fR"
+/*	The format of the Postfix-generated \fBFrom:\fR header.
 /* TARPIT CONTROLS
 /* .ad
 /* .fi
@@ -1080,7 +1108,7 @@
 /*	records, so that, for example, "smtpd" becomes "prefix/smtpd".
 /* .PP
 /*	Available in Postfix version 2.2 and later:
-/* .IP "\fBsmtpd_forbidden_commands (CONNECT, GET, POST)\fR"
+/* .IP "\fBsmtpd_forbidden_commands (CONNECT GET POST regexp:{{/^[^A-Z]/ Bogus}})\fR"
 /*	List of commands that cause the Postfix SMTP server to immediately
 /*	terminate the session with a 221 code.
 /* .PP
@@ -1238,6 +1266,7 @@
 #include <match_parent_style.h>
 #include <normalize_mailhost_addr.h>
 #include <info_log_addr_form.h>
+#include <hfrom_format.h>
 
 /* Single-threaded server skeleton. */
 
@@ -1454,7 +1483,6 @@ char   *var_unk_name_tf_act;
 char   *var_unk_addr_tf_act;
 char   *var_unv_rcpt_tf_act;
 char   *var_unv_from_tf_act;
-bool    var_smtpd_rec_deadline;
 
 int     smtpd_proxy_opts;
 
@@ -1466,6 +1494,9 @@ char   *var_tlsproxy_service;
 char   *var_smtpd_uproxy_proto;
 int     var_smtpd_uproxy_tmout;
 bool    var_relay_before_rcpt_checks;
+bool    var_smtpd_req_deadline;
+int     var_smtpd_min_data_rate;
+char   *var_hfrom_format;
 
  /*
   * Silly little macros.
@@ -1558,6 +1589,11 @@ static int ask_client_cert;
   * SMTP command mapping for broken clients.
   */
 static DICT *smtpd_cmd_filter;
+
+ /*
+  * Parsed header_from_format setting.
+  */
+int     smtpd_hfrom_format;
 
 #ifdef USE_SASL_AUTH
 
@@ -3503,6 +3539,13 @@ static void receive_data_message(SMTPD_STATE *state,
     int     first = 1;
 
     /*
+     * If deadlines are enabled, increase the time budget as message content
+     * arrives.
+     */
+    smtp_stream_setup(state->client, var_smtpd_tmout, var_smtpd_req_deadline,
+		      var_smtpd_min_data_rate);
+
+    /*
      * Copy the message content. If the cleanup process has a problem, keep
      * reading until the remote stops sending, then complain. Produce typed
      * records from the SMTP stream so we can handle data that spans buffers.
@@ -3841,6 +3884,13 @@ static int bdat_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	smtpd_chat_reply(state, "521 5.5.4 Syntax: BDAT count [LAST]");
 	return (-1);
     }
+
+    /*
+     * If deadlines are enabled, increase the time budget as message content
+     * arrives.
+     */
+    smtp_stream_setup(state->client, var_smtpd_tmout, var_smtpd_req_deadline,
+		      var_smtpd_min_data_rate);
 
     /*
      * Block abuse involving empty chunks (alternatively, we could count
@@ -5409,11 +5459,14 @@ static void smtpd_proto(SMTPD_STATE *state)
      * memory, panic) the error is logged, and the msg_cleanup() exit handler
      * cleans up, but no attempt is made to inform the client of the nature
      * of the problem.
+     * 
+     * With deadlines enabled, do not increase the time budget while receiving a
+     * command, because that would give an attacker too much time.
      */
-    smtp_stream_setup(state->client, var_smtpd_tmout, var_smtpd_rec_deadline);
-
+    vstream_control(state->client, VSTREAM_CTL_EXCEPT, VSTREAM_CTL_END);
     while ((status = vstream_setjmp(state->client)) == SMTP_ERR_NONE)
 	 /* void */ ;
+    smtp_stream_setup(state->client, var_smtpd_tmout, var_smtpd_req_deadline, 0);
     switch (status) {
 
     default:
@@ -5638,6 +5691,8 @@ static void smtpd_proto(SMTPD_STATE *state)
 	for (;;) {
 	    if (state->flags & SMTPD_FLAG_HANGUP)
 		break;
+	    smtp_stream_setup(state->client, var_smtpd_tmout,
+			      var_smtpd_req_deadline, 0);
 	    if (state->error_count >= var_smtpd_hard_erlim) {
 		state->reason = REASON_ERROR_LIMIT;
 		state->error_mask |= MAIL_ERROR_PROTOCOL;
@@ -5694,9 +5749,15 @@ static void smtpd_proto(SMTPD_STATE *state)
 		if (is_header(argv[0].strval)
 		    || (*var_smtpd_forbid_cmds
 		 && string_list_match(smtpd_forbid_cmds, argv[0].strval))) {
+		    VSTRING *escape_buf = vstring_alloc(100);
+
 		    msg_warn("non-SMTP command from %s: %.100s",
-			     state->namaddr, vstring_str(state->buffer));
+			     state->namaddr,
+			     vstring_str(escape(escape_buf,
+						vstring_str(state->buffer),
+					      VSTRING_LEN(state->buffer))));
 		    smtpd_chat_reply(state, "221 2.7.0 Error: I can break rules, too. Goodbye.");
+		    vstring_free(escape_buf);
 		    break;
 		}
 	    }
@@ -5720,7 +5781,7 @@ static void smtpd_proto(SMTPD_STATE *state)
 		    && (err = check_milter_reply(state, err)) != 0) {
 		    smtpd_chat_reply(state, "%s", err);
 		} else
-		    smtpd_chat_reply(state, "502 5.5.2 Error: command not recognized");
+		    smtpd_chat_reply(state, "500 5.5.2 Error: command not recognized");
 		state->error_mask |= MAIL_ERROR_PROTOCOL;
 		state->error_count++;
 		continue;
@@ -6310,6 +6371,11 @@ static void post_jail_init(char *unused_name, char **unused_argv)
 	|| var_smtpd_cmail_limit || var_smtpd_crcpt_limit
 	|| var_smtpd_cntls_limit || var_smtpd_cauth_limit)
 	anvil_clnt = anvil_clnt_create();
+
+    /*
+     * header_from_format support, for	postmaster notifications.
+     */
+    smtpd_hfrom_format = hfrom_format_parse(VAR_HFROM_FORMAT, var_hfrom_format);
 }
 
 MAIL_VERSION_STAMP_DECLARE;
@@ -6362,6 +6428,7 @@ int     main(int argc, char **argv)
 	VAR_SMTPD_SASL_RESP_LIMIT, DEF_SMTPD_SASL_RESP_LIMIT, &var_smtpd_sasl_resp_limit, DEF_SMTPD_SASL_RESP_LIMIT, 0,
 	VAR_SMTPD_POLICY_REQ_LIMIT, DEF_SMTPD_POLICY_REQ_LIMIT, &var_smtpd_policy_req_limit, 0, 0,
 	VAR_SMTPD_POLICY_TRY_LIMIT, DEF_SMTPD_POLICY_TRY_LIMIT, &var_smtpd_policy_try_limit, 1, 0,
+	VAR_SMTPD_MIN_DATA_RATE, DEF_SMTPD_MIN_DATA_RATE, &var_smtpd_min_data_rate, 1, 0,
 	0,
     };
     static const CONFIG_LONG_TABLE long_table[] = {
@@ -6415,8 +6482,8 @@ int     main(int argc, char **argv)
 	0,
     };
     static const CONFIG_NBOOL_TABLE nbool_table[] = {
-	VAR_SMTPD_REC_DEADLINE, DEF_SMTPD_REC_DEADLINE, &var_smtpd_rec_deadline,
 	VAR_RELAY_BEFORE_RCPT_CHECKS, DEF_RELAY_BEFORE_RCPT_CHECKS, &var_relay_before_rcpt_checks,
+	VAR_SMTPD_REQ_DEADLINE, DEF_SMTPD_REQ_DEADLINE, &var_smtpd_req_deadline,
 	0,
     };
     static const CONFIG_STR_TABLE str_table[] = {
@@ -6527,6 +6594,7 @@ int     main(int argc, char **argv)
 	VAR_SMTPD_POLICY_CONTEXT, DEF_SMTPD_POLICY_CONTEXT, &var_smtpd_policy_context, 0, 0,
 	VAR_SMTPD_DNS_RE_FILTER, DEF_SMTPD_DNS_RE_FILTER, &var_smtpd_dns_re_filter, 0, 0,
 	VAR_SMTPD_REJ_FTR_MAPS, DEF_SMTPD_REJ_FTR_MAPS, &var_smtpd_rej_ftr_maps, 0, 0,
+	VAR_HFROM_FORMAT, DEF_HFROM_FORMAT, &var_hfrom_format, 1, 0,
 	0,
     };
     static const CONFIG_RAW_TABLE raw_table[] = {

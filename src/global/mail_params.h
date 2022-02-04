@@ -1166,6 +1166,12 @@ extern char *var_smtp_bind_addr;
 #define DEF_LMTP_BIND_ADDR6	""
 extern char *var_smtp_bind_addr6;
 
+#define VAR_SMTP_BIND_ADDR_ENFORCE	"smtp_bind_address_enforce"
+#define DEF_SMTP_BIND_ADDR_ENFORCE	0
+#define VAR_LMTP_BIND_ADDR_ENFORCE	"lmtp_bind_address_enforce"
+#define DEF_LMTP_BIND_ADDR_ENFORCE	0
+extern bool var_smtp_bind_addr_enforce;
+
 #define VAR_SMTP_HELO_NAME	"smtp_helo_name"
 #define DEF_SMTP_HELO_NAME	"$myhostname"
 #define VAR_LMTP_HELO_NAME	"lmtp_lhlo_name"
@@ -1280,7 +1286,7 @@ extern int var_smtpd_hist_thrsh;
 extern char *var_smtpd_noop_cmds;
 
 #define VAR_SMTPD_FORBID_CMDS	"smtpd_forbidden_commands"
-#define DEF_SMTPD_FORBID_CMDS	"CONNECT GET POST"
+#define DEF_SMTPD_FORBID_CMDS	"CONNECT GET POST regexp:{{/^[^A-Z]/ Bogus}}"
 extern char *var_smtpd_forbid_cmds;
 
 #define VAR_SMTPD_CMD_FILTER	"smtpd_command_filter"
@@ -2073,7 +2079,7 @@ extern int var_mailtool_compat;
 
  /*
   * How long a daemon command may take to receive or deliver a message etc.
-  * before we assume it is wegded (should never happen).
+  * before we assume it is wedged (should never happen).
   */
 #define VAR_DAEMON_TIMEOUT	"daemon_timeout"
 #define DEF_DAEMON_TIMEOUT	"18000s"
@@ -2495,7 +2501,8 @@ extern int var_local_rcpt_code;
 				" $" VAR_LOCAL_LOGIN_SND_MAPS \
 				" $" VAR_PSC_REJ_FTR_MAPS \
 				" $" VAR_SMTPD_REJ_FTR_MAPS \
-				" $" VAR_TLS_SERVER_SNI_MAPS
+				" $" VAR_TLS_SERVER_SNI_MAPS \
+				" $" VAR_TLSP_CLNT_POLICY
 extern char *var_proxy_read_maps;
 
 #define VAR_PROXY_WRITE_MAPS	"proxy_write_maps"
@@ -4059,16 +4066,20 @@ extern bool var_tlsp_clnt_use_tls;
 #define DEF_TLSP_CLNT_ENFORCE_TLS	"$" VAR_SMTP_ENFORCE_TLS
 extern bool var_tlsp_clnt_enforce_tls;
 
-#define VAR_TLSP_CLNT_LEVEL		"tlsproxy_client_level"
-#define DEF_TLSP_CLNT_LEVEL		"$" VAR_SMTP_TLS_LEVEL
+/* Migrate an incorrect name. */
+#define OBS_TLSP_CLNT_LEVEL		"tlsproxy_client_level"
+#define VAR_TLSP_CLNT_LEVEL		"tlsproxy_client_security_level"
+#define DEF_TLSP_CLNT_LEVEL		"${" OBS_TLSP_CLNT_LEVEL ":$" VAR_SMTP_TLS_LEVEL "}"
 extern char *var_tlsp_clnt_level;
 
 #define VAR_TLSP_CLNT_PER_SITE		"tlsproxy_client_per_site"
 #define DEF_TLSP_CLNT_PER_SITE		"$" VAR_SMTP_TLS_PER_SITE
 extern char *var_tlsp_clnt_per_site;
 
-#define VAR_TLSP_CLNT_POLICY		"tlsproxy_client_policy"
-#define DEF_TLSP_CLNT_POLICY		"$" VAR_SMTP_TLS_POLICY
+/* Migrate an incorrect name. */
+#define OBS_TLSP_CLNT_POLICY		"tlsproxy_client_policy"
+#define VAR_TLSP_CLNT_POLICY		"tlsproxy_client_policy_maps"
+#define DEF_TLSP_CLNT_POLICY		"${" OBS_TLSP_CLNT_POLICY ":$" VAR_SMTP_TLS_POLICY "}"
 extern char *var_tlsp_clnt_policy;
 
  /*
@@ -4094,6 +4105,30 @@ extern bool var_smtpd_rec_deadline;
 #define VAR_LMTP_REC_DEADLINE	"lmtp_per_record_deadline"
 #define DEF_LMTP_REC_DEADLINE	0
 extern bool var_smtp_rec_deadline;
+
+#define VAR_SMTPD_REQ_DEADLINE	"smtpd_per_request_deadline"
+#define DEF_SMTPD_REQ_DEADLINE	"${smtpd_per_record_deadline?" \
+				"{$smtpd_per_record_deadline}:" \
+				"{${stress?{yes}:{no}}}}"
+extern bool var_smtpd_req_deadline;
+
+#define VAR_SMTP_REQ_DEADLINE	"smtp_per_request_deadline"
+#define DEF_SMTP_REQ_DEADLINE	"${smtp_per_record_deadline?" \
+				"{$smtp_per_record_deadline}:{no}}"
+#define VAR_LMTP_REQ_DEADLINE	"lmtp_per_request_deadline"
+#define DEF_LMTP_REQ_DEADLINE	"${lmtp_per_record_deadline?" \
+				"{$lmtp_per_record_deadline}:{no}}"
+extern bool var_smtp_req_deadline;
+
+#define VAR_SMTPD_MIN_DATA_RATE	"smtpd_min_data_rate"
+#define DEF_SMTPD_MIN_DATA_RATE	500
+extern int var_smtpd_min_data_rate;
+
+#define VAR_SMTP_MIN_DATA_RATE	"smtp_min_data_rate"
+#define DEF_SMTP_MIN_DATA_RATE	500
+#define VAR_LMTP_MIN_DATA_RATE	"lmtp_min_data_rate"
+#define DEF_LMTP_MIN_DATA_RATE	500
+extern int var_smtp_min_data_rate;
 
  /*
   * Permit logging.
@@ -4170,7 +4205,7 @@ extern char *var_smtp_dns_re_filter;
 extern char *var_smtpd_dns_re_filter;
 
  /*
-  * Share TLS sessions through tlproxy(8).
+  * Share TLS sessions through tlsproxy(8).
   */
 #define VAR_SMTP_TLS_CONN_REUSE		"smtp_tls_connection_reuse"
 #define DEF_SMTP_TLS_CONN_REUSE		0

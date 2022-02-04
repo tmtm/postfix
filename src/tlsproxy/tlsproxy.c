@@ -272,12 +272,6 @@
 /*	value.
 /* .IP "\fBtlsproxy_client_scert_verifydepth ($smtp_tls_scert_verifydepth)\fR"
 /*	The verification depth for remote TLS server certificates.
-/* .IP "\fBtlsproxy_client_security_level ($smtp_tls_security_level)\fR"
-/*	The default TLS security level for the Postfix \fBtlsproxy\fR(8)
-/*	client.
-/* .IP "\fBtlsproxy_client_policy_maps ($smtp_tls_policy_maps)\fR"
-/*	Optional lookup tables with the Postfix \fBtlsproxy\fR(8) client TLS
-/*	security policy by next-hop destination.
 /* .IP "\fBtlsproxy_client_use_tls ($smtp_use_tls)\fR"
 /*	Opportunistic mode: use TLS when a remote server announces TLS
 /*	support.
@@ -287,6 +281,22 @@
 /*	Optional lookup tables with the Postfix \fBtlsproxy\fR(8) client TLS
 /*	usage policy by next-hop destination and by remote TLS server
 /*	hostname.
+/* .PP
+/*	Available in Postfix version 3.4-3.6:
+/* .IP "\fBtlsproxy_client_level ($smtp_tls_security_level)\fR"
+/*	The default TLS security level for the Postfix \fBtlsproxy\fR(8)
+/*	client.
+/* .IP "\fBtlsproxy_client_policy ($smtp_tls_policy_maps)\fR"
+/*	Optional lookup tables with the Postfix \fBtlsproxy\fR(8) client TLS
+/*	security policy by next-hop destination.
+/* .PP
+/*	Available in Postfix version 3.7 and later:
+/* .IP "\fBtlsproxy_client_security_level ($smtp_tls_security_level)\fR"
+/*	The default TLS security level for the Postfix \fBtlsproxy\fR(8)
+/*	client.
+/* .IP "\fBtlsproxy_client_policy_maps ($smtp_tls_policy_maps)\fR"
+/*	Optional lookup tables with the Postfix \fBtlsproxy\fR(8) client TLS
+/*	security policy by next-hop destination.
 /* OBSOLETE STARTTLS SUPPORT CONTROLS
 /* .ad
 /* .fi
@@ -298,6 +308,11 @@
 /* .IP "\fBtlsproxy_enforce_tls ($smtpd_enforce_tls)\fR"
 /*	Mandatory TLS: announce STARTTLS support to remote SMTP clients, and
 /*	require that clients use TLS encryption.
+/* .IP "\fBtlsproxy_client_use_tls ($smtp_use_tls)\fR"
+/*	Opportunistic mode: use TLS when a remote server announces TLS
+/*	support.
+/* .IP "\fBtlsproxy_client_enforce_tls ($smtp_enforce_tls)\fR"
+/*	Enforcement mode: require that SMTP servers use TLS encryption.
 /* RESOURCE CONTROLS
 /* .ad
 /* .fi
@@ -923,7 +938,7 @@ static void tlsp_strategy(TLSP_STATE *state)
      * block. In practice, postscreen(8) limits the number of client
      * commands, and thus postscreen(8)'s output will fit in a kernel buffer.
      * A remote SMTP server is not supposed to flood the local SMTP client
-     * with massive replies; it it does, then the local SMTP client should
+     * with massive replies; if it does, then the local SMTP client should
      * deal with it.
      */
     if (NBBIO_WRITE_PEND(plaintext_buf) > 0) {
@@ -971,7 +986,7 @@ static void tlsp_ciphertext_event(int event, void *context)
     TLSP_STATE *state = (TLSP_STATE *) context;
 
     /*
-     * Without a TLS quivalent of the NBBIO layer, we must decode the events
+     * Without a TLS equivalent of the NBBIO layer, we must decode the events
      * ourselves and do the ciphertext I/O. Then, we can decide if we want to
      * read or write more ciphertext.
      */
@@ -1195,8 +1210,6 @@ static TLS_APPL_STATE *tlsp_client_init(TLS_CLIENT_PARAMS *tls_params,
     char   *param_key;
     VSTRING *init_buf;
     char   *init_key;
-    VSTRING *init_buf_for_hashing;
-    char   *init_key_for_hashing;
     int     log_hints = 0;
 
     /*
@@ -1208,21 +1221,13 @@ static TLS_APPL_STATE *tlsp_client_init(TLS_CLIENT_PARAMS *tls_params,
      * First, compute the TLS_APPL_STATE cache lookup key. Save a copy of the
      * pre-jail request TLS_CLIENT_PARAMS and TLSPROXY_CLIENT_INIT_PROPS
      * settings, so that we can detect post-jail requests that do not match.
-     * 
-     * Workaround: salt the hash-table key with DANE on/off info. This avoids
-     * cross-talk between DANE and non-DANE sessions. Postfix DANE support
-     * modifies SSL_CTX to override certificate verification because there is
-     * no other way to do this before OpenSSL 1.1.0.
      */
     param_buf = vstring_alloc(100);
-    param_key = tls_proxy_client_param_with_names_to_string(
-						     param_buf, tls_params);
+    param_key = tls_proxy_client_param_serialize(attr_print_plain, param_buf,
+						 tls_params);
     init_buf = vstring_alloc(100);
-    init_key = tls_proxy_client_init_with_names_to_string(
-						      init_buf, init_props);
-    init_buf_for_hashing = vstring_alloc(100);
-    init_key_for_hashing = STR(vstring_sprintf(init_buf_for_hashing, "%s\n",
-					       init_key));
+    init_key = tls_proxy_client_init_serialize(attr_print_plain, init_buf,
+					       init_props);
     if (tlsp_pre_jail_done == 0) {
 	if (tlsp_pre_jail_client_param_key == 0
 	    || tlsp_pre_jail_client_init_key == 0) {
@@ -1252,7 +1257,7 @@ static TLS_APPL_STATE *tlsp_client_init(TLS_CLIENT_PARAMS *tls_params,
      * Look up the cached TLS_APPL_STATE for this tls_client_init request.
      */
     if ((appl_state = (TLS_APPL_STATE *)
-	 htable_find(tlsp_client_app_cache, init_key_for_hashing)) == 0) {
+	 htable_find(tlsp_client_app_cache, init_key)) == 0) {
 
 	/*
 	 * Before creating a TLS_APPL_STATE instance, log a warning if a
@@ -1303,7 +1308,7 @@ static TLS_APPL_STATE *tlsp_client_init(TLS_CLIENT_PARAMS *tls_params,
      */
     if (appl_state == 0
 	&& (appl_state = tls_client_init(init_props)) != 0) {
-	(void) htable_enter(tlsp_client_app_cache, init_key_for_hashing,
+	(void) htable_enter(tlsp_client_app_cache, init_key,
 			    (void *) appl_state);
 
 	/*
@@ -1317,7 +1322,6 @@ static TLS_APPL_STATE *tlsp_client_init(TLS_CLIENT_PARAMS *tls_params,
 			 SSL_MODE_ENABLE_PARTIAL_WRITE
 			 | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
     }
-    vstring_free(init_buf_for_hashing);
     vstring_free(init_buf);
     vstring_free(param_buf);
     return (appl_state);
@@ -1367,6 +1371,12 @@ static void tlsp_get_request_event(int event, void *context)
     /*
      * Receive the initial request attributes. Receive the remainder after we
      * figure out what role we are expected to play.
+     * 
+     * The tlsproxy server does not enforce per-request read/write deadlines or
+     * minimal data rates. Instead, the tlsproxy server relies on the
+     * tlsproxy client to enforce these context-dependent limits. When a
+     * tlsproxy client decides to time out, it will close its end of the
+     * tlsproxy stream, and the tlsproxy server will handle that immediately.
      */
     if (event != EVENT_READ
 	|| attr_scan(plaintext_stream, ATTR_FLAG_STRICT,

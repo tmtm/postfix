@@ -38,8 +38,10 @@ POSTMAP(1)                                                          POSTMAP(1)
               starts with whitespace continues a logical line.
 
        The  <i>key</i>  and  <i>value</i> are processed as is, except that surrounding white
-       space is stripped off. Whitespace in lookup keys  is  supported  as  of
-       Postfix 3.2.
+       space is stripped off. Whitespace in lookup keys is supported in  Post-
+       fix  3.2 and later, by surrounding the key with double quote characters
+       `"'. Within the double quotes, double quote `"' and backslash `\' char-
+       acters can be included by quoting them with a preceding backslash.
 
        When  the  <b>-F</b> option is given, the <i>value</i> must specify one or more file-
        names separated by comma and/or whitespace; <a href="postmap.1.html"><b>postmap</b>(1)</a> will concatenate
@@ -47,7 +49,7 @@ POSTMAP(1)                                                          POSTMAP(1)
        will store the base64-encoded result instead of the <i>value</i>.
 
        When the <i>key</i> specifies email address information, the localpart  should
-       be enclosed with double quotes if required by <a href="http://tools.ietf.org/html/rfc5322">RFC 5322</a>. For example, an
+       be enclosed with double quotes if required by <a href="https://tools.ietf.org/html/rfc5322">RFC 5322</a>. For example, an
        address localpart that contains ";", or a localpart that starts or ends
        with ".".
 
@@ -62,7 +64,7 @@ POSTMAP(1)                                                          POSTMAP(1)
 <b>COMMAND-LINE ARGUMENTS</b>
        <b>-b</b>     Enable  message  body  query mode. When reading lookup keys from
               standard input with "<b>-q -</b>", process the input as  if  it  is  an
-              email  message  in  <a href="http://tools.ietf.org/html/rfc5322">RFC  5322</a> format.  Each line of body content
+              email  message  in  <a href="https://tools.ietf.org/html/rfc5322">RFC  5322</a> format.  Each line of body content
               becomes one lookup key.
 
               By default, the <b>-b</b> option starts generating lookup keys  at  the
@@ -72,9 +74,9 @@ POSTMAP(1)                                                          POSTMAP(1)
               body-style lookup keys  for  attachment  MIME  headers  and  for
               attached message/* headers.
 
-              NOTE:  with  "<a href="postconf.5.html#smtputf8_enable">smtputf8_enable</a>  = yes", the <b>-b</b> option option dis-
-              ables UTF-8 syntax checks on  query  keys  and  lookup  results.
-              Specify the <b>-U</b> option to force UTF-8 syntax checks anyway.
+              NOTE: with "<a href="postconf.5.html#smtputf8_enable">smtputf8_enable</a> = yes", the <b>-b</b> option disables UTF-8
+              syntax checks on query keys and lookup results. Specify  the  <b>-U</b>
+              option to force UTF-8 syntax checks anyway.
 
               This feature is available in Postfix version 2.6 and later.
 
@@ -101,11 +103,13 @@ POSTMAP(1)                                                          POSTMAP(1)
               When creating a map from source file, process each  value  as  a
               list  of  filenames, concatenate the content of those files, and
               store the base64-encoded result instead of the value (see  INPUT
-              FORMAT for details).
+              FILE FORMAT for details).
+
+              This feature is available in Postfix version 3.4 and later.
 
        <b>-h</b>     Enable  message header query mode. When reading lookup keys from
               standard input with "<b>-q -</b>", process the input as  if  it  is  an
-              email  message  in  <a href="http://tools.ietf.org/html/rfc5322">RFC  5322</a>  format.  Each logical header line
+              email  message  in  <a href="https://tools.ietf.org/html/rfc5322">RFC  5322</a>  format.  Each logical header line
               becomes one lookup key. A multi-line header becomes  one  lookup
               key with one or more embedded newline characters.
 
@@ -268,13 +272,13 @@ POSTMAP(1)                                                          POSTMAP(1)
               and <a href="postmap.1.html"><b>postmap</b>(1)</a> commands.
 
        <b><a href="postconf.5.html#import_environment">import_environment</a> (see 'postconf -d' output)</b>
-              The list of environment parameters  that  a  privileged  Postfix
+              The list of environment  variables  that  a  privileged  Postfix
               process  will  import  from  a  non-Postfix  parent  process, or
               name=value environment overrides.
 
        <b><a href="postconf.5.html#smtputf8_enable">smtputf8_enable</a> (yes)</b>
               Enable preliminary SMTPUTF8 support for the protocols  described
-              in <a href="http://tools.ietf.org/html/rfc6531">RFC 6531</a>..6533.
+              in <a href="https://tools.ietf.org/html/rfc6531">RFC 6531</a>, <a href="https://tools.ietf.org/html/rfc6532">RFC 6532</a>, and <a href="https://tools.ietf.org/html/rfc6533">RFC 6533</a>.
 
        <b><a href="postconf.5.html#syslog_facility">syslog_facility</a> (mail)</b>
               The syslog facility of Postfix logging.

@@ -1,6 +1,35 @@
 Wish list:
 
-	Add verp=+= to the qmgr "from=" logging.
+	Things to do before the stable release:
+
+	make pre-release-check, HTML validator check.
+
+	Disable -DSNAPSHOT and -DNONPROD in makedefs.
+
+	Alias htable(3) calls to equivalent binhash(3) calls,
+	and obsolete the htable(3) module.
+
+	FILTER_README needs some text on multi-instance implementations,
+	and existing multi-instance references need to be updated.
+
+	Fix code that still uses "long" for data_size and data_offset,
+	and that uses "%ld" in sscanf().
+
+	A smart query service for live Postfix tables that outputs JSON?
+
+	Add a pointer to
+	http://mmogilvi.users.sourceforge.net/software/oauthbearer.html
+	in documentation or on-line howtos.
+
+	Read http://mmogilvi.users.sourceforge.net/software/oauthbearer.html
+	and see how we can improve on the Postfix side.
+
+	Add verp=+= to the qmgr "from=" logging. This is already
+	implemented but not yet integrated.
+
+	Need canonical Dovecot example that has virtual_mailbox_domains,
+	(virtual_mailbox_maps or reject unverified_recipient), and
+	virtual_transport.
 
 	Make smtpd_relay_before_recipient_restrictions settable
 	in smtpd_checks tests.
@@ -11,11 +40,6 @@ Wish list:
 	b) add support for non-libbind resolvers. Gracefully handle
 	requests for unsupported functionality; return an error status,
 	instead of terminating.
-
-	Inline regexp/pcre/cidr table support. If the table name is
-	a string inside {}, then split the string on comma (ignoring
-	commas inside {}), write each resulting fragment as one line to
-	a VSTRING buffer, and open that buffer as a memory file.
 
 	Add a robust dnssec_probe regression test (success and fail)
 	that does not break existing regression tests.
@@ -55,7 +79,7 @@ Wish list:
 	configuration settings easier to enter. This may be true
 	for main.cf, master.cf and similar files (such as database
 	configuration files, but not necessarily elsewhere). So it
-	would have to be a readlline flag.
+	may have to be a readlline flag.
 
 	Understand what happens with DNSSEC related status fields 
 	in posttls-finger when resolv.conf points to a host that
@@ -74,17 +98,8 @@ Wish list:
 	events. But the currrent multi_server API fits typical usage
 	better.
 
-	Add a configurable filter for SMTP command syntax. Maybe
-	time for some inline-pcre or inline-regexp map support?
-
-	Update makedefs and sys-defs.h for current Linux kernels and
-	*BSD releases.
-
 	When a secondary instance has no multi_instance_name set,
 	postmulti -i won't be able to find it.
-
-	Read http://mmogilvi.users.sourceforge.net/software/oauthbearer.html
-	and see how we can improve on the Postfix side.
 
 	nbbio: exercise the sanity checks with fake msg(3) functions.
 
@@ -105,13 +120,6 @@ Wish list:
 
 	Replace ad-hoc code for pipe(8) flags handling, with
 	infrastructure that was built for smtp(8).
-
-	Things to do before the stable release:
-
-	Spell-check, double-word check, HTML validator check,
-	mantools/missing-proxy-read-maps check.
-
-	Disable -DSNAPSHOT and -DNONPROD in makedefs.
 
 	Move map descriptions from postconf(1) to DATABASE_README
 	and point there. The text in DATABASE_README is less complete

@@ -337,7 +337,7 @@ int     smtp_helo(SMTP_STATE *state)
 	/* XXX Mix-up of per-session and per-request flags. */
 	state->misc_flags |= SMTP_MISC_FLAG_IN_STARTTLS;
 	smtp_stream_setup(state->session->stream, var_smtp_starttls_tmout,
-			  var_smtp_rec_deadline);
+			  var_smtp_req_deadline, 0);
 	tls_helo_status = smtp_start_tls(state);
 	state->misc_flags &= ~SMTP_MISC_FLAG_IN_STARTTLS;
 	return (tls_helo_status);
@@ -348,7 +348,7 @@ int     smtp_helo(SMTP_STATE *state)
      * Prepare for disaster.
      */
     smtp_stream_setup(state->session->stream, var_smtp_helo_tmout,
-		      var_smtp_rec_deadline);
+		      var_smtp_req_deadline, 0);
     if ((except = vstream_setjmp(state->session->stream)) != 0)
 	return (smtp_stream_except(state, except, where));
 
@@ -764,7 +764,7 @@ int     smtp_helo(SMTP_STATE *state)
 	     * Prepare for disaster.
 	     */
 	    smtp_stream_setup(state->session->stream, var_smtp_starttls_tmout,
-			      var_smtp_rec_deadline);
+			      var_smtp_req_deadline, 0);
 	    if ((except = vstream_setjmp(state->session->stream)) != 0)
 		return (smtp_stream_except(state, except,
 					"receiving the STARTTLS response"));
@@ -888,7 +888,7 @@ static int smtp_start_tls(SMTP_STATE *state)
      * either the transport name or the values of CAfile and CApath. We use
      * the transport name.
      * 
-     * XXX: We store only one session per lookup key. Ideally the the key maps
+     * XXX: We store only one session per lookup key. Ideally the key maps
      * 1-to-1 to a server TLS session cache. We use the IP address, port and
      * ehlo response name to build a lookup key that works for split caches
      * (that announce distinct names) behind a load balancer.
@@ -1187,6 +1187,18 @@ static void smtp_text_out(void *context, int rec_type,
 	    if (data_left > 0 || rec_type == REC_TYPE_CONT) {
 		smtp_fputc(' ', session->stream);
 		state->space_left -= 1;
+
+		/*
+		 * XXX This can insert a line break into the middle of a
+		 * multi-byte character (not necessarily UTF-8). Note that
+		 * multibyte characters can span queue file records, for
+		 * example if line_length_limit == smtp_line_length_limit.
+		 */
+		if (state->logged_line_length_limit == 0) {
+		    msg_info("%s: breaking line > %d bytes with <CR><LF>SPACE",
+			     state->request->queue_id, var_smtp_line_limit);
+		    state->logged_line_length_limit = 1;
+		}
 	    }
 	} else {
 	    if (rec_type == REC_TYPE_CONT) {
@@ -1544,7 +1556,7 @@ static int smtp_loop(SMTP_STATE *state, NOCLOBBER int send_state,
 	msg_panic("%s: bad sender state %d (receiver state %d)",
 		  myname, send_state, recv_state);
     smtp_stream_setup(session->stream, *xfer_timeouts[send_state],
-		      var_smtp_rec_deadline);
+		      var_smtp_req_deadline, 0);
     if ((except = vstream_setjmp(session->stream)) != 0) {
 	msg_warn("smtp_proto: spurious flush before read in send state %d",
 		 send_state);
@@ -1926,12 +1938,12 @@ static int smtp_loop(SMTP_STATE *state, NOCLOBBER int send_state,
 		 * not clobber this non-zero value once it is set. The
 		 * variable need not survive longjmp() calls, since the only
 		 * setjmp() which does not return early is the one sets this
-		 * condition, subquent failures always return early.
+		 * condition, subsequent failures always return early.
 		 */
 #define LOST_CONNECTION_INSIDE_DATA (except == SMTP_ERR_EOF)
 
 		smtp_stream_setup(session->stream, *xfer_timeouts[recv_state],
-				  var_smtp_rec_deadline);
+				  var_smtp_req_deadline, 0);
 		if (LOST_CONNECTION_INSIDE_DATA) {
 		    if (vstream_setjmp(session->stream) != 0)
 			RETURN(smtp_stream_except(state, SMTP_ERR_EOF,
@@ -2266,7 +2278,7 @@ static int smtp_loop(SMTP_STATE *state, NOCLOBBER int send_state,
 	if (send_state == SMTP_STATE_DOT && nrcpt > 0) {
 
 	    smtp_stream_setup(session->stream, var_smtp_data1_tmout,
-			      var_smtp_rec_deadline);
+			      var_smtp_req_deadline, var_smtp_min_data_rate);
 
 	    if ((except = vstream_setjmp(session->stream)) == 0) {
 

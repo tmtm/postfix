@@ -179,6 +179,11 @@
 /*	IBM T.J. Watson Research
 /*	P.O. Box 704
 /*	Yorktown Heights, NY 10598, USA
+/*
+/*	Wietse Venema
+/*	Google, Inc.
+/*	111 8th Avenue
+/*	New York, NY 10011, USA
 /*--*/
 
 /* System library. */
@@ -757,7 +762,7 @@ void    freeaddrinfo(struct addrinfo * ai)
     struct addrinfo *next;
 
     /*
-     * Artefact of implementation: tolerate a null pointer argument.
+     * Artifact of implementation: tolerate a null pointer argument.
      */
     for (ap = ai; ap != 0; ap = next) {
 	next = ap->ai_next;

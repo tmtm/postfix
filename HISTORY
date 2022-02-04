@@ -25558,19 +25558,72 @@ Apologies for any names omitted.
 
 	Documentation: update by Paul Menzel. File: proto/SASL_README.html.
 
-20210601
+20210529
 
-	Bugfix (introduced: Postfix 2.11): the command "postmap
-	lmdb:/file/name" handled duplicate keys ungracefully,
-	discarding entries stored up to and including the duplicate
-	key, and causing a double free() call with lmdb versions
-	0.9.17 and later. Reported by Adi Prasaja; double free()
-	root cause analysis by Howard Chu. File: util/slmdb.c.
+	Cleanup: simplified master.cf stanzas for the submission
+	and submissions (formerly: smtps) services, to avoid
+	surprising warnings for undefined mua_smtpd_xxx_restrictions
+	parameters. File: conf/master.cf.
 
-20210609
+	Bugfix (introduced: Postfix 2.11): "postmap lmdb:/file/name"
+	handled duplicate keys ungracefully, with a dangling pointer
+	resulting in a double free() call with lmdb versions 0.9.17
+	and later. Reported by Adi Prasaja, root cause analysis by
+	Howard Chu. In addition, "postmap lmdb:/file/name" forgot
+	entries stored up to and including the duplicate key. File:
+	util/slmdb.c.
 
-	Typo (introduced: Postfix 3.4): silent_discard should be
-	silent-discard. File: proto/BDAT_README.html.
+20210605
+
+	Fixed a few more potential dangling pointer cases in the
+	LMDB client, future-proofing code paths that sofar aren't
+	used. File: util/slmdb.c.
+
+	Added LMDB integration tests using the postmmap command.
+	Files: postmap/Makefile.in, postmap/lmdb_abb, postmap/lmdb_abb.ref.
+
+	Cleanup: reset errno in the fail: database methods for
+	consistent error messages. File: util/dict_fail.c.
+
+	Cleanup: new vstream_control() option to give a memory stream
+	ownership of the underlying VSTRING. This simplifies resource
+	management for read-only streams. Files: util/vstream.[hc].
+
+	Cleanup: extpar() returns an error in case of a missing
+	initial '{', instead of aborting. This simplifies the
+	implementation of some callers. File: util/extpar.c.
+
+	Feature: inline pcre, regexp, and cidr table definition in main.cf
+	or master.cf, to improve their usability in matchlists. Files:
+	util/dict_stream.c, util/dict.h, util/dict_pcre.c,
+	util/dict_regexp.c, util/dict_cidr.c, and test files.
+
+	The smtpd_forbidden_commands default setting now also inludes
+	a regular expression regexp:{{/^[^A-Z]/ Bogus}} for bogus inputs.
+	File: global/mail_params.h.
+
+20210606
+
+	Cleanup: "Postfix is running with backwards-compatible..."
+	did not make sense when Postfix is down. File: postfix/postfix.c.
+
+	Cleanup: the postscreen BDAT handler now replies with "need
+	MAIL command" when the client did not provide a sender address.
+	File: postscreen/postscreen_smtpd.c.
+
+	Typo: silent_discard should be silent-discard.  File:
+	proto/BDAT_README.html.
+
+20210610
+
+	Cleanup: escape non-printable characters in non-SMTP commands,
+	instead of replacing them with '?'. File: smtpd/smtpd.c.
+
+	Misc typofixes by Viktor Dukhovni. Files: conf/master.cf,
+	proto/regexp_table, proto/cidr_table.
+
+	Cleanup: simplify the LMDB error recovery code. File:
+	util/slmdb.c.
 
 20210615
 
@@ -25579,13 +25632,23 @@ Apologies for any names omitted.
 	Reported by Christopher Gurnee, who also found the missing
 	code in the postmap source. File: util/dict_thash.c.
 
+	Cleanup: documentation for the postmap -F option. File:
+	postmap/postmap.c.
+
+	Cleanup: simplify the LMDB error recovery code. File:
+	util/slmdb.c.
+
 20210623
 
-	Bugfix (introduced: Postfix 3.6) false "Result too large"
-	(ERANGE) fatal errors in the compatibility_level parser,
-	because an strtol() call had no 'errno = 0' statement before
-	the call. Also fixed two older latent bugs of the same kind.
-	Problem reported by David Bohman. Files: global/compat_level.c,
+	Cleanup: the known_tcp_ports parameter was not hyperlinked.
+	File: mantools/postlink.
+
+	Bugfix: some strtou?l() calls had no 'errno=0' statement
+	before the call. Fixed with strtou?l() wrapper functions
+	that reset errno before calling strtou?l(), and calling
+	these from code that did not explicitly reset errno. Other
+	strtou?l() can be migrated later. Problem reported by David
+	Bohman. Files: util/sane_strtol.[hc], global/compat_level.c,
 	postscreen/postscreen_tests.c, util/mac_expand.c.
 
 20210705
@@ -25603,7 +25666,8 @@ Apologies for any names omitted.
 	Bugfix (introduced: 1999): the Postfix SMTP server was
 	sending all session transcripts to the error_notice_recipient,
 	instead of sending transcripts of bounced mail to the
-	bounce_notice_recipient. File: smtpd/smtpd_chat.c.
+	bounce_notice_recipient. Reported by Hans van Zijst. File:
+	smtpd/smtpd_chat.c.
 
 20210713
 
@@ -25613,17 +25677,136 @@ Apologies for any names omitted.
 	It now properly compares strings. Reported by Mehmet Avcioglu.
 	File: global/record.c.
 
-20210811
+20210724
 
-	Bitrot: OpenSSL 3.x requires const. File: tls/tls_misc.c.
+	Cleanup: missing const in the 20210713 bugfix. File:
+	global/record.c.
+
+20210728
+
+	Bitrot: GLIBC 2.34 has closefrom(), and of course their
+	interface is different. File: util/sys_defs.h.
+
+20210804
+
+	Cleanup: replace ad-hoc object-to-VSTRING serialization with
+	attr_print*() based serialization. Files: tls/tls_proxy.h,
+	tls/tls_proxy_client_misc.c, tlsproxy.c/tlsproxy.c.
+
+	Cleanup: left-over code from a DANE on/off workaround. File:
+	tlsproxy.c/tlsproxy.c.
+
+20210806
+
+	Constified the object argument of functions that write objects
+	to VSTREAM. Files: global/bounce.c, global/defer.c,
+	global/deliver_pass.c, global/deliver_request.c,
+	global/dsn_print.c, global/dsn_print.h,
+	global/msg_stats.h, global/msg_stats_print.c,
+	global/rcpt_print.c, global/rcpt_print.h, global/trace.c,
+	milter/milter8.c, milter/milter.c, milter/milter.h,
+	milter/milter_macros.c, oqmgr/qmgr_deliver.c,
+	qmgr/qmgr_deliver.c, tls/tls_proxy_client_misc.c,
+	tls/tls_proxy_client_print.c, tls/tls_proxy_context_print.c,
+	tls/tls_proxy.h, tls/tls_proxy_server_print.c, util/argv_attr.h,
+	util/argv_attr_print.c, util/attr.h.
+
+20210810
+
+	Pedantism: the Postfix SMTP server now replies with status
+	500 when a command is not recogized (status 502 is applicable
+	when a command is recognized but not implemented). File:
+	smtpd/smtpd.c.
+
+	Wordsmithing: in inet_connect() replaced "host/service xxx/yyy
+	not found" with "host or service xxx:yyy not found". The former
+	suggests UNIX-domain pathname syntax which is confusing. File:
+	until/inet_connect.c.
+
+20210815
+
+	To make the maillog_file feature more useful, the postlog(1)
+	command is now set-gid postdrop, so that unprivileged
+	programs can write logging through the postlogd(8) daemon.
+	Adopted some code from postqueue(1) and postdrop(1) to
+	harden postlog(1) against privilege escalation attacks.
+	Files: postlog/postlog.c, conf/postfix-files.
+
+	Hardening: specify smtpd_per_request_deadline=yes to limit
+	the combined amount of time to receive a complete SMTP
+	request and to send a complete SMTP response. Specify
+	smtpd_min_data_rate to enforce a minimum data rate during
+	DATA and BDAT. This replaces smtpd_per_record_deadline; the
+	new smtpd_per_request_deadline parameter has a backwards-
+	compatible default value.
+
+	Hardening: specify {smtp,lmtp}_per_request_deadline=yes to
+	limit the combined amount of time to send a complete SMTP
+	request and to receive a complete SMTP response. Specify
+	{smtp,lmtp}_min_data_rate to enforce a minimum data rate
+	during DATA. This replaces {smtp,lmtp}_per_record_deadline.
+	The new {smtp,lmtp}_per_request_deadline parameters have a
+	backwards-compatible default value.
+
+	Minor text and code cleanups. File: postlog/postlog.c.
 
 20210925
 
+	Prevent sharing of xxx_tls_session_cache_database instances
+	between different Postfix instances when a database is
+	not multi-writer safe. Like postscreen(8) and verify(8),
+	open such a database with a permanent lock, and raise
+	a fatal error when that database is already opened as
+	xxx_tls_session_cache_database. File: src/tls/tls_scache.c.
+
 	Bugfix (bug introduced: Postfix 2.10): postconf -x produced
 	incorrect output, because different functions were implicitly
-	sharing a buffer for intermediate results. Reported
-	by raf, root cause analysis by Viktor Dukhovni. File:
-	postconf/postconf_builtin.c.
+	sharing a buffer for intermediate results. Reported by raf, root
+	cause analysis by Viktor Dukhovni, and Wietse eliminated the
+	underlying anti-pattern. Files: postconf/postconf_builtin.c,
+	postconf/postconf_dbms.c, postconf/postconf_lookup.c,
+	postconf/postconf_main.c, postconf/postconf_master.c.
+
+	Documentation: missing lmtp_tls_wrappermode parameter
+	documentation. Viktor Dukhovni. Files: mantools/postlink,
+	proto/postconf.proto.
+
+20210926
+
+	OpenSSL 3.0.0 feature and bitrot updates. Viktor Dukhovni.
+	Files: proto/FORWARD_SECRECY_README.html, proto/postconf.proto,
+	tls/tls_client.c, tls/tls_dh.c, tls/tls.h, tls/tls_misc.c,
+	tls/tls_server.c/^+
+
+	Cleanup: don't hyperlink text that is already hyperlinked.
+	File: mantools/postlink.
+
+20211002
+
+	Bugfix (introduced: Postfix 3.3): the header_from_format
+	feature was not implemented for From: headers from the
+	bounce daemon, and for Postfix SMTP server and client
+	postmaster notifications.  Reported by Vladimir Mishonov.
+	Files: bounce/bounce.c, bounce/bounce_notify_util_tester.c,
+	bounce/bounce_service.h, bounce/bounce_template.c,
+	bounce/bounce_template.h, bounce/bounce_templates.c,
+	cleanup/cleanup.h, cleanup/cleanup_init.c,
+	cleanup/cleanup_message.c, smtp/lmtp_params.c, smtp/smtp.c,
+	smtp/smtp.h, smtp/smtp_chat.c, smtp/smtp_params.c,
+	smtpd/smtpd.c, smtpd/smtpd.h, smtpd/smtpd_chat.c, and test
+	data.
+
+20211006
+
+	Documentation: http://tools.ietf.org/html/rfc[0-9]+ sometimes
+	does not redirect to the https site. Max-Julian Pogner.
+	Fixed by updating mantools/postlink and rebuilding the HTML
+	files that reference RFCs.
+
+20211016
+
+	Documentation: clarified the difference between private and
+	public services in master.cf. File: proto/master.
 
 20211022
 
@@ -25633,18 +25816,54 @@ Apologies for any names omitted.
 	posttls-finger/posttls-finger.c, smtp/smtp_connect.c,
 	util/find_inet.c, util/myaddrinfo.c.
 
+20211023
+
+	Documentation: fixed a jq example in the postsuper manpage, to
+	delete the quotes around a queue ID. File: postsuper/postsuper.c.
+
+	Cleanup: with "smtputf8_enable = yes" (the default), the
+	postscreen(8) dummy SMTP engine will no longer log a "non-UTF-8
+	key" warning when a remote SMTP client sends garbage. Instead,
+	postscreen(8) will reject the command with the same server
+	response as smtpd(8). File: postscreen/postscreen_smtpd.c.
+
 20211025
 
 	Bugfix (introduced: Postfix 3.6): mangled warning where a
-	hostname and warning message run together. Viktor Dukhovni.
+	hostname and warning message ran together. Viktor Dukhovni.
 	File: tls/tls_dane.c.
+
+20211026
+
+	Feature: with "smtp_bind_address_enforce = yes" the Postfix
+	SMTP client will defer delivery when it is unable to apply
+	the smtp_bind_address or smtp_bind_address6 setting. By
+	default, the Postfix SMTP client continues with delivery,
+	after logging a warning. File: src/smtp/smtp_connect.c.
+
+20211027
+
+	Documentation: readability fix for the text about automatic
+	or explicit daemon restart (postfix reload) after LMDB table
+	change. raj. File: proto/lmdb_table.
+
+	Safety: the postqueue command now sanitizes strings before they
+	are formatted as json output or legacy output. These outputs are
+	piped into other programs that are run by administrative
+	users. This closes a hypothetical opportunity for privilege
+	escalation. Files: util/attr.h, util/attr_scan*.c,
+	postqueue/showq_json.c, postqueue/showq_compat.c.
 
 20211030
 
-	Bugfix (problem introduced: Postfix 2.11): check_ccert_access
-	worked as expected, but produced a spurious warning when
-	Postfix was built without SASL support. Fix by Brad Barden.
-	File: smtpd/smtpd_check.c.
+	Bugfix: check_ccert_access worked as expected, but produced
+	a spurious warning when Postfix was built without SASL
+	support. Fix by Brad Barden. File: smtpd/smtpd_check.c.
+
+20211102
+
+	Bugfix for smtp_bind_address_enforce (change 20211026), file
+	descriptor leak. Found by Viktor. File: smtp/smtp_connect.c.
 
 20211105
 
@@ -25695,6 +25914,22 @@ Apologies for any names omitted.
 
 	Problem report by Benoît Panizzon.
 
+20211107
+
+	Additional postcat flags for debuging a corrupted queue
+	file (-s: skip to offset; -r: don't follow pointer records).
+	File: postcat/postcat.c.
+
+20211110
+
+	Minor edits of 20211107 postcat changes. File: postcat.c.
+
+	Regression prevention: added sanity check in the queue file
+	editing code. File: cleanup/cleanup_body_edit.c
+
+	Regression prevention: copied a queue file record typecheck
+	from the pickup daemon. Files: *qmgr/qmgr_message.c.
+
 20211115
 
 	Bugfix (introduced: 20210708): duplicate bounce_notice_recipient
@@ -25702,13 +25937,88 @@ Apologies for any names omitted.
 	transcripts to bounce_notice_recipient was incomplete.
 	Reported by Vincent Lefevre. File: smtpd/smtpd.c.
 
+20211127
+
+	Feature: support for the pcre2 library (the legacy pcre
+	library is still supported). See RELEASE_NOTES for details.
+	Files: makedefs, util/dict_open.c, util.dict_pcre.c,
+	proto/pcre_table, proto/PCRE_README.html.
+
+20211129
+
+	Portability: defines for FreeBSD <= 14.x, OpenBSD 7.x, NetBSD <=
+	10.x. Brad Smith. Files: makedefs, util/sys_defs.h.
+
+20211202
+
+	Cleanup: warning messages when a Diffie-Hellman parameter
+	file cannot be opened or parsed. Viktor Dukhovni. File:
+	tls/tls_dh.c.
+
+20211204
+
+	Cleanup: parameter descriptions in manpages were frozen in the
+	past. Files: proto/aliases, src/local/local.c, src/pipe/pipe.c,
+	src/qmqpd/qmqpd.c, src/trivial-rewrite/trivial-rewrite.c.
+
+	Documentation: added a "howto tip" to the stock main.cf
+	file. File: conf/main.cf
+
+20211211
+
+	Logging: the Postfix SMTP client logs an info message when it
+	breaks a long line with "<CR><LF><SP>".
+
 20211216
 
-	Bugfix (introduced: Postfix 3.0): the proxymap daemon did
-	not automatically authorize proxied maps inside pipemap
-	(example: pipemap:{proxy:maptype:mapname, ...}) or inside
-	unionmap. Problem reported by Mirko Vogt. Files:
-	proxymap/proxymap.c.
+	Bugfix (introduced: Postfix 3.0): the proxymap daemon did not
+	automatically authorize proxied maps inside pipemap (example:
+	pipemap:{proxy:maptype:mapname, ...}) or inside unionmap. Problem
+	reported by Mirko Vogt. Files: proxymap/proxymap.c.
+
+20211218
+
+	Typo fixes based on automated scans of C source code comments.
+	Verified that the .o files have not changed. Files:
+	bounce/bounce_notify_util.c, cleanup/cleanup_api.c,
+	cleanup/cleanup_message.c, dns/dns_lookup.c, flush/flush.c,
+	global/compat_level.c, global/db_common.c,
+	global/deliver_request.c, global/dict_ldap.c, global/dict_sqlite.c,
+	global/dynamicmaps.c, global/mail_conf_time.c, global/mail_copy.c,
+	global/mail_params.h, global/mail_proto.h, global/memcache_proto.c,
+	global/normalize_mailhost_addr.c, global/quote_822_local.c,
+	global/test_main.c, global/verify.c, global/verify_sender_addr.c,
+	local/unknown.c, master/dgram_server.c, master/event_server.c,
+	master/multi_server.c, master/single_server.c,
+	master/trigger_server.c, oqmgr/qmgr_entry.c,
+	postconf/postconf_dbms.c, postconf/postconf_master.c,
+	postconf/postconf_user.c, postdrop/postdrop.c, postmap/postmap.c,
+	postmulti/postmulti.c, postqueue/showq_compat.c,
+	postscreen/postscreen_smtpd.c, postscreen/postscreen_starttls.c,
+	posttls-finger/posttls-finger.c, proxymap/proxymap.c,
+	qmgr/qmgr_entry.c, qmqpd/qmqpd_peer.c, smtp/smtp.h,
+	smtp/smtp_proto.c, smtpd/smtpd_check.c, smtpd/smtpd_peer.c,
+	tls/tls_certkey.c, tls/tls_client.c, tls/tls_fprint.c,
+	tls/tls_misc.c, tls/tls_server.c, tlsmgr/tlsmgr.c,
+	tlsproxy/tlsproxy.c, trivial-rewrite/resolve.c,
+	trivial-rewrite/transport.c, trivial-rewrite/trivial-rewrite.c,
+	util/argv.c, util/dict_cache.c, util/dict_cdb.c, util/dict_file.c,
+	util/dict_random.c, util/dict_random.h, util/dict_thash.c,
+	util/dup2_pass_on_exec.c, util/edit_file.c, util/extpar.c,
+	util/gccw.c, util/mac_expand.c, util/mac_expand.h,
+	util/myaddrinfo.c, util/name_mask.c, util/sane_link.c,
+	util/sane_rename.c, util/unix_dgram_connect.c,
+	util/unix_dgram_listen.c, util/unix_pass_fd_fix.c,
+	util/vstring.c, xsasl/xsasl_dovecot_server.c.
+
+	Typo fixes based on automated scans of other files. Files:
+	auxiliary/qshape/qshape.pl, conf/post-install,
+	conf/postmulti-script, makedefs, postfix-install,
+	proto/postconf.proto, TLS_ACKNOWLEDGEMENTS, TLS_CHANGES.
+
+	Documentation: added a note to the cidr_table manpage that
+	with an inline CIDR map, "$" needs to be specified as "$$"
+	to avoid $name expansion surprises. File: proto/cidr_table.
 
 20211220
 
@@ -25719,9 +26029,254 @@ Apologies for any names omitted.
 	that was never read. Reported by Robert Siemer. Files:
 	*qmgr/qmgr_feedback.c.
 
+	Typo fixes from Raf, based on manual inspection. Verified
+	that the .o files have not changed. Files: conf/main.cf,
+	mantools/postlink, proto/ADDRESS_REWRITING_README.html,
+	proto/BACKSCATTER_README.html,
+	proto/BASIC_CONFIGURATION_README.html, proto/BDAT_README.html,
+	proto/BUILTIN_FILTER_README.html, proto/COMPATIBILITY_README.html,
+	proto/CONNECTION_CACHE_README.html, proto/DATABASE_README.html,
+	proto/DEBUG_README.html, proto/FORWARD_SECRECY_README.html,
+	proto/INSTALL.html, proto/IPV6_README.html, proto/LDAP_README.html,
+	proto/LINUX_README.html, proto/MAILLOG_README.html,
+	proto/MILTER_README.html, proto/MULTI_INSTANCE_README.html,
+	proto/MYSQL_README.html, proto/POSTSCREEN_3_5_README.html,
+	proto/POSTSCREEN_README.html, proto/QSHAPE_README.html,
+	proto/SASL_README.html, proto/SCHEDULER_README.html,
+	proto/SMTPD_ACCESS_README.html, proto/SMTPD_POLICY_README.html,
+	proto/SMTPD_PROXY_README.html, proto/SMTPUTF8_README.html,
+	proto/SQLITE_README.html, proto/STANDARD_CONFIGURATION_README.html,
+	proto/STRESS_README.html, proto/TLS_LEGACY_README.html,
+	proto/TLS_README.html, proto/TUNING_README.html,
+	proto/VIRTUAL_README.html, proto/access, proto/canonical,
+	proto/generic, proto/ldap_table, proto/master, proto/mysql_table,
+	proto/pgsql_table, proto/postconf.proto, proto/relocated,
+	proto/sqlite_table, proto/transport, proto/virtual,
+	global/mail_version.h, local/local.c, pipe/pipe.c,
+	postalias/postalias.c, postconf/postconf.c, postfix/postfix.c,
+	postmap/postmap.c, postmulti/postmulti.c,
+	posttls-finger/posttls-finger.c, sendmail/sendmail.c,
+	smtpstone/smtp-sink.c, tlsproxy/tlsproxy.c,
+	trivial-rewrite/trivial-rewrite.c, virtual/virtual.c.
+
+20211221
+
+	Documentation: reverted some postconf(5) changes from
+	"Specify a non-zero time value" to "Specify a non-negative
+	time value". File: proto/postconf.proto.
+
+	Documentation: reverted "destination concurrency limit" to
+	"destination recipient limit". File: proto/SCHEDULER_README.html.
+
+	Documentation: rephrased conditional $name expositions for
+	forward_path and command_execution_directory. File:
+	local/local.c.
+
+	Documentation: added Postfix 3.0 syntax to postconf(5)
+	descriptions of command_execution_directory, default_rbl_reply,
+	forward_path, luser_relay, recipient_delimiter. File:
+	proto/postconf.proto.
+
+	Documentation: updated descriptions of smtpd_error_sleep_time
+	and smtpd_soft_error_limit. File: proto/postconf.proto.
+
+	Fixed non-UTF8 quotes in TLS_CHANGES that caused nvi to 
+	truncate the file.
+
+	Fixed a remaining typo in util/load_lib.c.
+
+20211222
+
+	Added a top-level 'make typo-check' target to automate
+	the typo checks (this only works on Wietse's development
+	system, because it depends on specific implementations of
+	spell and lynx). Files: Makefile.in, mantools/comment.c,
+	mantools/deroff, mantools/check-double-cc,
+	mantools/check-double-install-proto-text,
+	mantools/check-double-proto-html, mantools/check-spell-cc,
+	mantools/check-spell-install-proto-text,
+	mantools/check-spell-proto-html, proto/stop, proto/stop.double-cc,
+	proto/stop.double-install-proto-text, proto/stop.double-proto-html,
+	proto/stop.spell-cc, proto/stop.spell-proto-html.
+
+	Cleanup: manpages don't need \' - that causes groff to emit
+	non-ASCII text (depending on the locale). Christian Goettsche.
+	Files: sendmail/sendmail.c, spawn/spawn.c.
+
 20211223
+
+	Report unsupported usage. Do not link Postfix database
+	plugins against libpostfix-util or libpostfix-global. This
+	introduces false build dependencies. File: makedefs.
+
+	Report unsupported usage. Do not build with LD_LIBRARY_PATH.
+	File: makedefs.
+
+	Documented the implementation-dependent mailbox_size_limit
+	and message_size_limit maximal values. File: proto/postconf.proto.
+
+	Cleanup: make typo-check tests portable across differernt
+	spellcheck implementations. Files: proto/stop.spell-proto-html,
+	proto/stop.spell-cc.
+
+	Cleanup: added missing parameters to the mantools/postlink
+	script, based on output from the mantools/check-postlink
+	script.
 
 	Cleanup: added missing _maps parameter names to the
 	proxy_read_maps default value, based on output from the
-	mantools/missing-proxy-read-maps script.  File:
+	mantools/missing-proxy-read-maps script. File:
 	global/mail_params.h.
+
+	Sanity: added LANG=C to the typo-check scripts to get
+	consistent output. Files: mantools/check-spell-proto-html,
+	mantools/check-spell-install-proto-text, mantools/check-spell-cc,
+	mantools/check-double-proto-html,
+	mantools/check-double-install-proto-text, mantools/check-double-cc.
+
+20211224
+
+	Cleanup: some compilter complains about indentation in a
+	multiline macro. File: util/dict_db.c.
+
+20211231
+
+	Cleanup: informative error message after failure to connect
+	to 'dovecot' socket. File: src/xsasl/xsasl_dovecot_server.c.
+
+20220101
+
+	Cleanup: AppArmor may return EPERM for permission errors.
+	This could result in a false "mail system is down" error
+	message from the postqueue command. File: postqueue/postqueue.c.
+
+202220102
+
+	Cleanup: log the reason why the postqueue command thinks
+	that the mail system is down, in case some security software
+	or kernel bug emits a weird error. File: postqueue/postqueue.c.
+
+	Robustness: randomize the initial state of Postfix in-memory
+	hash tables, to defend against collision attacks involving
+	a large number of attacker-chosen lookup keys. Presently,
+	the only known opportunity for such attacks involves remote
+	SMTP client IPv6 addresses in the anvil service. Other
+	tables with attacker-chosen lookup keys are limited in size.
+	The fix is cheap, and therefore implemented for all Postfix
+	in-memory hash tables. Problem reported by Pascal Junod.
+	File: util/htable.c.
+
+20210103
+
+	Documentation: CIDR example for mynetworks. Scott Kitterman.
+	File: proto/postconf.proto.
+
+	Updated the hash function to make the distance between
+	colliding inputs seed-dependent, which is really the only
+	property that we needed. File: util/htable.c.
+
+20210105
+
+	Cleanup: deleting the \ before \' broke other things. Now
+	we need to escape \ at the start of an nroff input line.
+	Files: mantools/postconf2man, mantools/srctoman.
+
+20220107
+
+	Updated the hash function to avoid losing state when an
+	input byte is 0 (can never happen with a null-terminated
+	string, but makes the hash function usable in other contexts.
+	File: util/htable.c.
+
+20220116
+
+	Added more pre-release checks: missing postlink rules,
+	missing maps in proxy_read_maps. File: Makefile.in.
+
+20220117
+
+	Cleanup: the nullmx_reject_code parameter was removed from
+	Postfix 3.0 before it was released, but the manpage was not
+	updated. File: proto/postconf.proto.
+
+	Cleanup: after seeking past the end of a writable memory-backed
+	VSTREAM (i.e. backed by a VSTRING), write nulls over the
+	newly allocated bytes. This behavior is compatible with
+	seeking past the end of a writable regular file. File:
+	util/vstream.c.
+
+	Cleanup: unit tests. File: cleanup/cleanup_milter.c.
+
+	Cleamup: disable hash-table seed in unit tests. Many
+	Makefiles, some unit test 'reference' files.
+
+	Bugfix (documented but not implemented since Postfix 2.2):
+	missing support for [address] in smtp_bind_address and
+	smtp_bind_address6. Reported by Vincent Pelletier. File:
+	smtp/smtp_connect.c.
+
+20220119
+
+	Cleanup: the 20211211 change could result in logfile spam.
+	Added a 1-bit counter to log "breaking long line" only once per
+	delivery request. File: smtp/smtp_proto.c.
+
+20220121
+
+	Cleanup: added a pre-release check for missing entries
+	in postfix-files. Problem reported by Jaroslav Skarvada.
+	Files: Makefile.in, conf/postfix-files,
+	mantools/check-postfix-files. Deleted: CYRUS_README.
+
+	Cleanup: added the RELEASE_NOTES file to the pre-release
+	checks, after Viktor Dukhovni reported a typo. Files:
+	mantools/check-double-install-proto-text,
+	mantools/check-spell-install-proto-text.
+
+	Cleanup: for consistent parameter naming (tlsproxy_client_xxx
+	correspnds to smtp_tls_xxx), renamed tlsproxy_client_level
+	to tlsproxy_client_security_level, and tlsproxy_client_policy
+	to tlsproxy_client_policy_maps, with backwards-compatible
+	defaults and updated documentation. Problem reported by
+	Raf. Files: global/mail_params.h, mantools/postlink,
+	postconf/postconf_builtin.c.
+
+20220123
+
+	Documentation: added LINUX_README sections for logging in
+	a container, and for systemd logging workarounds. File:
+	proto/LINUX_README.hmtl.
+
+20220126
+
+	Added defensive logging while waiting for the master daemon
+	to initialize in the background. File: master/master_monitor.c.
+
+20220127
+
+	Cleanup: smtpprox hyperlink. File: proto/FILTER_README.html.
+
+20220128
+
+	Clenaup: standardize on FNV hash, after having verified
+	that collisions will change with the hash seed value, and
+	that the collision rate is low. Files: util/htable.c,
+	util/hash_fnv.[hc].
+
+20220129
+
+	Cleanup: factored out the non-cryptographic seeder. Files:
+	ldseed.[hc].
+
+20220130
+
+	Cleanup: added a binhash unit test, and updated the htable
+	unit test. Files: util/Makefile.in, util/binhash.[hc],
+	util/htable.c.
+
+	Cleanup: names of hash_fnv(3) build options. File: hash:fnv.c.
+
+20220202
+
+	Bitrot: Berkeley DB 18 is like Berkeley DB 6. Yasuhiro
+	Kimura. File: util/dict_db.c.

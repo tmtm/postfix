@@ -145,7 +145,7 @@ no").  </p>
 
 <ul>
 
-<li> <p> Disallowing <a href="http://tools.ietf.org/html/rfc822">RFC 822</a> address syntax (example: "MAIL FROM: the
+<li> <p> Disallowing <a href="https://tools.ietf.org/html/rfc822">RFC 822</a> address syntax (example: "MAIL FROM: the
 dude &lt;dude@example.com&gt;"). </p>
 
 <li> <p> Disallowing addresses that are not enclosed with &lt;&gt;
@@ -218,8 +218,9 @@ some restriction produces a result of PERMIT, REJECT or DEFER (try
 again later).  The end of each list is equivalent to a PERMIT result.
 By placing a PERMIT restriction before a REJECT restriction you
 can make exceptions for specific clients or users. This is called
-allowlisting; the fourth example above allows mail from local
-networks but otherwise rejects mail to arbitrary destinations. </p>
+allowlisting; the <a href="postconf.5.html#smtpd_relay_restrictions">smtpd_relay_restrictions</a> example above allows mail from local
+networks, and from SASL authenticated clients, but otherwise rejects mail
+to arbitrary destinations. </p>
 
 <p> The table below summarizes the purpose of each SMTP access
 restriction list. All lists use the exact same syntax; they differ

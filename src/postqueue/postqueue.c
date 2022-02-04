@@ -184,7 +184,7 @@
 /*	Optional list of destinations that are eligible for per-destination
 /*	logfiles with mail that is queued to those destinations.
 /* .IP "\fBimport_environment (see 'postconf -d' output)\fR"
-/*	The list of environment parameters that a privileged Postfix
+/*	The list of environment variables that a privileged Postfix
 /*	process will import from a non-Postfix parent process, or name=value
 /*	environment overrides.
 /* .IP "\fBqueue_directory (see 'postconf -d' output)\fR"
@@ -390,7 +390,7 @@ static void show_queue(int mode)
      * Don't assume that the mail system is down when the user has
      * insufficient permission to access the showq socket.
      */
-    else if (errno == EACCES) {
+    else if (errno == EACCES || errno == EPERM) {
 	msg_fatal_status(EX_SOFTWARE,
 			 "Connect to the %s %s service: %m",
 			 var_mail_name, var_showq_service);
@@ -405,7 +405,9 @@ static void show_queue(int mode)
 	ARGV   *argv;
 	int     stat;
 
-	msg_warn("Mail system is down -- accessing queue directly");
+	msg_warn("Mail system is down -- accessing queue directly"
+		 " (Connect to the %s %s service: %m)",
+		 var_mail_name, var_showq_service);
 	showq_path = concatenate(var_daemon_dir, "/", var_showq_service,
 				 (char *) 0);
 	argv = argv_alloc(6);
@@ -436,7 +438,9 @@ static void show_queue(int mode)
      */
     else {
 	msg_fatal_status(EX_UNAVAILABLE,
-			 "Queue report unavailable - mail system is down");
+			 "Queue report unavailable - mail system is down"
+			 " (Connect to the %s %s service: %m)",
+			 var_mail_name, var_showq_service);
     }
 }
 

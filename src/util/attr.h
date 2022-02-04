@@ -31,7 +31,7 @@
 typedef int (*ATTR_SCAN_COMMON_FN) (VSTREAM *, int,...);
 typedef int (*ATTR_SCAN_CUSTOM_FN) (ATTR_SCAN_COMMON_FN, VSTREAM *, int, void *);
 typedef int (*ATTR_PRINT_COMMON_FN) (VSTREAM *, int,...);
-typedef int (*ATTR_PRINT_CUSTOM_FN) (ATTR_PRINT_COMMON_FN, VSTREAM *, int, void *);
+typedef int (*ATTR_PRINT_CUSTOM_FN) (ATTR_PRINT_COMMON_FN, VSTREAM *, int, const void *);
 
  /*
   * Attribute types. See attr_scan(3) for documentation.
@@ -101,9 +101,10 @@ CHECK_VAL_HELPER_DCL(ATTR, ATTR_SCAN_CUSTOM_FN);
 #define ATTR_FLAG_MISSING	(1<<0)	/* Flag missing attribute */
 #define ATTR_FLAG_EXTRA		(1<<1)	/* Flag spurious attribute */
 #define ATTR_FLAG_MORE		(1<<2)	/* Don't skip or terminate */
+#define ATTR_FLAG_PRINTABLE	(1<<3)	/* Sanitize received strings */
 
 #define ATTR_FLAG_STRICT	(ATTR_FLAG_MISSING | ATTR_FLAG_EXTRA)
-#define ATTR_FLAG_ALL		(07)
+#define ATTR_FLAG_ALL		(017)
 
  /*
   * Default to null-terminated, as opposed to base64-encoded.
