@@ -147,7 +147,7 @@ static void pcf_gobble_cf_line(VSTRING *full_entry_buf, VSTRING *line_buf,
 
 void    pcf_edit_main(int mode, int argc, char **argv)
 {
-    char   *path;
+    const char *path;
     EDIT_FILE *ep;
     VSTREAM *src;
     VSTREAM *dst;
@@ -202,8 +202,7 @@ void    pcf_edit_main(int mode, int argc, char **argv)
      * Open a temp file for the result. This uses a deterministic name so we
      * don't leave behind thrash with random names.
      */
-    pcf_set_config_dir();
-    path = concatenate(var_config_dir, "/", MAIN_CONF_FILE, (char *) 0);
+    path = pcf_get_main_path();
     if ((ep = edit_file_open(path, O_CREAT | O_WRONLY, 0644)) == 0)
 	msg_fatal("open %s%s: %m", path, EDIT_FILE_SUFFIX);
     dst = ep->tmp_fp;
@@ -272,7 +271,6 @@ void    pcf_edit_main(int mode, int argc, char **argv)
     /*
      * Cleanup.
      */
-    myfree(path);
     vstring_free(buf);
     vstring_free(key);
     htable_free(table, myfree);
@@ -296,7 +294,7 @@ typedef struct {
 void    pcf_edit_master(int mode, int argc, char **argv)
 {
     const char *myname = "pcf_edit_master";
-    char   *path;
+    const char *path;
     EDIT_FILE *ep;
     VSTREAM *src;
     VSTREAM *dst;
@@ -400,8 +398,7 @@ void    pcf_edit_master(int mode, int argc, char **argv)
      * Open a temp file for the result. This uses a deterministic name so we
      * don't leave behind thrash with random names.
      */
-    pcf_set_config_dir();
-    path = concatenate(var_config_dir, "/", MASTER_CONF_FILE, (char *) 0);
+    path = pcf_get_master_path();
     if ((ep = edit_file_open(path, O_CREAT | O_WRONLY, 0644)) == 0)
 	msg_fatal("open %s%s: %m", path, EDIT_FILE_SUFFIX);
     dst = ep->tmp_fp;
@@ -566,7 +563,6 @@ void    pcf_edit_master(int mode, int argc, char **argv)
     /*
      * Cleanup.
      */
-    myfree(path);
     vstring_free(line_buf);
     vstring_free(parse_buf);
     vstring_free(full_entry_buf);

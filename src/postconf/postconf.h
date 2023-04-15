@@ -171,6 +171,8 @@ extern int pcf_cmd_mode;
   * postconf_misc.c.
   */
 extern void pcf_set_config_dir(void);
+extern const char *pcf_get_main_path(void);
+extern const char *pcf_get_master_path(void);
 
  /*
   * postconf_main.c
