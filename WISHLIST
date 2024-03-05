@@ -6,6 +6,25 @@ Wish list:
 
 	Disable -DSNAPSHOT and -DNONPROD in makedefs.
 
+	The postconf command needs more mongodb tests.
+
+	The mongodb client needs tests.
+
+	Remove .printfck directories, and remove printfck targets
+	from Makefiles.
+
+	In documentation and configuration file examples, replace
+	IPv4 address prefixes from Cloud9 with 192.168.* from RFC
+	1918, and replace IPv6 address prefixes with unique local
+	IPv6 address prefixes fd00:* from RFC 4193.
+
+	Add a pre-release check for '.' instead of ','. Generalize
+	from grep '[a-zA-Z0-9]\.  *[a-z]' proto/*|egrep -v
+	'i\.e\.|etc\.|e\.g\.|\.  *[a-zA-Z0-9]*\('
+
+	Update DKIM examples for signing with the benefits of forced
+	MIME converison with "force_mime_input_conversion = yes"
+
 	Scan Postfix code with github.com/googleprojectzero/weggli
 	(depends on "rust").
 
@@ -14,15 +33,15 @@ Wish list:
 
 	Check out https://github.com/milter-manager/milter-manager/
 
-	Check out https://cutter.osdn.jp/ (C/C++ unit tests).
+	Check out https://github.com/clear-code/cutter
+	(https://cutter.osdn.jp/) for C/C++ unit tests.
 
-	Follow https://github.com/vdukhovni/postfix/commits/rpk
+	postscreen hints to smtpd to suppress the server greeting
+	after a remote SMTP client has pregreeted. This makes the
+	PIPELINING detection more meaningful.
 
 	Multi-recipient support in sender/recipient_bcc_maps and
 	always_bcc.
-
-	Test for dns_rr_copy() + dns_rr_free().
-
 
 	mail_conf_xxx supprt for non-negative numbers (i.e. 
 	numbers with a lower bound of zero).

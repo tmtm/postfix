@@ -1321,6 +1321,10 @@ extern bool var_smtpd_tls_ask_ccert;
 #define DEF_SMTPD_TLS_RCERT	0
 extern bool var_smtpd_tls_req_ccert;
 
+#define VAR_SMTPD_TLS_ENABLE_RPK	"smtpd_tls_enable_rpk"
+#define DEF_SMTPD_TLS_ENABLE_RPK	0
+extern bool var_smtpd_tls_enable_rpk;
+
 #define VAR_SMTPD_TLS_CCERT_VD	"smtpd_tls_ccert_verifydepth"
 #define DEF_SMTPD_TLS_CCERT_VD	9
 extern int var_smtpd_tls_ccert_vd;
@@ -1555,6 +1559,12 @@ extern char *var_smtp_tls_mand_excl;
                                 "{md5} : {sha256}}"
 extern char *var_smtp_tls_fpt_dgst;
 
+#define VAR_SMTP_TLS_ENABLE_RPK	"smtp_tls_enable_rpk"
+#define DEF_SMTP_TLS_ENABLE_RPK	0
+#define VAR_LMTP_TLS_ENABLE_RPK	"lmtp_tls_enable_rpk"
+#define DEF_LMTP_TLS_ENABLE_RPK	0
+extern bool var_smtp_tls_enable_rpk;
+
 #define VAR_SMTP_TLS_TAFILE	"smtp_tls_trust_anchor_file"
 #define DEF_SMTP_TLS_TAFILE	""
 #define VAR_LMTP_TLS_TAFILE	"lmtp_tls_trust_anchor_file"
@@ -1744,6 +1754,12 @@ extern bool var_smtp_sasl_enable;
 #define VAR_SMTP_SASL_PASSWD	"smtp_sasl_password_maps"
 #define DEF_SMTP_SASL_PASSWD	""
 extern char *var_smtp_sasl_passwd;
+
+#define VAR_SMTP_SASL_PASSWD_RES_DELIM	"smtp_sasl_password_result_delimiter"
+#define DEF_SMTP_SASL_PASSWD_RES_DELIM	":"
+#define VAR_LMTP_SASL_PASSWD_RES_DELIM	"lmtp_sasl_password_result_delimiter"
+#define DEF_LMTP_SASL_PASSWD_RES_DELIM	DEF_SMTP_SASL_PASSWD_RES_DELIM
+extern char *var_smtp_sasl_passwd_res_delim;
 
 #define VAR_SMTP_SASL_OPTS	"smtp_sasl_security_options"
 #define DEF_SMTP_SASL_OPTS	"noplaintext, noanonymous"
@@ -2437,7 +2453,7 @@ extern char *var_smtpd_exp_filter;
 extern bool var_smtpd_peername_lookup;
 
 #define VAR_SMTPD_FORBID_UNAUTH_PIPE	"smtpd_forbid_unauth_pipelining"
-#define DEF_SMTPD_FORBID_UNAUTH_PIPE	0
+#define DEF_SMTPD_FORBID_UNAUTH_PIPE	1
 extern bool var_smtpd_forbid_unauth_pipe;
 
  /*
@@ -3071,6 +3087,10 @@ extern bool var_disable_mime_input;
 #define VAR_DISABLE_MIME_OCONV		"disable_mime_output_conversion"
 #define DEF_DISABLE_MIME_OCONV		0
 extern bool var_disable_mime_oconv;
+
+#define VAR_FORCE_MIME_ICONV		"force_mime_input_conversion"
+#define DEF_FORCE_MIME_ICONV		0
+extern bool var_force_mime_iconv;
 
 #define VAR_STRICT_8BITMIME		"strict_8bitmime"
 #define DEF_STRICT_8BITMIME		0
@@ -3982,6 +4002,10 @@ extern bool var_tlsp_tls_ask_ccert;
 #define DEF_TLSP_TLS_RCERT	"$" VAR_SMTPD_TLS_RCERT
 extern bool var_tlsp_tls_req_ccert;
 
+#define VAR_TLSP_TLS_ENABLE_RPK	"tlsproxy_tls_enable_rpk"
+#define DEF_TLSP_TLS_ENABLE_RPK	"$" VAR_SMTPD_TLS_ENABLE_RPK
+extern bool var_tlsp_tls_enable_rpk;
+
 #define VAR_TLSP_TLS_CCERT_VD	"tlsproxy_tls_ccert_verifydepth"
 #define DEF_TLSP_TLS_CCERT_VD	"$" VAR_SMTPD_TLS_CCERT_VD
 extern int var_tlsp_tls_ccert_vd;
@@ -4282,7 +4306,7 @@ extern char *var_smtpd_dns_re_filter;
   * Backwards compatibility.
   */
 #define VAR_SMTPD_FORBID_BARE_LF	"smtpd_forbid_bare_newline"
-#define DEF_SMTPD_FORBID_BARE_LF	"no"
+#define DEF_SMTPD_FORBID_BARE_LF	"normalize"
 
 #define VAR_SMTPD_FORBID_BARE_LF_EXCL	"smtpd_forbid_bare_newline_exclusions"
 #define DEF_SMTPD_FORBID_BARE_LF_EXCL	"$" VAR_MYNETWORKS
@@ -4378,6 +4402,10 @@ extern char *var_maillog_file_comp;
 #define VAR_MAILLOG_FILE_STAMP	"maillog_file_rotate_suffix"
 #define DEF_MAILLOG_FILE_STAMP	"%Y%m%d-%H%M%S"
 extern char *var_maillog_file_stamp;
+
+#define VAR_MAILLOG_FILE_PERMS	"maillog_file_permissions"
+#define DEF_MAILLOG_FILE_PERMS	"0600"
+extern char *var_maillog_file_perms;
 
 #define VAR_POSTLOG_SERVICE	"postlog_service_name"
 #define DEF_POSTLOG_SERVICE	MAIL_SERVICE_POSTLOG

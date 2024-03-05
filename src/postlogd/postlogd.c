@@ -31,10 +31,10 @@
 /* CONFIGURATION PARAMETERS
 /* .ad
 /* .fi
-/*	Changes to \fBmain.cf\fR are picked up automatically, as
-/*	\fBpostlogd\fR(8) processes run for only a limited amount
-/*	of time. Use the command "\fBpostfix reload\fR" to speed
-/*	up a change.
+/*	Changes to \fBmain.cf\fR are not picked up automatically,
+/*	because \fBpostlogd\fR(8) terminates only after reaching
+/*	the \fBmax_idle\fR time limit.
+/*	Use the command "\fBpostfix reload\fR" to speed up a change.
 /*
 /*	The text below provides only a parameter summary. See
 /*	\fBpostconf\fR(5) for more details including examples.
@@ -56,6 +56,12 @@
 /* .IP "\fBpostlogd_watchdog_timeout (10s)\fR"
 /*	How much time a \fBpostlogd\fR(8) process may take to process a request
 /*	before it is terminated by a built-in watchdog timer.
+/* .PP
+/*	Available in Postfix 3.9 and later:
+/* .IP "\fBmaillog_file_permissions (0600)\fR"
+/*	The file access permissions that will be set when the file
+/*	$maillog_file is created for the first time, or when the file is
+/*	created after an existing file is rotated.
 /* SEE ALSO
 /*	postconf(5), configuration parameters
 /*	syslogd(8), system logging

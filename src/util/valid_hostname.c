@@ -6,9 +6,9 @@
 /* SYNOPSIS
 /*	#include <valid_hostname.h>
 /*
-/*	int	valid_hostname(name, gripe)
+/*	int	valid_hostname(name, flags)
 /*	const char *name;
-/*	int	gripe;
+/*	int	flags;
 /*
 /*	int	valid_hostaddr(addr, gripe)
 /*	const char *addr;
@@ -32,6 +32,10 @@
 /*	dots, no leading or trailing dots or hyphens, no labels
 /*	longer than VALID_LABEL_LEN characters, and it should not
 /*	be all numeric.
+/*	The flags argument is the bit-wise or of zero or more of
+/*	DO_GRIPE or DO_WILDCARD (the latter allows the "*." name
+/*	prefix, which is rare but valid in some DNS responses and
+/*	queries).
 /*
 /*	valid_hostaddr() requires that the input is a valid string
 /*	representation of an IPv4 or IPv6 network address as
@@ -403,8 +407,9 @@ int     main(int unused_argc, char **argv)
 
     while (vstring_fgets_nonl(buffer, VSTREAM_IN)) {
 	msg_info("testing: \"%s\"", vstring_str(buffer));
-	valid_hostname(vstring_str(buffer), DO_GRIPE);
-	valid_hostaddr(vstring_str(buffer), DO_GRIPE);
+	valid_hostname(vstring_str(buffer), DO_GRIPE | DO_WILDCARD);
+	if (strchr(vstring_str(buffer), '*') == 0)
+	    valid_hostaddr(vstring_str(buffer), DO_GRIPE);
     }
     exit(0);
 }

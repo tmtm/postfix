@@ -85,6 +85,12 @@
 /*	an invalid name is reported as a DNS_INVAL result, while
 /*	malformed replies are reported as transient errors.
 /*
+/*	Note: in dns_lookup*() results and queries, a name may start
+/*	with a "*" label, which is valid according to RFC 1034
+/*	section 4.3.3. Such a name will not pass valid_hostname()
+/*	checks in the rest of Postfix, because it is not a valid
+/*	host or domain name.
+/*
 /*	dns_get_h_errno() returns the last error. This deprecates
 /*	usage of the global h_errno variable. We should not rely
 /*	on that being updated.
@@ -300,7 +306,7 @@ typedef struct DNS_REPLY {
 
  /*
   * Use the threadsafe resolver API if available, not because it is
-  * theadsafe, but because it has more functionality.
+  * threadsafe, but because it has more functionality.
   */
 #ifdef USE_RES_NCALLS
 static struct __res_state dns_res_state;

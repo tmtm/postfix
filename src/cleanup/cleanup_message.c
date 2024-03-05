@@ -1069,6 +1069,9 @@ void    cleanup_message(CLEANUP_STATE *state, int type, const char *buf, ssize_t
      */
     mime_options = 0;
     if (var_disable_mime_input) {
+	if (var_force_mime_iconv)
+	    msg_fatal("do not specify both %s=yes and %s=yes",
+		      VAR_DISABLE_MIME_INPUT, VAR_FORCE_MIME_ICONV);
 	mime_options |= MIME_OPT_DISABLE_MIME;
     } else {
 	/* Turn off content checks if bouncing or forwarding mail. */
@@ -1085,6 +1088,8 @@ void    cleanup_message(CLEANUP_STATE *state, int type, const char *buf, ssize_t
 		|| *var_nesthdr_checks)
 		mime_options |= MIME_OPT_REPORT_NESTING;
 	}
+	if (var_force_mime_iconv)
+	    mime_options |= MIME_OPT_DOWNGRADE;
     }
     state->mime_state = mime_state_alloc(mime_options,
 					 cleanup_header_callback,

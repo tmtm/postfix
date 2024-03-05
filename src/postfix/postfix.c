@@ -303,7 +303,7 @@
 /*
 /*	Table-driven mechanisms:
 /*	access(5), Postfix SMTP access control table
-/*	aliases(5), Postfix alias database
+/*	aliases(5), Postfix local aliasing
 /*	canonical(5), Postfix input address rewriting
 /*	generic(5), Postfix output address rewriting
 /*	header_checks(5), body_checks(5), Postfix content inspection
@@ -316,6 +316,7 @@
 /*	ldap_table(5), Postfix LDAP client
 /*	lmdb_table(5), Postfix LMDB database driver
 /*	memcache_table(5), Postfix memcache client
+/*	mongodb_table(5), Postfix MongoDB client
 /*	mysql_table(5), Postfix MYSQL client
 /*	nisplus_table(5), Postfix NIS+ client
 /*	pcre_table(5), Associate PCRE pattern with value

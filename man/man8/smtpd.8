@@ -502,7 +502,7 @@ fingerprints or public key fingerprints (Postfix 2.9 and later) for
 \fBcheck_ccert_access\fR and \fBpermit_tls_clientcerts\fR.
 .PP
 Available in Postfix version 2.6 and later:
-.IP "\fBsmtpd_tls_protocols (see postconf -d output)\fR"
+.IP "\fBsmtpd_tls_protocols (see 'postconf -d' output)\fR"
 TLS protocols accepted by the Postfix SMTP server with opportunistic
 TLS encryption.
 .IP "\fBsmtpd_tls_ciphers (medium)\fR"
@@ -571,6 +571,12 @@ Optional configuration file with baseline OpenSSL settings.
 .IP "\fBtls_config_name (empty)\fR"
 The application name passed by Postfix to OpenSSL library
 initialization functions.
+.PP
+Available in Postfix version 3.9 and later:
+.IP "\fBsmtpd_tls_enable_rpk (no)\fR"
+Request that remote SMTP clients send an RFC7250 raw public key
+instead of an X.509 certificate, when asking for or requiring client
+authentication.
 .SH "OBSOLETE STARTTLS CONTROLS"
 .na
 .nf
@@ -706,12 +712,12 @@ Parameters concerning known/unknown local recipients:
 The list of domains that are delivered via the $local_transport
 mail delivery transport.
 .IP "\fBinet_interfaces (all)\fR"
-The local network interface addresses that this mail system receives
-mail on.
+The local network interface addresses that this mail system
+receives mail on.
 .IP "\fBproxy_interfaces (empty)\fR"
 The remote network interface addresses that this mail system receives mail
 on by way of a proxy or network address translation unit.
-.IP "\fBinet_protocols (see 'postconf -d output')\fR"
+.IP "\fBinet_protocols (see 'postconf -d' output)\fR"
 The Internet protocols Postfix will attempt to use when making
 or accepting connections.
 .IP "\fBlocal_recipient_maps (proxy:unix:passwd.byname $alias_maps)\fR"
@@ -742,8 +748,9 @@ Postfix is the final destination for the specified list of virtual
 alias domains, that is, domains for which all addresses are aliased
 to addresses in other local or remote domains.
 .IP "\fBvirtual_alias_maps ($virtual_maps)\fR"
-Optional lookup tables that alias specific mail addresses or domains
-to other local or remote addresses.
+Optional lookup tables with aliases that apply to all recipients:
+\fBlocal\fR(8), virtual, and remote; this is unlike alias_maps that apply
+only to \fBlocal\fR(8) recipients.
 .IP "\fBunknown_virtual_alias_reject_code (550)\fR"
 The Postfix SMTP server reply code when a recipient address matches
 $virtual_alias_domains, and $virtual_alias_maps specifies a list
@@ -863,7 +870,7 @@ Disconnect remote SMTP clients that violate RFC 2920 (or 5321)
 command pipelining constraints.
 .PP
 Available in Postfix 3.9, 3.8.4, 3.7.9, 3.6.13, 3.5.23 and later:
-.IP "\fBsmtpd_forbid_bare_newline (Postfix < 3.9: no)\fR"
+.IP "\fBsmtpd_forbid_bare_newline (Postfix >= 3.9: normalize)\fR"
 Reject or restrict input lines from an SMTP client that end in
 <LF> instead of the standard <CR><LF>.
 .IP "\fBsmtpd_forbid_bare_newline_exclusions ($mynetworks)\fR"

@@ -1,19 +1,19 @@
-This is the Postfix 3.8 stable release.
+This is the Postfix 3.9 stable release.
 
-The stable Postfix release is called postfix-3.8.x where 3=major
-release number, 8=minor release number, x=patchlevel. The stable
+The stable Postfix release is called postfix-3.9.x where 3=major
+release number, 9=minor release number, x=patchlevel. The stable
 release never changes except for patches that address bugs or
 emergencies. Patches change the patchlevel and the release date.
 
 New features are developed in snapshot releases. These are called
-postfix-3.9-yyyymmdd where yyyymmdd is the release date (yyyy=year,
+postfix-3.10-yyyymmdd where yyyymmdd is the release date (yyyy=year,
 mm=month, dd=day). Patches are never issued for snapshot releases;
 instead, a new snapshot is released.
 
 The mail_release_date configuration parameter (format: yyyymmdd)
 specifies the release date of a stable release or snapshot release.
 
-If you upgrade from Postfix 3.6 or earlier, please read RELEASE_NOTES-3.7
+If you upgrade from Postfix 3.7 or earlier, please read RELEASE_NOTES-3.8
 before proceeding.
 
 Dual license
@@ -26,32 +26,142 @@ now also distributed with the more recent Eclipse Public License
 license of their choice. Those who are more comfortable with the
 IPL can continue with that license.
 
-Incompatibility with Postfix 3.8.5, 3.7.10, 3.6.14, and 3.5.24
-==============================================================
+Topics in this document
+-----------------------
+- changes that are less visible
+- database support
+- envid support
+- feature deprecation
+- mime conversion
+- protocol compliance
+- security
+- tls support
 
-Improvements for outbound SMTP smuggling defense:
+Changes that are less visible
+-----------------------------
 
-- With "cleanup_replace_stray_cr_lf = yes" (the default), the cleanup
-  daemon replaces each stray <CR> or <LF> character in message
-  content with a space character. The replacement happens before
-  any other content management (header/body_checks, Milters, etc).
+The documentation has been updated to address many questions
+that were asked on the postfix-users mailing list.
 
-  This prevents outbound SMTP smuggling, where an attacker uses
-  Postfix to send email containing a non-standard End-of-DATA
-  sequence, to exploit inbound SMTP smuggling at a vulnerable remote
-  SMTP server.
+More unit tests to make Postfix future-proof. Wietse is now looking
+into migrating unit tests to Google test, because other people are
+familiar with that framework, than with a Postfix-specific one.
 
-  This also improves the remote evaluation of Postfix-added DKIM
-  and other signatures, as the evaluation result will not depend
-  on how a remote email server handles stray <CR> or <LF> characters.
+Major changes - database support
+--------------------------------
+
+[Feature 20240208] MongoDB client support, contributed by Hamid
+Maadani, based on earlier code by Stephan Ferraro. For build and
+usage instructions see MONGODB_README and mongodb_table(5).
+
+[Feature 20240129] In the mysql: and pgsql: clients, the hard-coded
+idle and retry timer settings are now configurable. Details are in
+the updated mysql_table(5) and pgsql_table(5) manpages.
+
+[Incompat 20230903] The MySQL client no longer supports MySQL
+versions < 4.0. MySQL version 4.0 was released in 2003.
+
+[Incompat 20230419] The MySQL client default characterset is now
+configurable with the "charset" configuration file attribute. The
+default is "utf8mb4", consistent with the MySQL 8.0 built-in default,
+but different from earlier MySQL versions where the built-in default
+was "latin1".
+
+Major changes - envid support
+-----------------------------
+
+[Feature 20230901] The local(8) delivery agent exports an ENVID
+environment variable with the RFC 3461 envelope ID if available.
+
+The pipe(8) delivery agent supports an ${envid} command-line attribute
+that expands to the RFC 3461 envelope ID if available.
+
+Major changes - feature deprecation
+-----------------------------------
+
+[Incompat 20240218] The new document DEPRECATION_README covers
+features that have been removed and that will be removed in the
+future, with suggestions how to migrate.
+
+The Postfix SMTP server logs a warning when "permit_mx_backup" is
+used (support for restriction "permit_mx_backup" will be removed
+from Postfix; instead, use "relay_domains"). File: smtpd/smtpd_check.c.
+
+The postconf command logs a warning when the following parameters
+are specified in main.cf or master.cf: xxx_use_tls, xxx_enforce_tls
+(use the corresponding xxx_security_level setting instead);
+xxx_per_site (use the corresponding xxx_policy_maps setting instead);
+disable_dns_lookups (use smtp_dns_support_level instead);
+smtpd_tls_dh1024_param_file, smtpd_tls_eecdh_grade (do not specify,
+leave at default). These warning are silenced with the "postconf
+-q".
+
+[Incompat 20240218] The Postfix SMTP server now logs that
+permit_naked_ip_address, reject_maps_rbl, and check_relay_domains
+have been removed and suggests a replacement. These features have
+been logging deprecation warnings since 2005 or earlier, and were
+removed from Postfix documentation in 2004.
+
+Major changes - mime conversion
+-------------------------------
+
+[Feature 20230901] New parameter force_mime_input_conversion (default:
+no) to convert body content that claims to be 8-bit into quoted-printable,
+before header_checks, body_checks, Milters, and before after-queue
+content filters. This feature does not affect messages that are
+sent into smtpd_proxy_filter.
+
+The typical use case is an MTA that applies this conversion before
+signing outbound messages, so that the signatures will remain valid
+when a message is later handled by an MTA that does not announce
+8BITMIME support, or when a message line exceeds the SMTP length
+limit.
+
+Major changes - protocol compliance
+-----------------------------------
+
+[Incompat 20240206] In message headers, Postfix now formats numerical
+days as two-digit days, i.e. days 1-9 have a leading zero instead
+of a leading space.  This change was made because the RFC 5322 date
+and time specification recommends (i.e. SHOULD) that a single space
+be used in each place that FWS appears. This change avoids a breaking
+change in the date string length.
+
+Major changes - security
+------------------------
+
+[Incompat 20240226] The Postfix DNS client now limits the total
+size of DNS lookup results to 100 records; it drops the excess
+records, and logs a warning. This limit is 20x larger than the
+number of server addresses that the Postfix SMTP client is willing
+to consider when delivering mail, and is far below the number of
+records that could cause a tail recursion crash in dns_rr_append()
+as reported by Toshifumi Sakaguchi.
+
+This change introduces a similar limit on the number of DNS requests
+that a check_*_*_access restriction can make.
+
+[Incompat 20240110] With "cleanup_replace_stray_cr_lf = yes" (the
+default), the cleanup daemon replaces each stray <CR> or <LF>
+character in message content with a space character. The replacement
+happens before any other content management (header/body_checks,
+Milters, etc).
+
+This prevents outbound SMTP smuggling, where an attacker uses Postfix
+to send email containing a non-standard End-of-DATA sequence, to
+exploit inbound SMTP smuggling at a vulnerable remote SMTP server.
+
+This also improves the remote evaluation of Postfix-added DKIM and
+other signatures, as the evaluation result will not depend on how
+a remote email server handles stray <CR> or <LF> characters.
 
 This feature applies to all email that Postfix locally or remotely
 sends out. It is not allowlisted based on client identity.
 
-Major changes with Postfix 3.8.5, 3.7.10, 3.6.14, and 3.5.24
-============================================================
+[Feature 20240118] This updates Postfix fixes for inbound SMTP smuggling
+attacks. For background, see https://www.postfix.org/smtp-smuggling.html
 
-Improvements for inbound SMTP smuggling defense:
+This will be back ported to Postfix 3.8.5, 3.7.10, 3.6.14, and 3.5.24.
 
 - Better compatibility: the recommended setting "smtpd_forbid_bare_newline
   = normalize" requires the standard End-of-DATA sequence
@@ -124,120 +234,76 @@ Alternative settings:
     #     10.0.0.0/24 chunking, silent-discard
     # smtpd_discard_ehlo_keywords = chunking, silent-discard
 
-Major changes with Postfix 3.8.1
-================================
-
-Security: the Postfix SMTP server optionally disconnects remote
-SMTP clients that violate RFC 2920 (or 5321) command pipelining
+[Incompat 20230603] the Postfix SMTP server by default disconnects
+remote SMTP clients that violate RFC 2920 (or 5321) command pipelining
 constraints. The server replies with "554 5.5.0 Error: SMTP protocol
 synchronization" and logs the unexpected remote SMTP client input.
-Specify "smtpd_forbid_unauth_pipelining = yes" to enable. This
-feature is enabled by default in Postfix 3.9 and later.
+Specify "smtpd_reject_unauth_pipelining = no" to disable.
 
-Workaround to limit collateral damage from OS distributions that
-crank up security to 11, increasing the number of plaintext email
-deliveries. This introduces basic OpenSSL configuration file support,
-with two new parameters "tls_config_file" and "tls_config_name".
+Major changes - tls support
+---------------------------
+
+[Feature 20230807] Optional Postfix TLS support to request an RFC7250
+raw public key instead of an X.509 public-key certificate. The
+configuration settings for raw key public support will be ignored
+when there is no raw public key support in the local TLS implementation
+(i.e.  Postfix with OpenSSL versions before 3.2).
+
+- With "smtpd_tls_enable_rpk = yes", the Postfix SMTP server will
+  request that a remote SMTP client sends an RFC7250 raw public key
+  instead of an X.509 certificate when asking for or requiring TLS
+  client authentication. The Postfix SMTP server will still accept
+  a client public-key certificate instead of a public key.
+
+- With "smtp_tls_enable_rpk = yes" (or "enable_rpk = yes" in an
+  smtp policy table) at the security levels "may", "encrypt" or
+  "fingerprint", the Postfix SMTP client will request that a remote
+  SMTP server sends an RFC7250 raw public key instead of an X.509
+  certificate. The Postfix SMTP client will still accept a server
+  public key certificate instead of a public key.
+
+- At the "secure" and "verify" security level, the Postfix SMTP
+  client will ignore smtp_tls_enable_rpk or enable_rpk settings,
+  because these levels require a server certificate.
+
+- At the "dane" and "dane-only" security levels, the Postfix SMTP
+  client will ignore smtp_tls_enable_rpk or enable_rpk settings,
+  and will request that a remote SMTP server sends an RFC7250 raw
+  public key instead of an X.509 certificate when all valid TLSA
+  records specify only server public keys (no certificates). The
+  Postfix SMTP client will still accept a server public key
+  certificate.
+
+- The Postfix SMTP client and server always send a raw public key
+  instead of a certificate, if solicited by the remote SMTP peer
+  and the local TLS implementation supports raw public keys.
+
+- If a remote SMTP client sends a server name indication with an
+  SNI TLS extension, and tls_server_sni_maps is configured, the
+  Postfix SMTP server will extract a raw public key from the indicated
+  certificate.
+
+Caution: enabling Postfix raw key support will break authentication
+based on certificate fingerprints in check_ccert_access or
+smtp_tls_policy_maps, when a remote peer's TLS implementation starts
+to send a raw public key instead of a certificate. The solution is
+to always use public key fingerprint patterns; these will match not
+only a "raw" public key, but also the public key in a certificate.
+
+To detect such problems before they happen, the Postfix SMTP server
+will log a warning when it requests an RFC7250 raw public key instead
+of an X.509 certificate, the remote peer sends a certificate instead
+of a public key, and check_ccert_access has a matching fingerprint
+for the certificate but not for the public key in that certificate.
+There is no corresponding warning from the Postfix SMTP client.
+
+For instructions to generate public-key fingerprints, see the
+postconf(5) man pages for smtp_tls_enable_rpk and smtpd_tls_enable_rpk.
+
+[Feature 20230522] Preliminary support for OpenSSL configuration
+files, primarily OpenSSL 1.1.1b and later. This introduces two new
+parameters "tls_config_file" and "tls_config_name", which can be
+used to limit collateral damage from OS distributions that crank
+up security to 11, increasing the number of plaintext email deliveries.
 Details are in the postconf(5) manpage under "tls_config_file" and
 "tls_config_name".
-
-Major changes - documentation and code cleanup
-----------------------------------------------
-
-There are numerous small fixes to Postfix documentation, and small
-code-health changes that should not affect documented behavior but
-may improve Postfix behavior for malformed input, or that make
-Postfix easier to maintain. See the HISTORY file for details.
-
-Major changes - SRV support
----------------------------
-
-[Feature 20230214] Support to look up DNS SRV records in the Postfix
-SMTP/LMTP client, Based on code by Tomas Korbar (Red Hat).
-
-For example, with "use_srv_lookup = submission" and "relayhost =
-example.com:submission", the Postfix SMTP client will look up DNS
-SRV records for _submission._tcp.example.com, and will relay email
-through the hosts and ports that are specified with those records.
-
-See https://www.postfix.org/postconf.5.html#use_srv_lookup for more
-details, including how to selectively use SRV in a configuration
-that connects to multiple ISP accounts.
-
-SRV support may also be useful inside a cloud-based infrastructure
-when Postfix needs to deliver mail to services that run on a
-dynamically-allocated port.
-
-Major changes - TLS support
----------------------------
-
-[Incompat 20230304] This introduces the following changes:
-
-- Postfix treats the "export" and "low" cipher grade settings as
-  "medium". The  "export" and "low" grades are no longer supported
-  in OpenSSL 1.1.1, the minimum version that Postfix requires.
-
-- Postfix default settings now exclude the following deprecated or
-  unused ciphers (SEED, IDEA, 3DES, RC2, RC4, RC5), digest (MD5),
-  key exchange algorithms (DH, ECDH), and public key algorithm
-  (DSS).
-
-[Feature 20230108] New configuration parameter tls_ffdhe_auto_groups
-for finite-field Diffie-Hellman ephemeral (FFDHE) support in TLS
-1.3 with OpenSSL 3.0.
-
-Major changes - attack resistance
----------------------------------
-
-[Feature 20240312] the Postfix SMTP server can now aggregate
-smtpd_client_*_rate and smtpd_client_*_count statistics by network
-block, as specified with smtpd_client_ipv4_prefix_length (default
-32, no aggregation) and smtpd_client_ipv6_prefix_length (default
-84, aggregation by /84 network blocks). The latter raises the bar
-for a memory exhaustion attack.
-
-[Feature 20221023] Unconditionally disable a CPU resource attack
-requesting TLS renegotiation. There's no good reason to support
-this in the middle of an SMTP connection.
-
-Major changes - bit rot
------------------------
-
-[Incompat 20221228] Postfix documentation and code have been converted
-to use "grep -E" and "grep -F" instead of the historical forms
-"egrep" and "fgrep". To build Postfix on a system that supports
-only the historical forms, run the script auxiliary/fix-grep/fix-grep.sh
-to revert this change.
-
-Major changes - configuration checks
-------------------------------------
-
-[Feature 20240406] The postconf command now warns for #comment in
-or after a Postfix parameter value. Postfix programs do not support
-#comment after other text, and treat that as input.
-
-Major changes - database support
---------------------------------
-
-[Incompat 20220509] The PostgreSQL client encoding is now configurable
-with the "encoding" Postfix configuration file attribute. The default
-is "UTF8". Previously the encoding was hard-coded as "LATIN1".
-
-Major changes - logging
------------------------
-
-[Incompat 20230308] The postfix(1) and postlog(1) commands now
-produce stderr logging even when stderr is not connected to a
-terminal. This eliminates an inconsistency, and makes these programs
-easier to use in some automated procedures. The canonical example
-is to capture output from "postmulti -p status" to figure out which
-instances are or are not running.
-
-Major changes - source code organization
-----------------------------------------
-
-[Incompat 20220507] Most global/mkmap*.[hc] files are moved to the
-util directory; only global/mkmap_proxy.* remains. The old file
-organization was designed before support for dynamically-loadable
-databases was added, and that code suffered from complexity.
-

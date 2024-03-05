@@ -160,7 +160,7 @@ static int qmgr_deliver_send_request(QMGR_ENTRY *entry, VSTREAM *stream)
      */
     for (recipient = list.info; recipient < list.info + list.len; recipient++)
 	if (var_smtputf8_enable && (addr = recipient->address)[0]
-	    && !allascii(addr) && valid_utf8_string(addr, strlen(addr))) {
+	    && !allascii(addr) && valid_utf8_stringz(addr)) {
 	    smtputf8 |= SMTPUTF8_FLAG_RECIPIENT;
 	    if (message->verp_delims)
 		smtputf8 |= SMTPUTF8_FLAG_SENDER;
@@ -339,7 +339,7 @@ static void qmgr_deliver_update(int unused_event, void *context)
 #define SUSPENDED	"delivery temporarily suspended: "
 
     if (status == DELIVER_STAT_CRASH)
-	DSN_SIMPLE(&dsb->dsn, "4.3.0", "unknown mail transport error");
+	(void) DSN_SIMPLE(&dsb->dsn, "4.3.0", "unknown mail transport error");
     if (status == DELIVER_STAT_CRASH || status == DELIVER_STAT_DEFER) {
 	message->flags |= DELIVER_STAT_DEFER;
 	if (VSTRING_LEN(dsb->status)) {

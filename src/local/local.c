@@ -207,27 +207,30 @@
 /*	is specified with the \fBcommand_expansion_filter\fR configuration
 /*	parameter.
 /* .IP \fBSHELL\fR
-/*	The recipient user's login shell.
+/*	The envelope recipient user's login shell.
 /* .IP \fBHOME\fR
-/*	The recipient user's home directory.
+/*	The envelope recipient user's home directory.
 /* .IP \fBUSER\fR
-/*	The bare recipient name.
+/*	The bare envelope recipient name.
 /* .IP \fBEXTENSION\fR
-/*	The optional recipient address extension.
+/*	The optional envelope recipient address extension.
 /* .IP \fBDOMAIN\fR
-/*	The recipient address domain part.
+/*	The envelope recipient address domain part.
 /* .IP \fBLOGNAME\fR
-/*	The bare recipient name.
+/*	The bare envelope recipient name.
 /* .IP \fBLOCAL\fR
-/*	The entire recipient address localpart (text to the left of the
-/*	rightmost @ character).
+/*	The entire envelope recipient address localpart (text to
+/*	the left of the rightmost @ character).
 /* .IP \fBORIGINAL_RECIPIENT\fR
-/*	The entire recipient address, before any address rewriting
-/*	or aliasing (Postfix 2.5 and later).
+/*	The entire envelope recipient address, before any address
+/*	rewriting or aliasing (Postfix 2.5 and later).
 /* .IP \fBRECIPIENT\fR
-/*	The entire recipient address.
+/*	The entire envelope recipient address.
 /* .IP \fBSENDER\fR
-/*	The entire sender address.
+/*	The entire envelope sender address.
+/* .IP \fBENVID\fR
+/*	The optional RFC 3461 envelope ID. Available as of Postfix
+/*	3.9.
 /* .PP
 /*	Additional remote client information is made available via
 /*	the following environment variables:
@@ -413,7 +416,9 @@
 /*	home_mailbox, mail_spool_directory, fallback_transport_maps,
 /*	fallback_transport, and luser_relay.
 /* .IP "\fBalias_maps (see 'postconf -d' output)\fR"
-/*	The alias databases that are used for \fBlocal\fR(8) delivery.
+/*	Optional lookup tables with aliases that apply only to \fBlocal\fR(8)
+/*	recipients; this is unlike virtual_alias_maps that apply to all
+/*	recipients: \fBlocal\fR(8), virtual, and remote.
 /* .IP "\fBforward_path (see 'postconf -d' output)\fR"
 /*	The \fBlocal\fR(8) delivery agent search list for finding a .forward
 /*	file with user-specified delivery methods.

@@ -2444,6 +2444,7 @@ static void open_queue_file(CLEANUP_STATE *state, const char *path)
     long    data_offset;
     long    rcpt_count;
     long    qmgr_opts;
+    const HEADER_OPTS *opts;
 
     if (state->dst != 0) {
 	msg_warn("closing %s", cleanup_path);
@@ -2455,6 +2456,7 @@ static void open_queue_file(CLEANUP_STATE *state, const char *path)
     if ((state->dst = vstream_fopen(path, O_RDWR, 0)) == 0) {
 	msg_warn("open %s: %m", path);
     } else {
+	var_drop_hdrs = "";
 	cleanup_path = mystrdup(path);
 	for (;;) {
 	    if ((curr_offset = vstream_ftell(state->dst)) < 0)
@@ -2511,9 +2513,16 @@ static void open_queue_file(CLEANUP_STATE *state, const char *path)
 			    msg_fatal("file %s: vstream_ftell: %m", cleanup_path);
 		    }
 		}
+	    } else if (rec_type == REC_TYPE_NORM && state->hop_count == 0
+		       && (opts = header_opts_find(STR(buf))) != 0
+		       && opts->type == HDR_RECEIVED) {
+		state->hop_count += 1;
+		/* XXX Only the first line of the first Received: header. */
+		argv_add(state->auto_hdrs, STR(buf), ARGV_END);
 	    }
 	    if (state->append_rcpt_pt_offset > 0
 		&& state->append_hdr_pt_offset > 0
+		&& state->hop_count > 0
 		&& (rec_type == REC_TYPE_END
 		    || state->append_meta_pt_offset > 0))
 		break;

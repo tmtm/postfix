@@ -52,6 +52,10 @@
 /*	Google, Inc.
 /*	111 8th Avenue
 /*	New York, NY 10011, USA
+/*
+/*	Wietse Venema
+/*	porcupine.org
+/*	Amawalk, NY 10501, USA
 /*--*/
 
 /* System library. */

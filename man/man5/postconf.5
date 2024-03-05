@@ -358,8 +358,13 @@ alias_database = hash:/etc/mail/aliases
 .ad
 .ft R
 .SH alias_maps (default: see "postconf \-d" output)
-The alias databases that are used for \fBlocal\fR(8) delivery. See
-\fBaliases\fR(5) for syntax details.
+Optional lookup tables with aliases that apply only to \fBlocal\fR(8)
+recipients; this is unlike virtual_alias_maps that apply to all
+recipients: \fBlocal\fR(8), virtual, and remote.
+The table format and lookups are documented in \fBaliases\fR(5). For an
+overview of Postfix address manipulations see the ADDRESS_REWRITING_README
+document.
+.PP
 Specify zero or more "type:name" lookup tables, separated by
 whitespace or comma. Tables will be searched in the specified order
 until a match is found.
@@ -1773,16 +1778,25 @@ name of the message delivery transport.
 This feature is available in Postfix 2.4 and later.
 .SH default_transport (default: smtp)
 The default mail delivery transport and next\-hop destination for
-destinations that do not match $mydestination, $inet_interfaces,
+the default domain class: recipient domains that do not match
+$mydestination, $inet_interfaces,
 $proxy_interfaces, $virtual_alias_domains, $virtual_mailbox_domains,
-or $relay_domains.  This information can be overruled with the
-sender_dependent_default_transport_maps parameter and with the
-\fBtransport\fR(5) table.
+or $relay_domains. This information will not be used when
+sender_dependent_default_transport_maps returns a result, and may
+be overridden with the \fBtransport\fR(5) table.
 .PP
-In order of decreasing precedence, the nexthop destination is taken
-from $sender_dependent_default_transport_maps, $default_transport,
-$sender_dependent_relayhost_maps, $relayhost, or from the recipient
+For recipient domains in the default domain class:
+.IP \(bu
+In order of decreasing precedence, the delivery transport
+is taken from 1) $transport_maps, 2)
+$sender_dependent_default_transport_maps or $default_transport.
+.IP \(bu
+In order of decreasing precedence, the nexthop destination
+is taken from 1) $transport_maps, 2)
+$sender_dependent_default_transport_maps or $default_transport, 3)
+$sender_dependent_relayhost_maps or $relayhost or the recipient
 domain.
+.br
 .PP
 Specify a string of the form \fItransport:nexthop\fR, where \fItransport\fR
 is the name of a mail delivery transport defined in master.cf.
@@ -2367,6 +2381,19 @@ logfiles with the queue file names of mail that is queued for those
 destinations.
 .PP
 This feature is available in Postfix 2.0 and later.
+.SH force_mime_input_conversion (default: no)
+Convert body content that claims to be 8\-bit into quoted\-printable,
+before header_checks, body_checks, Milters, and before after\-queue
+content filters. This feature does not affect messages that are
+sent into smtpd_proxy_filter.
+.PP
+The typical use case is an MTA that applies this conversion
+before signing outbound messages, so that the signatures will remain
+valid when a message is later delivered to an MTA that does not
+announce 8BITMIME support, or when a message line exceeds the SMTP
+length limit.
+.PP
+This feature is available in Postfix >= 3.9.
 .SH fork_attempts (default: 5)
 The maximal number of attempts to fork() a child process.
 .SH fork_delay (default: 1s)
@@ -2416,7 +2443,7 @@ The entire recipient localpart.
 The address extension delimiter that was found in the recipient
 address (Postfix 2.11 and later), or the 'first' delimiter specified
 with the system\-wide recipient address extension delimiter (Postfix
-3.5.22, 3.5.12, 3.7.8, 3.8.3 and later). Historically, this was
+3.5.22, 3.6.12, 3.7.8, 3.8.3 and later). Historically, this was
 always the system\-wide recipient
 address extension delimiter (Postfix 2.10 and earlier).
 .br
@@ -2628,31 +2655,55 @@ number of messages delivered per second.
 .PP
 Specify 0 to disable the feature. Valid delays are 0..10.
 .SH inet_interfaces (default: all)
-The local network interface addresses that this mail system receives
-mail on. Specify "all" to receive mail on all network
-interfaces (default), and "loopback\-only" to receive mail
-on loopback network interfaces only (Postfix version 2.2 and later).  The
-parameter also controls delivery of mail to user@[ip.address].
+The local network interface addresses that this mail system
+receives mail on. Specify "all" to receive mail on all network
+interfaces (default), "loopback\-only" to receive mail on loopback
+network interfaces only (Postfix version 2.2 and later), or zero
+or more IPv4 or IPv6 addresses (IPv6 is supported in Postfix version
+2.2 and later). The parameter also controls whether Postfix will
+accept mail for user@[ip.address], and prevents Postfix
+from delivering mail to a host that has equal or larger MX preference.
+Specify an empty value if Postfix does not receive mail over the
+network, or if all network listeners have an explicit IP address
+in master.cf.
 .PP
 Note 1: you need to stop and start Postfix when this parameter changes.
 .PP
 Note 2: address information may be enclosed inside [],
 but this form is not required here.
 .PP
-When inet_interfaces specifies just one IPv4 and/or IPv6 address
-that is not a loopback address, the Postfix SMTP client will use
-this address as the IP source address for outbound mail. Support
-for IPv6 is available in Postfix version 2.2 and later.
+When smtp_bind_address and/or smtp_bind_address6 are not
+specified, the inet_interfaces setting may constrain the source IP
+address for an outbound SMTP or LMTP connection as described below.
 .PP
-On a multi\-homed firewall with separate Postfix instances listening on the
-"inside" and "outside" interfaces, this can prevent each instance from
-being able to reach remote SMTP servers on the "other side" of the
-firewall. Setting
-smtp_bind_address to 0.0.0.0 avoids the potential problem for
-IPv4, and setting smtp_bind_address6 to :: solves the problem
-for IPv6.
+The following text is specific to SMTP and IPv4. The same
+reasoning applies to the IPv6 protocol, and to the Postfix LMTP
+client. To disable IPv4 or IPv6 support in the Postfix SMTP and
+LMTP client, use inet_protocols.
+.IP \(bu
+When inet_interfaces specifies one IPv4 address, and that
+is not a loopback address, the Postfix SMTP client uses that as the
+source address for outbound IPv4 connections.
+.IP \(bu
+Otherwise, the Postfix SMTP client does not constrain the
+source IPv4 address, and connects using a system\-chosen source IPv4
+address. This includes the cases where inet_interfaces is empty,
+where it specifies \fBall\fR, or where it contains no IPv4 address,
+one IPv4 address that is a loopback address, or multiple IPv4
+addresses.
+.br
 .PP
-A better solution for multi\-homed firewalls is to leave inet_interfaces
+A Postfix SMTP client may fail to reach some remote SMTP servers
+when the client source IP address is constrained explicitly with
+smtp_bind_address or smtp_bind_address6, or implicitly with
+inet_interfaces. This can happen when Postfix runs on a multi\-homed
+system such as a firewall, the Postfix SMTP source client IP address
+is constrained to one specific network interface, and the remote
+SMTP server must be reached through a different interface. Setting
+smtp_bind_address to 0.0.0.0 avoids the potential problem for IPv4,
+and setting smtp_bind_address6 to :: solves the problem for IPv6.
+.PP
+A better solution for multi\-homed systems is to leave inet_interfaces
 at the default value and instead use explicit IP addresses in
 the master.cf SMTP server definitions.  This preserves the Postfix
 SMTP client's
@@ -2679,7 +2730,7 @@ inet_interfaces = 192.168.1.2, 127.0.0.1
 .fi
 .ad
 .ft R
-.SH inet_protocols (default: see 'postconf \-d output')
+.SH inet_protocols (default: see 'postconf \-d' output)
 The Internet protocols Postfix will attempt to use when making
 or accepting connections. Specify one or more of "ipv4"
 or "ipv6", separated by whitespace or commas. The form
@@ -3093,6 +3144,9 @@ This feature is available in Postfix 2.11 and later.
 The LMTP\-specific version of the smtp_enforce_tls configuration
 parameter.  See there for details.
 .PP
+This feature is deprecated as of Postfix 3.9. Specify
+lmtp_tls_security_level instead.
+.PP
 This feature is available in Postfix 2.3 and later.
 .SH lmtp_fallback_relay (default: empty)
 Optional list of relay hosts for LMTP destinations that can't be
@@ -3289,6 +3343,9 @@ Optional Postfix LMTP client lookup tables with one username:password entry
 per host or domain.  If a remote host or domain has no username:password
 entry, then the Postfix LMTP client will not attempt to authenticate
 to the remote host.
+.SH lmtp_sasl_password_result_delimiter (default: :)
+The LMTP\-specific version of the smtp_sasl_password_result_delimiter
+configuration parameter.  See there for details.
 .SH lmtp_sasl_path (default: empty)
 Implementation\-specific information that is passed through to
 the SASL plug\-in implementation that is selected with
@@ -3437,6 +3494,11 @@ parameter.  See there for details.
 .PP
 This feature is available in Postfix 2.6 and later, when Postfix is
 compiled and linked with OpenSSL 1.0.0 or later.
+.SH lmtp_tls_enable_rpk (default: yes)
+The LMTP\-specific version of the smtp_tls_enable_rpk
+configuration parameter.  See there for details.
+.PP
+This feature is available in Postfix 3.9 and later.
 .SH lmtp_tls_enforce_peername (default: yes)
 The LMTP\-specific version of the smtp_tls_enforce_peername
 configuration parameter.  See there for details.
@@ -3482,7 +3544,7 @@ The LMTP\-specific version of the smtp_tls_mandatory_exclude_ciphers
 configuration parameter.  See there for details.
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH lmtp_tls_mandatory_protocols (default: see postconf \-d output)
+.SH lmtp_tls_mandatory_protocols (default: see 'postconf \-d' output)
 The LMTP\-specific version of the smtp_tls_mandatory_protocols
 configuration parameter. See there for details.
 .PP
@@ -3496,13 +3558,16 @@ This feature is available in Postfix 2.3 and later.
 The LMTP\-specific version of the smtp_tls_per_site configuration
 parameter.  See there for details.
 .PP
+This feature is deprecated as of Postfix 3.9. Specify
+lmtp_tls_policy_maps instead.
+.PP
 This feature is available in Postfix 2.3 and later.
 .SH lmtp_tls_policy_maps (default: empty)
 The LMTP\-specific version of the smtp_tls_policy_maps
 configuration parameter. See there for details.
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH lmtp_tls_protocols (default: see postconf \-d output)
+.SH lmtp_tls_protocols (default: see 'postconf \-d' output)
 The LMTP\-specific version of the smtp_tls_protocols configuration
 parameter. See there for details.
 .PP
@@ -3555,6 +3620,9 @@ This feature is available in Postfix 3.0 and later.
 .SH lmtp_use_tls (default: no)
 The LMTP\-specific version of the smtp_use_tls configuration
 parameter.  See there for details.
+.PP
+This feature is deprecated as of Postfix 3.9. Specify
+lmtp_tls_security_level instead.
 .PP
 This feature is available in Postfix 2.3 and later.
 .SH lmtp_xforward_timeout (default: 300s)
@@ -3803,7 +3871,8 @@ whitespace or comma. Tables will be searched in the specified order
 until a match is found.
 .PP
 If this parameter is non\-empty (the default), then the Postfix SMTP
-server will reject mail for unknown local users.
+server will reject mail for unknown local users. Other Postfix
+interfaces may still accept an "unknown" recipient.
 .PP
 To turn off local recipient checking in the Postfix SMTP server,
 specify "local_recipient_maps =" (i.e. empty).
@@ -3989,6 +4058,10 @@ Remote client protocol. Available in Postfix version 2.2 and later.
 .IP "\fBDOMAIN\fR"
 The domain part of the recipient address.
 .br
+.IP "\fBENVID\fR"
+The optional RFC 3461 envelope ID. Available in Postfix version
+3.9 and later
+.br
 .IP "\fBEXTENSION\fR"
 The optional address extension.
 .br
@@ -4141,6 +4214,15 @@ logrotate". The command is run with the rotated logfile name as its
 first argument.
 .PP
 This feature is available in Postfix 3.4 and later.
+.SH maillog_file_permissions (default: 0600)
+The file access permissions that will be set when the file
+$maillog_file is created for the first time, or when the file is
+created after an existing file is rotated. Specify one of: \fB0600\fR
+(only super\-user read/write access), \fB0640\fR (adds 'group' read
+access), or \fB0644\fR (also adds 'other' read access). The leading
+\&'0' is optional.
+.PP
+This feature is available in Postfix 3.9 and later.
 .SH maillog_file_prefixes (default: /var, /dev/stdout)
 A list of allowed prefixes for a maillog_file value. This is a
 safety feature to contain the damage from a single configuration
@@ -5249,9 +5331,9 @@ it passes the test, before it can talk to a real Postfix SMTP server.
 .PP
 This feature is available in Postfix 2.8.
 .SH postscreen_bare_newline_ttl (default: 30d)
-The amount of time that \fBpostscreen\fR(8) will use the result from
-a successful "bare newline" SMTP protocol test. During this
-time, the client IP address is excluded from this test. The default
+The amount of time that \fBpostscreen\fR(8) remembers that a client
+IP address passed a "bare newline" SMTP protocol test, before it
+address is required to pass that test again. The default
 is long because a remote SMTP client must disconnect after it passes
 the test,
 before it can talk to a real Postfix SMTP server.
@@ -5411,18 +5493,19 @@ defined with the postscreen_dnsbl_sites parameter.
 Specify a negative value to enable this feature. When a client
 passes the postscreen_dnsbl_allowlist_threshold without having
 failed other tests, all pending or disabled tests are flagged as
-completed with a time\-to\-live value equal to postscreen_dnsbl_ttl.
-When a test was already completed, its time\-to\-live value is updated
-if it was less than postscreen_dnsbl_ttl.
+completed with an expiration time based on the DNS reply TTL.
+When a test was already completed, its expiration time is updated
+if it was less than the value based on the DNS reply TTL. See
+also postscreen_dnsbl_max_ttl and postscreen_dnsbl_min_ttl.
 .PP
 This feature is available in Postfix 3.6 and later.
 .PP
 Available as postscreen_dnsbl_whitelist_threshold in Postfix 2.11
 \- 3.5.
 .SH postscreen_dnsbl_max_ttl (default: ${postscreen_dnsbl_ttl?{$postscreen_dnsbl_ttl}:{1}}h)
-The maximum amount of time that \fBpostscreen\fR(8) will use the
-result from a successful DNS\-based reputation test before a
-client IP address is required to pass that test again. If the DNS
+The maximum amount of time that \fBpostscreen\fR(8) remembers that a
+client IP address passed a DNS\-based reputation test, before it is
+required to pass that test again. If the DNS
 reply specifies a shorter TTL value, that value will be used unless
 it would be smaller than postscreen_dnsbl_min_ttl.
 .PP
@@ -5434,9 +5517,9 @@ The default time unit is h (hours).
 This feature is available in Postfix 3.1. The default setting
 is backwards\-compatible with older Postfix versions.
 .SH postscreen_dnsbl_min_ttl (default: 60s)
-The minimum amount of time that \fBpostscreen\fR(8) will use the
-result from a successful DNS\-based reputation test before a
-client IP address is required to pass that test again. If the DNS
+The minimum amount of time that \fBpostscreen\fR(8) remembers that a
+client IP address passed a DNS\-based reputation test, before it
+is required to pass that test again. If the DNS
 reply specifies a larger TTL value, that value will be used unless
 it would be larger than postscreen_dnsbl_max_ttl.
 .PP
@@ -5559,9 +5642,9 @@ The default time unit is s (seconds).
 .PP
 This feature is available in Postfix 3.0.
 .SH postscreen_dnsbl_ttl (default: 1h)
-The amount of time that \fBpostscreen\fR(8) will use the result from
-a successful DNS\-based reputation test before a client
-IP address is required to pass that test again.
+The amount of time that \fBpostscreen\fR(8) remembers that a client
+IP address passed a DNS\-based reputation test, before it is required
+to pass that test again.
 .PP
 Specify a non\-zero time value (an integral value plus an optional
 one\-letter suffix that specifies the time unit).  Time units: s
@@ -5628,9 +5711,9 @@ value to disable this feature.
 .PP
 This feature is available in Postfix 2.8.
 .SH postscreen_greet_ttl (default: 1d)
-The amount of time that \fBpostscreen\fR(8) will use the result from
-a successful PREGREET test. During this time, the client IP address
-is excluded from this test. The default is relatively short, because
+The amount of time that \fBpostscreen\fR(8) remembers that a client
+IP address passed a PREGREET test, before it is required to pass
+that test again. The default is relatively short, because
 a good client can immediately talk to a real Postfix SMTP server.
 .PP
 Specify a non\-zero time value (an integral value plus an optional
@@ -5688,9 +5771,9 @@ test, before it can talk to a real Postfix SMTP server.
 .PP
 This feature is available in Postfix 2.8.
 .SH postscreen_non_smtp_command_ttl (default: 30d)
-The amount of time that \fBpostscreen\fR(8) will use the result from
-a successful "non_smtp_command" SMTP protocol test. During this
-time, the client IP address is excluded from this test. The default
+The amount of time that \fBpostscreen\fR(8) remembers that a client
+IP address passed a "non_smtp_command" SMTP protocol test, before
+it is required to pass that test again. The default
 is long because a client must disconnect after it passes the test,
 before it can talk to a real Postfix SMTP server.
 .PP
@@ -5732,9 +5815,9 @@ server.
 .PP
 This feature is available in Postfix 2.8.
 .SH postscreen_pipelining_ttl (default: 30d)
-The amount of time that \fBpostscreen\fR(8) will use the result from
-a successful "pipelining" SMTP protocol test. During this time, the
-client IP address is excluded from this test. The default is
+The amount of time that \fBpostscreen\fR(8) remembers that a client
+IP address passed a "pipelining" SMTP protocol test, before it is
+required to pass that test again. The default is
 long because a good client must disconnect after it passes the test,
 before it can talk to a real Postfix SMTP server.
 .PP
@@ -6408,11 +6491,19 @@ relay_recipient_maps = hash:/etc/postfix/relay_recipients
 This feature is available in Postfix 2.0 and later.
 .SH relay_transport (default: relay)
 The default mail delivery transport and next\-hop destination for
-remote delivery to domains listed with $relay_domains. In order of
-decreasing precedence, the nexthop destination is taken from
-$relay_transport, $sender_dependent_relayhost_maps, $relayhost, or
-from the recipient domain. This information can be overruled with
-the \fBtransport\fR(5) table.
+the relay domain address class: recipient domains that match
+$relay_domains.
+.PP
+For recipient domains in the relay domain address class:
+.IP \(bu
+In order of decreasing precedence, the message delivery
+transport is taken from 1) $transport_maps, 2) $relay_transport.
+.IP \(bu
+In order of decreasing precedence, the nexthop destination
+is taken from 1) $transport_maps, 2) $relay_transport, 3)
+$sender_dependent_relayhost_maps or $relayhost or the recipient
+domain.
+.br
 .PP
 Specify a string of the form \fItransport:nexthop\fR, where \fItransport\fR
 is the name of a mail delivery transport defined in master.cf.
@@ -6424,21 +6515,37 @@ file.
 .PP
 This feature is available in Postfix 2.0 and later.
 .SH relayhost (default: empty)
-The next\-hop destination(s) for non\-local mail; overrides non\-local
-domains in recipient addresses. This information is overruled with
-relay_transport, sender_dependent_default_transport_maps,
-default_transport, sender_dependent_relayhost_maps
-and with the \fBtransport\fR(5) table.
+The next\-hop destination(s) for non\-local mail; takes precedence
+over non\-local domains in recipient addresses. This information
+will not be used when the sender matches $sender_dependent_relayhost_maps.
+.PP
+In order of decreasing precedence:
+.IP \(bu
+For recipient domains in the relay domain address class
+(domains matching $relay_domains), the nexthop destination is taken
+from 1) $transport_maps, 2) $relay_transport, 3)
+$sender_dependent_relayhost_maps or $relayhost or the recipient
+domain.
+.IP \(bu
+For recipient domains in the default domain address class
+(domains that do not match $mydestination, $inet_interfaces,
+$proxy_interfaces, $virtual_alias_domains, $virtual_mailbox_domains,
+or $relay_domains), the nexthop destination is taken from 1)
+$transport_maps, 2) $sender_dependent_default_transport_maps or
+$default_transport, 3) $sender_dependent_relayhost_maps or $relayhost
+or the recipient domain.
+.br
 .PP
 On an intranet, specify the organizational domain name. If your
 internal DNS uses no MX records, specify the name of the intranet
 gateway host instead.
 .PP
-In the case of SMTP or LMTP delivery, specify one or more destinations
-in the form of a domain name, hostname, hostname:port, [hostname]:port,
-[hostaddress] or [hostaddress]:port, separated by comma or whitespace.
-The form [hostname] turns off MX lookups. Multiple destinations are
-supported in Postfix 3.5 and later.
+In the case of SMTP delivery, specify one or more destinations in
+the form of a domain name, hostname, hostname:service, [hostname]:service,
+[hostaddress] or [hostaddress]:service, separated by comma or whitespace.
+The form [hostname] turns off MX or SRV lookups. Multiple destinations
+are supported in Postfix 3.5 and later. Each destination is tried
+in the specified order.
 .PP
 If you're connected via UUCP, see the UUCP_README file for useful
 information.
@@ -6719,15 +6826,31 @@ address and @domain. A lookup result of DUNNO terminates the search
 without overriding the global default_transport parameter setting.
 This information is overruled with the \fBtransport\fR(5) table.
 .PP
-Specify zero or more "type:name" lookup tables, separated by
-whitespace or comma. Tables will be searched in the specified order
-until a match is found.
+This setting affects only the default domain address class
+(recipient domains that do not match $mydestination, $inet_interfaces,
+$proxy_interfaces, $virtual_alias_domains, $virtual_mailbox_domains,
+or $relay_domains):
+.IP \(bu
+In order of decreasing precedence, the delivery transport
+is taken from 1) $transport_maps, 2)
+$sender_dependent_default_transport_maps or $default_transport.
+.IP \(bu
+In order of decreasing precedence, the nexthop destination
+is taken from 1) $transport_maps, 2)
+$sender_dependent_default_transport_maps or $default_transport, 3)
+$sender_dependent_relayhost_maps or $relayhost or the recipient
+domain.
+.br
 .PP
 Note: this overrides default_transport, not transport_maps, and
 therefore the expected syntax is that of default_transport, not the
 syntax of transport_maps.  Specifically, this does not support the
 transport_maps syntax for null transport, null nexthop, or null
 email addresses.
+.PP
+Specify zero or more "type:name" lookup tables, separated by
+whitespace or comma. Tables will be searched in the specified order
+until a match is found.
 .PP
 For safety reasons, this feature does not allow $number
 substitutions in regular expression maps.
@@ -6738,9 +6861,24 @@ A sender\-dependent override for the global relayhost parameter
 setting. The tables are searched by the envelope sender address and
 @domain. A lookup result of DUNNO terminates the search without
 overriding the global relayhost parameter setting (Postfix 2.6 and
-later). This information is overruled with relay_transport,
-sender_dependent_default_transport_maps, default_transport and with
-the \fBtransport\fR(5) table.
+later).
+.PP
+In order of decreasing precedence:
+.IP \(bu
+For recipient domains in the relay domain address class
+(domains matching $relay_domains), the nexthop destination is taken
+from 1) $transport_maps, 2) $relay_transport, 3)
+$sender_dependent_relayhost_maps or $relayhost or the recipient
+domain.
+.IP \(bu
+For recipient domains in the default domain address class
+(domains that do not match mydestination, $inet_interfaces,
+$proxy_interfaces, $virtual_alias_domains, $virtual_mailbox_domains,
+$relay_domains), the nexthop destination is taken from 1)
+$transport_maps, 2) $sender_dependent_default_transport_maps or
+$default_transport, 3) $sender_dependent_relayhost_maps or $relayhost
+or the recipient domain.
+.br
 .PP
 Specify zero or more "type:name" lookup tables, separated by
 whitespace or comma. Tables will be searched in the specified order
@@ -6871,12 +7009,45 @@ Notes for mail delivery between sites that have both IPv4 and
 IPv6 connectivity:
 .IP \(bu
 The setting "smtp_address_preference = ipv6" is unsafe.
-It can fail to deliver mail when there is an outage that affects
-IPv6, while the destination is still reachable over IPv4.
+All deliveries will suffer delays during an IPv6 outage, even
+while the destination is still reachable over IPv4. Mail may be
+stuck in the queue with Postfix versions < 3.3 that do not
+implement "smtp_balance_inet_protocols". For similar reasons, the
+setting "smtp_address_preference = ipv4" is also unsafe.
 .IP \(bu
 The setting "smtp_address_preference = any" is safe. With
-this, mail will eventually be delivered even if there is an outage
+this, and "smtp_balance_inet_protocols = yes" (the default), only
+half of deliveries will suffer delays if there is an outage
 that affects IPv6 or IPv4, as long as it does not affect both.
+.IP \(bu
+The setting "smtp_address_preference = ipv4" is not a
+solution for remote servers that flag email received over IPv6 as
+more 'spammy' (the client IPv6 address has a bad or missing PTR or
+AAAA record, bad network neighbors, etc.). Instead, configure Postfix
+to receive mail over both IPv4 and IPv6, and to deliver mail over
+only IPv4.
+.sp
+.in +4
+.nf
+.na
+.ft C
+/etc/postfix/main.cf:
+    inet_protocols = all
+.fi
+.ad
+.ft R
+.in -4
+.sp
+.in +4
+.nf
+.na
+.ft C
+/etc/postfix/master.cf
+    smtp ...other fields... smtp \-o inet_protocols=ipv4
+.fi
+.ad
+.ft R
+.in -4
 .br
 .PP
 This feature is available in Postfix 2.8 and later.
@@ -7919,12 +8090,21 @@ lookup is done only when sender\-dependent authentication is enabled.
 If no username:password entry is found, then the Postfix SMTP client
 will not attempt to authenticate to the remote host.
 .PP
+Use smtp_sasl_password_result_delimiter to specify an
+alternative separator between username and password.
+.PP
 The Postfix SMTP client opens the lookup table before going to
 chroot jail, so you can leave the password file in /etc/postfix.
 .PP
 Specify zero or more "type:name" lookup tables, separated by
 whitespace or comma. Tables will be searched in the specified order
 until a match is found.
+.SH smtp_sasl_password_result_delimiter (default: :)
+The delimiter between username and password in sasl_passwd_maps lookup
+results. Specify one non\-whitespace character that does not appear in
+the username.
+.PP
+This feature is available in Postfix >= 3.9.
 .SH smtp_sasl_path (default: empty)
 Implementation\-specific information that the Postfix SMTP client
 passes through to
@@ -8507,6 +8687,89 @@ to anyone else.
 .PP
 This feature is available in Postfix 2.6 and later, when Postfix is
 compiled and linked with OpenSSL 1.0.0 or later.
+.SH smtp_tls_enable_rpk (default: no)
+Request that remote SMTP servers send an RFC7250 raw public key
+instead of an X.509 certificate. This feature and the enable_rpk
+policy attribute are ignored when there is no raw public key support
+in the local TLS implementation.
+.IP \(bu
+At the "may", "encrypt" and "fingerprint" security levels,
+with parameter setting "smtp_tls_enable_rpk = yes" or with "enable_rpk
+= yes" in a policy entry, the Postfix SMTP client will indicate in
+the TLS handshake that it prefers to receive a raw server public
+key, but it will still accept a server public key certificate.
+.IP \(bu
+At the "fingerprint" security level, with parameter setting
+"smtp_tls_enable_rpk = yes" or with "enable_rpk = yes" in a policy
+entry, server authentication based on certificate fingerprints
+becomes more fragile.  Even if the server private key and certificate
+remain unchanged, the remote SMTP server will fail fingerprint
+authentication (won't match the configured list of fingerprints)
+when it starts sending a raw public key instead of a certificate,
+after its TLS implementation is updated with raw public key support.
+Therefore, \fBDO NOT\fR enable raw public keys to remote destinations
+authenticated by server \fBcertificate\fR fingerprints.  You should
+enable raw public keys only for servers matched via their public
+key fingerprint.
+.IP \(bu
+At the "verify" and "secure" security levels, the Postfix
+SMTP client always ignores the parameter setting smtp_tls_enable_rpk
+or the enable_rpk policy attribute.
+.IP \(bu
+At the opportunistic "dane" security level, the Postfix
+SMTP client ignores the parameter setting smtp_tls_enable_rpk or
+the enable_rpk policy attribute (but it will respect them when it
+falls back to the "may" or "encrypt" level). When all valid TLSA
+records specify only server public keys (no certificates) and the
+local TLS implementation supports raw public keys, the client will
+indicate in the TLS handshake that it prefers to receive a raw
+public key, but it will still accept a public key certificate.
+.IP \(bu
+At the mandatory "dane\-only" security level, the Postfix
+SMTP client always ignores the parameter setting smtp_tls_enable_rpk
+or the enable_rpk policy attribute. When all valid TLSA records
+specify only server public keys (no certificates) and the local TLS
+implementation supports raw public keys, the client will indicate
+in the TLS handshake that it prefers to receive a raw public key,
+but it will still accept a public key certificate.
+.br
+.PP
+The Postfix SMTP client is always willing to send raw public keys
+to servers that solicit them when a client certificate is configured
+and the local TLS implementation supports raw public keys.
+.PP
+Sample commands to compute certificate and public key SHA256 digests:
+.PP
+.nf
+.na
+.ft C
+# SHA256 digest of the first certificate in "cert.pem"
+$ openssl x509 \-in cert.pem \-outform DER | openssl dgst \-sha256 \-c
+.fi
+.ad
+.ft R
+.PP
+.nf
+.na
+.ft C
+# SHA256 digest of the SPKI of the first certificate in "cert.pem"
+$ openssl x509 \-in cert.pem \-pubkey \-noout |
+    openssl pkey \-pubin \-outform DER | openssl dgst \-sha256 \-c
+.fi
+.ad
+.ft R
+.PP
+.nf
+.na
+.ft C
+# SHA256 digest of the SPKI of the first private key in "pkey.pem"
+$ openssl pkey \-in pkey.pem \-pubout \-outform DER |
+    openssl dgst \-sha256 \-c
+.fi
+.ad
+.ft R
+.PP
+This feature is available in Postfix 3.9 and later.
 .SH smtp_tls_enforce_peername (default: yes)
 With mandatory TLS encryption, require that the remote SMTP
 server hostname matches the information in the remote SMTP server
@@ -8762,7 +9025,9 @@ With Postfix 2.8 and earlier, log the summary message and unconditionally
 log trust\-chain verification errors.
 .br
 .IP ""
-2 Also log levels during TLS negotiation.
+2 Also enable verbose logging in the Postfix TLS
+library, log session cache operations, and enable OpenSSL logging
+of the progress of the SSL handshake.
 .br
 .IP ""
 3 Also log the hexadecimal and ASCII dump of the
@@ -8997,7 +9262,9 @@ and smtp_tls_enforce_peername settings.
 .br
 .IP "MAY"
 Try to use TLS if the server announces support,
-otherwise use an unencrypted connection. This has less precedence
+otherwise use an unencrypted connection; after a failed TLS handshake
+or TLS session, fall back to plaintext if the message has spent
+minimal_backoff_time in the mail queue. This level has less precedence
 than a more specific result (including \fBNONE\fR) from the alternate
 host or next\-hop lookup key, and has less precedence than the more
 specific global "smtp_enforce_tls = yes" or "smtp_tls_enforce_peername
@@ -9084,28 +9351,35 @@ No TLS. No additional attributes are supported at this level.
 Opportunistic TLS. Since sending in the clear is acceptable,
 demanding stronger than default TLS security merely reduces
 interoperability. The optional "ciphers", "exclude", and "protocols"
-attributes (available for opportunistic TLS with Postfix >= 2.6)
-and "connection_reuse" attribute (Postfix >= 3.4) override the
+attributes (available for opportunistic TLS with Postfix >= 2.6) and
+"connection_reuse" attribute (Postfix >= 3.4) override the
 "smtp_tls_ciphers", "smtp_tls_exclude_ciphers", "smtp_tls_protocols",
-and
-"smtp_tls_connection_reuse" configuration parameters. In the policy table,
-multiple ciphers, protocols or excluded ciphers must be separated by colons,
-as attribute values may not contain whitespace or commas. When opportunistic
-TLS handshakes fail, Postfix retries the connection with TLS disabled.
-This allows mail delivery to sites with non\-interoperable TLS
-implementations.
+and "smtp_tls_connection_reuse" configuration parameters. In the policy
+table, multiple ciphers, protocols or excluded ciphers must be separated
+by colons, as attribute values may not contain whitespace or commas.  At
+this level and higher, the optional "servername" attribute (available
+with Postfix >= 3.4) overrides the global "smtp_tls_servername"
+parameter, enabling per\-destination configuration of the SNI extension
+sent to the remote SMTP server.  The optional "enable_rpk" attribute
+(Postfix >= 3.9) overrides the main.cf smtp_tls_enable_rpk parameter.
+When opportunistic TLS handshakes fail, Postfix retries the connection
+with TLS disabled.  This allows mail delivery to sites with
+non\-interoperable TLS implementations.
 .br
 .IP "\fBencrypt\fR"
-Mandatory TLS encryption. At this level
-and higher, the optional "protocols" attribute overrides the main.cf
+Mandatory TLS encryption. Mail is delivered only if the remote SMTP
+server offers STARTTLS and the TLS handshake succeeds. At this level and
+higher, the optional "protocols" attribute overrides the main.cf
 smtp_tls_mandatory_protocols parameter, the optional "ciphers" attribute
-overrides the main.cf smtp_tls_mandatory_ciphers parameter, the
-optional "exclude" attribute (Postfix >= 2.6) overrides the main.cf
+overrides the main.cf smtp_tls_mandatory_ciphers parameter, the optional
+"exclude" attribute (Postfix >= 2.6) overrides the main.cf
 smtp_tls_mandatory_exclude_ciphers parameter, and the optional
-"connection_reuse" attribute (Postfix >= 3.4) overrides the
-main.cf smtp_tls_connection_reuse parameter. In the policy table,
-multiple ciphers, protocols or excluded ciphers must be separated by colons,
-as attribute values may not contain whitespace or commas.
+"connection_reuse" attribute (Postfix >= 3.4) overrides the main.cf
+smtp_tls_connection_reuse parameter. In the policy table, multiple
+ciphers, protocols or excluded ciphers must be separated by colons, as
+attribute values may not contain whitespace or commas.  The optional
+"enable_rpk" attribute (Postfix >= 3.9) overrides the main.cf
+smtp_tls_enable_rpk parameter.
 .br
 .IP "\fBdane\fR"
 Opportunistic DANE TLS.  The TLS policy for the destination is
@@ -9144,10 +9418,10 @@ Certificate fingerprint
 verification. Available with Postfix 2.5 and later. At this security
 level, there are no trusted Certification Authorities. The certificate
 trust chain, expiration date, ... are not checked. Instead,
-the optional "match" attribute, or else the main.cf
+the optional policy table "match" attribute, or else the main.cf
 \fBsmtp_tls_fingerprint_cert_match\fR parameter, lists the certificate
-fingerprints or the public key fingerprint (Postfix 2.9 and later)
-of the valid server certificate. The digest
+fingerprints or the public key fingerprints (Postfix 2.9 and later)
+of acceptable server certificates. The digest
 algorithm used to calculate the fingerprint is selected by the
 \fBsmtp_tls_fingerprint_digest\fR parameter. Multiple fingerprints can
 be combined with a "|" delimiter in a single match attribute, or multiple
@@ -9158,45 +9432,58 @@ digits. The optional "ciphers", "exclude", and "protocols" attributes
 "smtp_tls_mandatory_exclude_ciphers", and "smtp_tls_mandatory_protocols"
 configuration parameters. The optional "connection_reuse" attribute
 (Postfix >= 3.4) overrides the main.cf smtp_tls_connection_reuse
-parameter.
+parameter.  The optional "enable_rpk" attribute (Postfix >= 3.9)
+overrides the main.cf smtp_tls_enable_rpk parameter.
 .br
 .IP "\fBverify\fR"
-Mandatory TLS verification.  At this security
-level, DNS MX lookups are trusted to be secure enough, and the name
-verified in the server certificate is usually obtained indirectly via
-unauthenticated DNS MX lookups.  The optional "match" attribute overrides
-the main.cf smtp_tls_verify_cert_match parameter. In the policy table,
-multiple match patterns and strategies must be separated by colons.
-In practice explicit control over matching is more common with the
-"secure" policy, described below. The optional "ciphers", "exclude",
-and "protocols" attributes (Postfix >= 2.6) override the
-"smtp_tls_mandatory_ciphers", "smtp_tls_mandatory_exclude_ciphers", and
-"smtp_tls_mandatory_protocols" configuration parameters. The optional
-"connection_reuse" attribute (Postfix >= 3.4) overrides the main.cf
-smtp_tls_connection_reuse parameter.
+Mandatory TLS verification.  Mail is delivered only if the TLS
+handshake succeeds, the remote SMTP server certificate chain can be
+validated, and a DNS name in the certificate matches the specified match
+criteria. At this security level, DNS MX lookups are presumed to be
+secure enough, and the name verified in the server certificate is
+potentially obtained via unauthenticated DNS MX lookups.  The optional
+"match" attribute overrides the main.cf smtp_tls_verify_cert_match
+parameter. In the policy table, multiple match patterns and strategies
+must be separated by colons.  In practice explicit control over matching
+is more common with the "secure" policy, described below. The optional
+"ciphers", "exclude", and "protocols" attributes (Postfix >= 2.6)
+override the "smtp_tls_mandatory_ciphers",
+"smtp_tls_mandatory_exclude_ciphers", and "smtp_tls_mandatory_protocols"
+configuration parameters. With Postfix >= 2.11 the optional "tafile"
+policy table attribute modifies trust chain verification in the same
+manner as the "smtp_tls_trust_anchor_file" parameter. The "tafile"
+attribute may be specified multiple times to load multiple trust\-anchor
+files. The optional "connection_reuse" attribute (Postfix >= 3.4)
+overrides the main.cf smtp_tls_connection_reuse parameter.
 .br
 .IP "\fBsecure\fR"
-Secure\-channel TLS. At this security level, DNS
-MX lookups, though potentially used to determine the candidate next\-hop
-gateway IP addresses, are \fBnot\fR trusted to be secure enough for TLS
-peername verification. Instead, the default name verified in the server
-certificate is obtained directly from the next\-hop, or is explicitly
-specified via the optional "match" attribute which overrides the
-main.cf smtp_tls_secure_cert_match parameter. In the policy table,
-multiple match patterns and strategies must be separated by colons.
-The match attribute is most useful when multiple domains are supported by
-a common server: the policy entries for additional domains specify matching
-rules for the primary domain certificate. While transport table overrides
-that route the secondary domains to the primary nexthop also allow secure
-verification, they risk delivery to the wrong destination when domains
-change hands or are re\-assigned to new gateways. With the "match"
-attribute approach, routing is not perturbed, and mail is deferred if
-verification of a new MX host fails. The optional "ciphers", "exclude",
-and "protocols" attributes (Postfix >= 2.6) override the
-"smtp_tls_mandatory_ciphers", "smtp_tls_mandatory_exclude_ciphers", and
-"smtp_tls_mandatory_protocols" configuration parameters. The optional
-"connection_reuse" attribute (Postfix >= 3.4) overrides the main.cf
-smtp_tls_connection_reuse parameter.
+Secure certificate verification. Mail is delivered only if the TLS
+handshake succeeds, the remote SMTP server certificate chain can be
+validated, and a DNS name in the certificate matches the specified match
+criteria.  At this security level, DNS MX lookups, though potentially
+used to determine the candidate next\-hop gateway IP addresses, are
+\fBnot\fR presumed to be secure enough for TLS peername verification.
+Instead, the default name verified in the server certificate is obtained
+directly from the next\-hop, or is explicitly specified via the optional
+"match" attribute which overrides the main.cf smtp_tls_secure_cert_match
+parameter. In the policy table, multiple match patterns and strategies
+must be separated by colons.  The match attribute is most useful when
+multiple domains are supported by a common server: the policy entries
+for additional domains specify matching rules for the primary domain
+certificate. While transport table overrides that route the secondary
+domains to the primary nexthop also allow secure verification, they risk
+delivery to the wrong destination when domains change hands or are
+re\-assigned to new gateways. With the "match" attribute approach,
+routing is not perturbed, and mail is deferred if verification of a new
+MX host fails. The optional "ciphers", "exclude", and "protocols"
+attributes (Postfix >= 2.6) override the "smtp_tls_mandatory_ciphers",
+"smtp_tls_mandatory_exclude_ciphers", and "smtp_tls_mandatory_protocols"
+configuration parameters. With Postfix >= 2.11 the "tafile" attribute
+optionally modifies trust chain verification in the same manner as the
+"smtp_tls_trust_anchor_file" parameter.  The "tafile" attribute may be
+specified multiple times to load multiple trust\-anchor files. The
+optional "connection_reuse" attribute (Postfix >= 3.4) overrides the
+main.cf smtp_tls_connection_reuse parameter.
 .br
 .br
 .PP
@@ -9243,7 +9530,7 @@ DNS forgery. Do not use the "hostname" strategy for secure\-channel
 configurations in environments where DNS security is not assured.
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH smtp_tls_protocols (default: see postconf \-d output)
+.SH smtp_tls_protocols (default: see 'postconf \-d' output)
 TLS protocols that the Postfix SMTP client will use with
 opportunistic TLS encryption.  In main.cf the values are separated by
 whitespace, commas or colons. In the policy table "protocols" attribute
@@ -9406,7 +9693,9 @@ destinations via smtp_tls_policy_maps.
 .br
 .IP "\fBmay\fR"
 Opportunistic TLS. Use TLS if this is supported by the remote
-SMTP server, otherwise use plaintext. Since
+SMTP server, otherwise use plaintext; after a failed TLS handshake
+or TLS session, fall back to plaintext if the message has spent
+minimal_backoff_time in the mail queue. Since
 sending in the clear is acceptable, demanding stronger than default TLS
 security merely reduces interoperability.
 The "smtp_tls_ciphers" and "smtp_tls_protocols" (Postfix >= 2.6)
@@ -10127,9 +10416,8 @@ pubkey_fingerprint } }
 The commas are optional.
 .br
 .IP "\fBcheck_client_access \fItype:table\fR\fR"
-Search the specified access database for the client hostname,
-parent domains, client IP address, or networks obtained by stripping
-least significant octets. See the \fBaccess\fR(5) manual page for details.
+Search the specified access database for the client hostname
+or IP address. See the \fBaccess\fR(5) manual page for details.
 .br
 .IP "\fBcheck_client_a_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the IP addresses for the
@@ -10156,8 +10444,7 @@ available in Postfix 2.7 and later.
 .br
 .IP "\fBcheck_reverse_client_hostname_access \fItype:table\fR\fR"
 Search the specified access database for the unverified reverse
-client hostname, parent domains, client IP address, or networks
-obtained by stripping least significant octets. See the \fBaccess\fR(5)
+client hostname or IP address. See the \fBaccess\fR(5)
 manual page for details.  Note: a result of "OK" is not allowed for
 safety reasons.  Instead, use DUNNO in order to exclude specific
 hosts from denylists.  This feature is available in Postfix 2.6
@@ -10684,6 +10971,9 @@ Note 2: when invoked via "\fBsendmail \-bs\fR", Postfix will never offer
 STARTTLS due to insufficient privileges to access the server private
 key. This is intended behavior.
 .PP
+This feature is deprecated as of Postfix 3.9. Specify
+smtpd_tls_security_level instead.
+.PP
 This feature is available in Postfix 2.2 and later. With
 Postfix 2.3 and later use smtpd_tls_security_level instead.
 .SH smtpd_error_sleep_time (default: 1s)
@@ -10720,8 +11010,8 @@ restriction that matches wins.
 The following restrictions are specific to the domain name information
 received with the ETRN command.
 .IP "\fBcheck_etrn_access \fItype:table\fR\fR"
-Search the specified access database for the ETRN domain name
-or its parent domains. See the \fBaccess\fR(5) manual page for details.
+Search the specified access database for the ETRN domain name.
+See the \fBaccess\fR(5) manual page for details.
 .br
 .br
 .PP
@@ -10752,7 +11042,7 @@ The smtpd_expansion_filter value is not subject to Postfix configuration
 parameter $name expansion.
 .PP
 This feature is available in Postfix 2.0 and later.
-.SH smtpd_forbid_bare_newline (default: Postfix < 3.9: no)
+.SH smtpd_forbid_bare_newline (default: Postfix >= 3.9: normalize)
 Reject or restrict input lines from an SMTP client that end in
 <LF> instead of the standard <CR><LF>. Such line
 endings are commonly allowed with UNIX\-based SMTP servers, but they
@@ -10761,7 +11051,7 @@ vulnerable to
 SMTP smuggling.
 .PP
 Specify one of the following values (case does not matter):
-.IP "\fBnormalize\fR"
+.IP "\fBnormalize\fR (default for Postfix >= 3.9)"
 Require the standard
 End\-of\-DATA sequence <CR><LF>.<CR><LF>.
 Otherwise, allow command or message content lines ending in the
@@ -10779,6 +11069,17 @@ with the standard End\-of\-DATA sequence
 .br
 Such clients
 can be excluded with smtpd_forbid_bare_newline_exclusions.
+.br
+.IP "\fBnote\fR"
+Same as "normalize", but also notes in
+the log whether the Postfix SMTP server received any lines with
+"bare <LF>". The information is formatted as "disconnect
+from name[address] ...  notes=bare_lf". The notes value is
+expected to become a list of comma\-separated names.
+.br
+.br
+This
+feature is available in Postfix 3.9 and later.
 .br
 .IP "\fByes\fR"
 Compatibility alias for \fBnormalize\fR.
@@ -10808,9 +11109,8 @@ of BDAT violations, BDAT can be selectively disabled with
 smtpd_discard_ehlo_keyword_address_maps, or globally disabled with
 smtpd_discard_ehlo_keywords).
 .br
-.IP "\fBno\fR (default)"
-Do not require the standard
-End\-of\-DATA
+.IP "\fBno\fR (default for Postfix < 3.9)"
+Do not require the standard End\-of\-DATA
 sequence <CR><LF>.<CR><LF>. Always process
 a bare <LF> as if the client sent <CR><LF>. This
 option is fully backwards compatible, but is not recommended for
@@ -10904,9 +11204,8 @@ This feature is available in Postfix >= 3.9, 3.8.5, 3.7.10,
 Disconnect remote SMTP clients that violate RFC 2920 (or 5321)
 command pipelining constraints. The server replies with "554 5.5.0
 Error: SMTP protocol synchronization" and logs the unexpected remote
-SMTP client input. Specify "smtpd_forbid_unauth_pipelining = yes"
-to enable. This feature is enabled by default with Postfix >=
-3.9.
+SMTP client input. This feature is enabled by default with Postfix
+>= 3.9. Specify "smtpd_forbid_unauth_pipelining = no" to disable.
 .PP
 This feature is available in Postfix >= 3.9, 3.8.1, 3.7.6,
 3.6.10, and 3.5.20.
@@ -10964,7 +11263,7 @@ The following restrictions are specific to the hostname information
 received with the HELO or EHLO command.
 .IP "\fBcheck_helo_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the HELO or EHLO
-hostname or parent domains, and execute the corresponding action.
+hostname, and execute the corresponding action.
 Note: specify "smtpd_helo_required = yes" to fully enforce this
 restriction (without "smtpd_helo_required = yes", a client can
 simply skip check_helo_access by not sending HELO or EHLO).
@@ -11430,8 +11729,7 @@ The following restrictions are specific to the recipient address
 that is received with the RCPT TO command.
 .IP "\fBcheck_recipient_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the resolved RCPT
-TO address, domain, parent domains, or localpart@, and execute the
-corresponding action.
+TO address, and execute the corresponding action.
 .br
 .IP "\fBcheck_recipient_a_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the IP addresses for
@@ -11809,7 +12107,7 @@ Continue long lines by starting the next line with whitespace.
 The same restrictions are available as documented under
 smtpd_recipient_restrictions.
 .PP
-This feature is available in Postix 2.10 and later.
+This feature is available in Postfix 2.10 and later.
 .SH smtpd_restriction_classes (default: empty)
 User\-defined aliases for groups of access restrictions. The aliases
 can be specified in smtpd_recipient_restrictions etc., and on the
@@ -12089,8 +12387,7 @@ The following restrictions are specific to the sender address
 received with the MAIL FROM command.
 .IP "\fBcheck_sender_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the MAIL FROM
-address, domain, parent domains, or localpart@, and execute the
-corresponding action.
+address, and execute the corresponding action.
 .br
 .IP "\fBcheck_sender_a_access \fItype:table\fR\fR"
 Search the specified \fBaccess\fR(5) database for the IP addresses for
@@ -12903,6 +13200,59 @@ Postfix uses ciphers with forward secrecy.
 This feature is available in Postfix 2.6 and later, when it is
 compiled and linked with OpenSSL 1.0.0 or later on platforms
 where EC algorithms have not been disabled by the vendor.
+.SH smtpd_tls_enable_rpk (default: no)
+Request that remote SMTP clients send an RFC7250 raw public key
+instead of an X.509 certificate, when asking for or requiring client
+authentication. This feature is ignored when there is no raw public
+key support in the local TLS implementation.
+.PP
+The Postfix SMTP server will log a warning when "smtpd_tls_enable_rpk
+= yes", but the remote SMTP client sends a certificate, the
+certificate's public key fingerprint does not match a check_ccert_access
+table, while the certificate fingerprint does match a check_ccert_access
+table. The remote SMTP client would lose access when it starts
+sending a raw public key instead of a certificate, after its TLS
+implementation is updated with raw public key support.
+.PP
+The Postfix SMTP server always sends a raw public key instead
+of a certificate, if solicited by the remote SMTP client and the
+local TLS implementation supports raw public keys. If the client
+sends a server name indication with an SNI TLS extension, and
+tls_server_sni_maps is configured, the server will extract a raw
+public key from the indicated certificate.
+.PP
+Sample commands to compute certificate and public key SHA256 digests:
+.PP
+.nf
+.na
+.ft C
+# SHA256 digest of the first certificate in "cert.pem"
+$ openssl x509 \-in cert.pem \-outform DER | openssl dgst \-sha256 \-c
+.fi
+.ad
+.ft R
+.PP
+.nf
+.na
+.ft C
+# SHA256 digest of the SPKI of the first certificate in "cert.pem"
+$ openssl x509 \-in cert.pem \-pubkey \-noout |
+    openssl pkey \-pubin \-outform DER | openssl dgst \-sha256 \-c
+.fi
+.ad
+.ft R
+.PP
+.nf
+.na
+.ft C
+# SHA256 digest of the SPKI of the first private key in "pkey.pem"
+$ openssl pkey \-in pkey.pem \-pubout \-outform DER |
+    openssl dgst \-sha256 \-c
+.fi
+.ad
+.ft R
+.PP
+This feature is available in Postfix 3.9 and later.
 .SH smtpd_tls_exclude_ciphers (default: empty)
 List of ciphers or cipher types to exclude from the SMTP server
 cipher list at all TLS security levels. Excluding valid ciphers
@@ -13064,7 +13414,9 @@ earlier, log the summary message, peer certificate summary information
 and unconditionally log trust\-chain verification errors.
 .br
 .IP ""
-2 Also log levels during TLS negotiation.
+2 Also enable verbose logging in the Postfix TLS
+library, log session cache operations, and enable OpenSSL logging
+of the progress of the SSL handshake.
 .br
 .IP ""
 3 Also log hexadecimal and ASCII dump of TLS negotiation
@@ -13233,7 +13585,7 @@ smtpd_tls_mandatory_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
 .ft R
 .PP
 This feature is available in Postfix 2.3 and later.
-.SH smtpd_tls_protocols (default: see postconf \-d output)
+.SH smtpd_tls_protocols (default: see 'postconf \-d' output)
 TLS protocols accepted by the Postfix SMTP server with opportunistic
 TLS encryption. If the list is empty, the server supports all available
 TLS protocol versions.  A non\-empty value is a list of protocol names to
@@ -13465,6 +13817,9 @@ but do not require that clients use TLS encryption.
 Note: when invoked via "\fBsendmail \-bs\fR", Postfix will never offer
 STARTTLS due to insufficient privileges to access the server private
 key. This is intended behavior.
+.PP
+This feature is deprecated as of Postfix 3.9. Specify
+smtpd_tls_security_level instead.
 .PP
 This feature is available in Postfix 2.2 and later. With
 Postfix 2.3 and later use smtpd_tls_security_level instead.
@@ -13822,8 +14177,7 @@ via the tls_config_file parameter.  When empty, or when the
 selected name is not present in the configuration file, the default
 application name ("openssl_conf") is used as a fallback.
 .PP
-This feature is available in Postfix >= 3.9, 3.8.1, 3.7.6,
-3.6.10, and 3.5.20.
+This feature is available in Postfix >= 3.9.
 .SH tls_daemon_random_bytes (default: 32)
 The number of pseudo\-random bytes that an \fBsmtp\fR(8) or \fBsmtpd\fR(8)
 process requests from the \fBtlsmgr\fR(8) server in order to seed its
@@ -14540,6 +14894,9 @@ Enforcement mode: require that SMTP servers use TLS encryption.
 See smtp_enforce_tls for further details. Use
 tlsproxy_client_security_level instead.
 .PP
+This feature is deprecated as of Postfix 3.9. Specify
+tlsproxy_client_security_level instead.
+.PP
 This feature is available in Postfix 3.4 and later.
 .SH tlsproxy_client_fingerprint_digest (default: $smtp_tls_fingerprint_digest)
 The message digest algorithm used to construct remote TLS server
@@ -14575,6 +14932,9 @@ Optional lookup tables with the Postfix \fBtlsproxy\fR(8) client TLS
 usage policy by next\-hop destination and by remote TLS server
 hostname.  See smtp_tls_per_site for further details.
 .PP
+This feature is deprecated as of Postfix 3.9. Specify
+tlsproxy_client_policy_maps instead.
+.PP
 This feature is available in Postfix 3.4 and later.
 .SH tlsproxy_client_policy (default: $smtp_tls_policy_maps)
 Optional lookup tables with the Postfix \fBtlsproxy\fR(8) client TLS
@@ -14606,11 +14966,17 @@ Opportunistic mode: use TLS when a remote server announces TLS
 support. See smtp_use_tls for further details. Use
 tlsproxy_client_security_level instead.
 .PP
+This feature is deprecated as of Postfix 3.9. Specify
+tlsproxy_client_security_level instead.
+.PP
 This feature is available in Postfix 3.4 and later.
 .SH tlsproxy_enforce_tls (default: $smtpd_enforce_tls)
 Mandatory TLS: announce STARTTLS support to remote SMTP clients, and
 require that clients use TLS encryption. See smtpd_enforce_tls for
 further details. Use tlsproxy_tls_security_level instead.
+.PP
+This feature is deprecated as of Postfix 3.9. Specify
+tlsproxy_tls_security_level instead.
 .PP
 This feature is available in Postfix 2.8 and later.
 .SH tlsproxy_service_name (default: tlsproxy)
@@ -14678,6 +15044,8 @@ File with DH parameters that the Postfix \fBtlsproxy\fR(8) server
 should use with non\-export EDH ciphers. See smtpd_tls_dh1024_param_file
 for further details.
 .PP
+This feature is deprecated as of Postfix 3.9. Do not specify.
+.PP
 This feature is available in Postfix 2.8 and later.
 .SH tlsproxy_tls_dh512_param_file (default: $smtpd_tls_dh512_param_file)
 File with DH parameters that the Postfix \fBtlsproxy\fR(8) server
@@ -14720,7 +15088,15 @@ The Postfix \fBtlsproxy\fR(8) server security grade for ephemeral
 elliptic\-curve Diffie\-Hellman (EECDH) key exchange. See
 smtpd_tls_eecdh_grade for further details.
 .PP
+This feature is deprecated as of Postfix 3.9. Do not specify.
+.PP
 This feature is available in Postfix 2.8 and later.
+.SH tlsproxy_tls_enable_rpk (default: $smtpd_tls_enable_rpk)
+Request that remote SMTP clients send an RFC7250 raw public key
+instead of an X.509 certificate, when asking or requiring client
+authentication. See $smtpd_tls_enable_rpk for details.
+.PP
+This feature is available in Postfix 3.9 and later.
 .SH tlsproxy_tls_exclude_ciphers (default: $smtpd_tls_exclude_ciphers)
 List of ciphers or cipher types to exclude from the \fBtlsproxy\fR(8)
 server cipher list at all TLS security levels. See
@@ -14798,6 +15174,9 @@ This feature is available in Postfix 2.8 and later.
 Opportunistic TLS: announce STARTTLS support to remote SMTP clients,
 but do not require that clients use TLS encryption. See smtpd_use_tls
 for further details. Use tlsproxy_tls_security_level instead.
+.PP
+This feature is deprecated as of Postfix 3.9. Specify
+tlsproxy_tls_security_level instead.
 .PP
 This feature is available in Postfix 2.8 and later.
 .SH tlsproxy_watchdog_timeout (default: 10s)
@@ -14952,7 +15331,13 @@ This feature is available in Postfix 2.5 and later.
 .SH transport_maps (default: empty)
 Optional lookup tables with mappings from recipient address to
 (message delivery transport, next\-hop destination).  See \fBtransport\fR(5)
-for details.
+for syntax details.
+.PP
+This information may override the message delivery transport
+and/or next\-hop destination that are specified with $local_transport,
+$virtual_transport, $relay_transport, $default_transport,
+$sender_dependent_relayhost_maps, $relayhost,
+$sender_dependent_default_transport_maps, or the recipient domain.
 .PP
 Specify zero or more "type:table" lookup tables, separated by
 whitespace or comma. Tables will be searched in the specified order
@@ -15421,8 +15806,10 @@ from each original recipient.
 .PP
 This feature is available in Postfix 2.1 and later.
 .SH virtual_alias_maps (default: $virtual_maps)
-Optional lookup tables that alias specific mail addresses or domains
-to other local or remote addresses.  The table format and lookups
+Optional lookup tables with aliases that apply to all recipients:
+\fBlocal\fR(8), virtual, and remote; this is unlike alias_maps that apply
+only to \fBlocal\fR(8) recipients.
+The table format and lookups
 are documented in \fBvirtual\fR(5). For an overview of Postfix address
 manipulations see the ADDRESS_REWRITING_README document.
 .PP

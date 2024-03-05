@@ -1,17 +1,21 @@
 /*++
 /* NAME
-/*	smtp 8
+/*	smtp, lmtp 8
 /* SUMMARY
 /*	Postfix SMTP+LMTP client
 /* SYNOPSIS
 /*	\fBsmtp\fR [generic Postfix daemon options] [flags=DORX]
+/*
+/*	\fBlmtp\fR [generic Postfix daemon options] [flags=DORX]
 /* DESCRIPTION
 /*	The Postfix SMTP+LMTP client implements the SMTP and LMTP mail
 /*	delivery protocols. It processes message delivery requests from
 /*	the queue manager. Each request specifies a queue file, a sender
 /*	address, a domain or host to deliver to, and recipient information.
 /*	This program expects to be run from the \fBmaster\fR(8) process
-/*	manager.
+/*	manager. The process name, \fBsmtp\fR or \fBlmtp\fR, controls
+/*	the protocol, and the names of the configuration parameters
+/*	that will be used.
 /*
 /*	The SMTP+LMTP client updates the queue file and marks recipients
 /*	as finished, or it informs the queue manager that delivery should
@@ -19,13 +23,9 @@
 /*	to the \fBbounce\fR(8), \fBdefer\fR(8) or \fBtrace\fR(8) daemon as
 /*	appropriate.
 /*
-/*	The SMTP+LMTP client looks up a list of mail exchanger addresses for
-/*	the destination host, sorts the list by preference, and connects
-/*	to each listed address until it finds a server that responds.
-/*
-/*	When a server is not reachable, or when mail delivery fails due
-/*	to a recoverable error condition, the SMTP+LMTP client will try to
-/*	deliver the mail to an alternate host.
+/*	The server lookup strategy is different for SMTP and LMTP,
+/*	as described in the sections "SMTP SERVER LOOKUP" and "LMTP
+/*	SERVER LOOKUP".
 /*
 /*	After a successful mail transaction, a connection may be saved
 /*	to the \fBscache\fR(8) connection cache server, so that it
@@ -35,44 +35,58 @@
 /*	destinations that have a high volume of mail in the active
 /*	queue. Connection caching can be enabled permanently for
 /*	specific destinations.
-/* SMTP DESTINATION SYNTAX
+/* SMTP SERVER LOOKUP
 /* .ad
 /* .fi
-/*	The Postfix SMTP+LMTP client supports multiple destinations
+/*	The Postfix SMTP client supports multiple destinations
 /*	separated by comma or whitespace (Postfix 3.5 and later).
+/*	Each destination is tried in the specified order.
+/*
 /*	SMTP destinations have the following form:
 /* .IP \fIdomainname\fR
-/* .IP \fIdomainname\fR:\fIport\fR
+/* .IP \fIdomainname\fR:\fIservice\fR
 /*	Look up the mail exchangers for the specified domain, and
-/*	connect to the specified port (default: \fBsmtp\fR).
+/*	connect to the specified service (default: \fBsmtp\fR).
+/*	Optionally, mail exchangers may be looked up with SRV queries
+/*	instead of MX; this requires that \fIservice\fR is given
+/*	in symbolic form.
 /* .IP [\fIhostname\fR]
-/* .IP [\fIhostname\fR]:\fIport\fR
-/*	Look up the address(es) of the specified host, and connect to
-/*	the specified port (default: \fBsmtp\fR).
+/* .IP [\fIhostname\fR]:\fIservice\fR
+/*	Look up the address(es) for the specified host, and connect to
+/*	the specified service (default: \fBsmtp\fR).
 /* .IP [\fIaddress\fR]
-/* .IP [\fIaddress\fR]:\fIport\fR
+/* .IP [\fIaddress\fR]:\fIservice\fR
 /*	Connect to the host at the specified address, and connect
-/*	to the specified port (default: \fBsmtp\fR). An IPv6 address
+/*	to the specified service (default: \fBsmtp\fR). An IPv6 address
 /*	must be formatted as [\fBipv6\fR:\fIaddress\fR].
-/* LMTP DESTINATION SYNTAX
+/* LMTP SERVER LOOKUP
 /* .ad
 /* .fi
-/*	The Postfix SMTP+LMTP client supports multiple destinations
+/*	The Postfix LMTP client supports multiple destinations
 /*	separated by comma or whitespace (Postfix 3.5 and later).
+/*	Each destination is tried in the specified order.
+/*
 /*	LMTP destinations have the following form:
 /* .IP \fBunix\fR:\fIpathname\fR
 /*	Connect to the local UNIX-domain server that is bound to the specified
 /*	\fIpathname\fR. If the process runs chrooted, an absolute pathname
 /*	is interpreted relative to the Postfix queue directory.
+/* .IP \fBinet\fR:\fIdomainname\fR
+/* .IP \fBinet\fR:\fIdomainname\fR:\fIservice\fR
+/*	Look up the LMTP servers for the specified domain and service
+/*	(default: \fBlmtp\fR).
+/*	This form is supported when SRV lookups are enabled, and
+/*	requires that \fIservice\fR is in symbolic form.
 /* .IP \fBinet\fR:\fIhostname\fR
-/* .IP \fBinet\fR:\fIhostname\fR:\fIport\fR
+/* .IP \fBinet\fR:\fIhostname\fR:\fIservice\fR
+/*	Look up the address(es) for the specified host, and connect to
+/*	the specified service (default: \fBlmtp\fR). When SRV lookups
+/*	are enabled, use the form \fB[\fIhostname\fB]\fR to force
+/*	address lookups.
 /* .IP \fBinet\fR:[\fIaddress\fR]
-/* .IP \fBinet\fR:[\fIaddress\fR]:\fIport\fR
-/*	Connect to the specified TCP port on the specified local or
-/*	remote host. If no port is specified, connect to the port defined as
-/*	\fBlmtp\fR in \fBservices\fR(4).
-/*	If no such service is found, the \fBlmtp_tcp_port\fR configuration
-/*	parameter (default value of 24) will be used.
+/* .IP \fBinet\fR:[\fIaddress\fR]:\fIservice\fR
+/*	Connect to the specified local or remote host and service
+/*	(default: \fBlmtp\fR).
 /*	An IPv6 address must be formatted as [\fBipv6\fR:\fIaddress\fR].
 /* SINGLE-RECIPIENT DELIVERY
 /* .ad
@@ -130,6 +144,8 @@
 /*	This feature is available as of Postfix 3.5.
 /* .RE
 /* SECURITY
+/* .ad
+/* .fi
 /*	The SMTP+LMTP client is moderately security-sensitive. It
 /*	talks to SMTP or LMTP servers and to DNS servers on the
 /*	network. The SMTP+LMTP client can be run chrooted at fixed
@@ -175,11 +191,10 @@
 /* CONFIGURATION PARAMETERS
 /* .ad
 /* .fi
-/*	Before Postfix version 2.3, the LMTP client is a separate
-/*	program that implements only a subset of the functionality
-/*	available with SMTP: there is no support for TLS, and
-/*	connections are cached in-process, making it ineffective
-/*	when the client is used for multiple domains.
+/*	Postfix versions 2.3 and later implement the SMTP and LMTP
+/*	client with the same program, and choose the protocol and
+/*	configuration parameters based on the process name, \fBsmtp\fR
+/*	or \fBlmtp\fR.
 /*
 /*	Most smtp_\fIxxx\fR configuration parameters have an
 /*	lmtp_\fIxxx\fR "mirror" parameter for the equivalent LMTP
@@ -432,6 +447,11 @@
 /* .IP "\fBsmtp_send_dummy_mail_auth (no)\fR"
 /*	Whether or not to append the "AUTH=<>" option to the MAIL
 /*	FROM command in SASL-authenticated SMTP sessions.
+/* .PP
+/*	Available in Postfix version 3.9 and later:
+/* .IP "\fBsmtp_sasl_password_result_delimiter (:)\fR"
+/*	The delimiter between username and password in sasl_passwd_maps lookup
+/*	results.
 /* STARTTLS SUPPORT CONTROLS
 /* .ad
 /* .fi
@@ -532,7 +552,7 @@
 /*	certificate fingerprints.
 /* .PP
 /*	Available in Postfix version 2.6 and later:
-/* .IP "\fBsmtp_tls_protocols (see postconf -d output)\fR"
+/* .IP "\fBsmtp_tls_protocols (see 'postconf -d' output)\fR"
 /*	TLS protocols that the Postfix SMTP client will use with
 /*	opportunistic TLS encryption.
 /* .IP "\fBsmtp_tls_ciphers (medium)\fR"
@@ -613,6 +633,11 @@
 /* .IP "\fBtls_config_name (empty)\fR"
 /*	The application name passed by Postfix to OpenSSL library
 /*	initialization functions.
+/* .PP
+/*	Available in Postfix version 3.9 and later:
+/* .IP "\fBsmtp_tls_enable_rpk (no)\fR"
+/*	Request that remote SMTP servers send an RFC7250 raw public key
+/*	instead of an X.509 certificate.
 /* OBSOLETE STARTTLS CONTROLS
 /* .ad
 /* .fi
@@ -799,9 +824,9 @@
 /* .IP "\fBdisable_dns_lookups (no)\fR"
 /*	Disable DNS lookups in the Postfix SMTP and LMTP clients.
 /* .IP "\fBinet_interfaces (all)\fR"
-/*	The local network interface addresses that this mail system receives
-/*	mail on.
-/* .IP "\fBinet_protocols (see 'postconf -d output')\fR"
+/*	The local network interface addresses that this mail system
+/*	receives mail on.
+/* .IP "\fBinet_protocols (see 'postconf -d' output)\fR"
 /*	The Internet protocols Postfix will attempt to use when making
 /*	or accepting connections.
 /* .IP "\fBipc_timeout (3600s)\fR"
@@ -1020,6 +1045,7 @@ int     var_smtp_never_ehlo;
 char   *var_smtp_sasl_opts;
 char   *var_smtp_sasl_path;
 char   *var_smtp_sasl_passwd;
+char   *var_smtp_sasl_passwd_res_delim;
 bool    var_smtp_sasl_enable;
 char   *var_smtp_sasl_mechs;
 char   *var_smtp_sasl_type;
@@ -1090,6 +1116,7 @@ char   *var_smtp_tls_sni;
 bool    var_smtp_tls_blk_early_mail_reply;
 bool    var_smtp_tls_force_tlsa;
 char   *var_smtp_tls_insecure_mx_policy;
+bool    var_smtp_tls_enable_rpk;
 
 #endif
 
@@ -1117,8 +1144,8 @@ bool    var_smtp_balance_inet_proto;
 bool    var_smtp_req_deadline;
 int     var_smtp_min_data_rate;
 char   *var_use_srv_lookup;
-bool	var_ign_srv_lookup_err;
-bool	var_allow_srv_fallback;
+bool    var_ign_srv_lookup_err;
+bool    var_allow_srv_fallback;
 
  /* Special handling of 535 AUTH errors. */
 char   *var_smtp_sasl_auth_cache_name;
@@ -1126,7 +1153,7 @@ int     var_smtp_sasl_auth_cache_time;
 bool    var_smtp_sasl_auth_soft_bounce;
 
 char   *var_hfrom_format;
-bool var_smtp_bind_addr_enforce;
+bool    var_smtp_bind_addr_enforce;
 
  /*
   * Global variables.
@@ -1459,6 +1486,19 @@ static void pre_init(char *unused_name, char **unused_argv)
     };
 
     /*
+     * The process name, "smtp" or "lmtp", determines the configuration
+     * parameters to use, protocol, DSN server reply type, SASL service
+     * information lookup, and more. We peeked at the name in the main()
+     * function before logging was initialized. Here, we detect and report an
+     * invalid process name.
+     */
+    if (strcmp(var_procname, MAIL_PROC_NAME_SMTP) != 0
+	&& strcmp(var_procname, MAIL_PROC_NAME_LMTP) != 0)
+	msg_fatal("unexpected process name \"%s\" - "
+		  "specify \"%s\" or \"%s\"", var_procname,
+		  MAIL_PROC_NAME_SMTP, MAIL_PROC_NAME_LMTP);
+
+    /*
      * Turn on per-peer debugging.
      */
     debug_peer_init();
@@ -1649,21 +1689,15 @@ int     main(int argc, char **argv)
     MAIL_VERSION_STAMP_ALLOCATE;
 
     /*
-     * XXX At this point, var_procname etc. are not initialized.
-     * 
-     * The process name, "smtp" or "lmtp", determines the protocol, the DSN
-     * server reply type, SASL service information lookup, and more. Prepare
-     * for the possibility there may be another personality.
+     * XXX The process name, "smtp" or "lmtp", determines what configuration
+     * parameter settings to use, and more. However, at this point, logging
+     * and var_procname are not initialized. Here, we peek at the process
+     * name to determine what configuration parameter settings to use. Later,
+     * we detect and report an invalid process name.
      */
     sane_procname = sane_basename((VSTRING *) 0, argv[0]);
-    if (strcmp(sane_procname, "smtp") == 0)
+    if (strcmp(sane_procname, MAIL_PROC_NAME_SMTP) == 0)
 	smtp_mode = 1;
-    else if (strcmp(sane_procname, "lmtp") == 0)
-	smtp_mode = 0;
-    else
-	/* TODO: logging is not initialized. */
-	msg_fatal("unexpected process name \"%s\" - "
-		  "specify \"smtp\" or \"lmtp\"", var_procname);
 
     /*
      * Initialize with the LMTP or SMTP parameter name space.
