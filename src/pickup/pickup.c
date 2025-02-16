@@ -334,12 +334,13 @@ static int pickup_copy(VSTREAM *qfile, VSTREAM *cleanup,
 #define HOUR_SECONDS 3600
 
     if (info->st.st_mtime > now + 2 * HOUR_SECONDS) {
-	msg_warn("%s: message dated %ld seconds into the future",
-		 info->id, (long) (info->st.st_mtime - now));
+	msg_warn("%s: message %s dated %ld seconds into the future",
+		 info->id, info->path, (long) (info->st.st_mtime - now));
 	info->st.st_mtime = now;
     } else if (info->st.st_mtime < now - DAY_SECONDS) {
-	msg_warn("%s: message has been queued for %d days",
-		 info->id, (int) ((now - info->st.st_mtime) / DAY_SECONDS));
+	msg_warn("%s: message %s has been queued for %d days",
+		 info->id, info->path,
+		 (int) ((now - info->st.st_mtime) / DAY_SECONDS));
     }
 
     /*
@@ -485,6 +486,7 @@ static int pickup_file(PICKUP_INFO *info)
 	cleanup_flags &= ~CLEANUP_FLAG_MILTER;
     else
 	cleanup_flags |= smtputf8_autodetect(MAIL_SRC_MASK_SENDMAIL);
+    /* TODO(wietse) REQUIRETLS? */
 
     cleanup = mail_connect_wait(MAIL_CLASS_PUBLIC, var_cleanup_service);
     if (attr_scan(cleanup, ATTR_FLAG_STRICT,

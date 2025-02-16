@@ -88,7 +88,7 @@
 
  /*-
   * TLSA: https://tools.ietf.org/html/rfc6698#section-7.1
-  * RRSIG: http://tools.ietf.org/html/rfc4034#section-3
+  * RRSIG: https://tools.ietf.org/html/rfc4034#section-3
   *
   * We don't request RRSIG, but we get it "for free" when we send the DO-bit.
   */
@@ -165,8 +165,8 @@ typedef struct DNS_RR {
     unsigned short flags;		/* DNS_RR_FLAG_XX, see below */
     struct DNS_RR *next;		/* linkage */
     size_t  data_len;			/* actual data size */
-    char    *data;			/* a bunch of data */
-     /* Add new fields at the end, for ABI forward compatibility. */
+    char   *data;			/* a bunch of data */
+    /* Add new fields at the end, for ABI forward compatibility. */
 } DNS_RR;
 
 #define DNS_RR_FLAG_TRUNCATED	(1<<0)
@@ -221,6 +221,7 @@ extern int dns_rr_compare_pref_any(DNS_RR *, DNS_RR *);
 extern int dns_rr_compare_pref(DNS_RR *, DNS_RR *);
 extern DNS_RR *dns_rr_shuffle(DNS_RR *);
 extern DNS_RR *dns_rr_remove(DNS_RR *, DNS_RR *);
+extern DNS_RR *dns_rr_detach(DNS_RR *, DNS_RR *);
 extern int var_dns_rr_list_limit;
 
  /*

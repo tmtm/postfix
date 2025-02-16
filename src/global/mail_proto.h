@@ -32,8 +32,8 @@
 #define MAIL_PROTO_QMQP		"QMQP"
 
  /*
-  * Names of services: these are the names of the UNIX-domain socket or
-  * FIFO that a service listens on.
+  * Names of services: these are the names of the UNIX-domain socket or FIFO
+  * that a service listens on.
   */
 #define MAIL_SERVICE_BOUNCE	"bounce"
 #define MAIL_SERVICE_CLEANUP	"cleanup"
@@ -260,6 +260,8 @@ extern char *mail_pathname(const char *, const char *);
 #define MAIL_ATTR_ORG_NONE	"unknown"	/* origin unknown */
 #define MAIL_ATTR_ORG_LOCAL	"local"	/* local submission */
 
+#define MAIL_ATTR_MESSAGE_ID	"message_id"	/* Used for threaded bounce */
+
  /*
   * XCLIENT/XFORWARD in SMTP.
   */
@@ -306,7 +308,7 @@ extern char *mail_pathname(const char *, const char *);
 #define MAIL_ATTR_DSN_RET	"ret_flags"	/* dsn full/headers */
 #define MAIL_ATTR_DSN_NOTIFY	"notify_flags"	/* dsn notify flags */
 #define MAIL_ATTR_DSN_ORCPT	"dsn_orig_rcpt"	/* dsn original recipient */
-#define MAIL_ATTR_SMTPUTF8	"smtputf8"	/* RFC6531 support */
+#define MAIL_ATTR_SENDOPTS	"sendopts"	/* RFC6531 etc. support */
 
  /*
   * SMTP reply footer support.
@@ -327,6 +329,9 @@ extern char *mail_pathname(const char *, const char *);
 /*	Google, Inc.
 /*	111 8th Avenue
 /*	New York, NY 10011, USA
+/*
+/*	Wietse Venema
+/*	porcupine.org
 /*--*/
 
 #endif

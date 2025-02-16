@@ -1,5 +1,5 @@
 <!doctype html public "-//W3C//DTD HTML 4.01 Transitional//EN"
-        "http://www.w3.org/TR/html4/loose.dtd">
+        "https://www.w3.org/TR/html4/loose.dtd">
 <html> <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <link rel='stylesheet' type='text/css' href='postfix-doc.css'>
@@ -7,15 +7,15 @@
 </head> <body> <pre>
 MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
 
-<b>NAME</b>
+<b><a name="name">NAME</a></b>
        mysql_table - Postfix MySQL client configuration
 
-<b>SYNOPSIS</b>
+<b><a name="synopsis">SYNOPSIS</a></b>
        <b>postmap -q "</b><i>string</i><b>" <a href="mysql_table.5.html">mysql</a>:/etc/postfix/</b><i>filename</i>
 
        <b>postmap -q - <a href="mysql_table.5.html">mysql</a>:/etc/postfix/</b><i>filename</i> &lt;<i>inputfile</i>
 
-<b>DESCRIPTION</b>
+<b><a name="description">DESCRIPTION</a></b>
        The  Postfix  mail system uses optional tables for address rewriting or
        mail routing. These tables are usually in <b>dbm</b> or <b>db</b> format.
 
@@ -27,7 +27,7 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
        The file /etc/postfix/mysql-aliases.cf has the same format as the Post-
        fix <a href="postconf.5.html">main.cf</a> file, and can specify the parameters described below.
 
-<b>LIST MEMBERSHIP</b>
+<b><a name="list_membership">LIST MEMBERSHIP</a></b>
        When  using  SQL  to  store  lists such as $<a href="postconf.5.html#mynetworks">mynetworks</a>, $<a href="postconf.5.html#mydestination">mydestination</a>,
        $<a href="postconf.5.html#relay_domains">relay_domains</a>, $<a href="postconf.5.html#local_recipient_maps">local_recipient_maps</a>, etc., it is important to  under-
        stand that the table must store each list member as a separate key. The
@@ -41,7 +41,7 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
        value.  With  SQL databases it is not uncommon to return the key itself
        or a constant value.
 
-<b>MYSQL PARAMETERS</b>
+<b><a name="mysql_parameters">MYSQL PARAMETERS</a></b>
        <b>hosts</b>  The hosts that Postfix will try to connect to  and  query  from.
               Specify <i>unix:</i> for UNIX domain sockets, <i>inet:</i> for TCP connections
               (default).  Examples:
@@ -60,6 +60,12 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
               socket.  In order to instruct MySQL to connect to localhost over
               TCP you have to specify
                   hosts = 127.0.0.1
+
+              NOTE:  if  the  <b>hosts</b>  setting specifies one server, this client
+              assumes that the target is a load balancer  and  will  reconnect
+              immediately  after  a  single  failure,  instead  of failing all
+              requests temporarily. With older versions of this client,  spec-
+              ify the same server twice.
 
        <b>user</b>
 
@@ -89,6 +95,12 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
        <b>retry_interval (default: 60)</b>
               The number of seconds that a database connection will be skipped
               after an error.
+
+              NOTE:  if  the  <b>hosts</b>  setting specifies one server, this client
+              assumes that the target is a load balancer  and  will  reconnect
+              immediately  after  a  single  failure,  instead  of failing all
+              requests temporarily. With older versions of this client,  spec-
+              ify the same server twice.
 
               This feature is available in Postfix 3.9 and later.
 
@@ -252,6 +264,11 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
 
               This parameter is available with Postfix 3.2 and later.
 
+<b><a name="tls-related_settings">TLS-RELATED SETTINGS</a></b>
+       See      <a href="https://dev.mysql.com/doc/c-api/en/mysql-options.html">https://dev.mysql.com/doc/c-api/en/mysql-options.html</a>       or
+       <a href="https://mariadb.com/kb/en/mysql_optionsv/">https://mariadb.com/kb/en/mysql_optionsv/</a> for details of the underlying
+       MYSQL_OPT_SSL_* features.
+
        <b>tls_cert_file</b>
               File containing client's X509 certificate.
 
@@ -263,7 +280,7 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
               This parameter is available with Postfix 2.11 and later.
 
        <b>tls_CAfile</b>
-              File  containing  certificates for all of the X509 Certification
+              File  containing  X509 certificates for all of the Certification
               Authorities the client will recognize.   Takes  precedence  over
               <b>tls_CApath</b>.
 
@@ -286,7 +303,7 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
 
               This parameter is available with Postfix 2.11 and later.
 
-<b>USING MYSQL STORED PROCEDURES</b>
+<b><a name="using_mysql_stored_procedures">USING MYSQL STORED PROCEDURES</a></b>
        Postfix  3.2  and  later  support calling a stored procedure instead of
        using a SELECT statement in the query, e.g.
 
@@ -329,7 +346,7 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
        in  <a href="postconf.5.html">main.cf</a>,  which  is normally world-readable.  Support for this form
        will be removed in a future Postfix version.
 
-<b>OBSOLETE QUERY INTERFACE</b>
+<b><a name="obsolete_query_interface">OBSOLETE QUERY INTERFACE</a></b>
        This section describes an interface that is deprecated  as  of  Postfix
        2.2.  It  is  replaced  by  the  more general <b>query</b> interface described
        above. If  the  <b>query</b>  parameter  is  defined,  the  legacy  parameters
@@ -363,21 +380,21 @@ MYSQL_TABLE(5)                                                  MYSQL_TABLE(5)
               Additional conditions to the SQL query. Example:
                   <b>additional_conditions</b> = AND status = 'paid'
 
-<b>SEE ALSO</b>
+<b><a name="see_also">SEE ALSO</a></b>
        <a href="postmap.1.html">postmap(1)</a>, Postfix lookup table maintenance
        <a href="postconf.5.html">postconf(5)</a>, configuration parameters
        <a href="ldap_table.5.html">ldap_table(5)</a>, LDAP lookup tables
        <a href="pgsql_table.5.html">pgsql_table(5)</a>, PostgreSQL lookup tables
        <a href="sqlite_table.5.html">sqlite_table(5)</a>, SQLite lookup tables
 
-<b>README FILES</b>
+<b><a name="readme_files">README FILES</a></b>
        <a href="DATABASE_README.html">DATABASE_README</a>, Postfix lookup table overview
        <a href="MYSQL_README.html">MYSQL_README</a>, Postfix MYSQL client guide
 
-<b>LICENSE</b>
+<b><a name="license">LICENSE</a></b>
        The Secure Mailer license must be distributed with this software.
 
-<b>HISTORY</b>
+<b><a name="history">HISTORY</a></b>
        MySQL support was introduced with Postfix version 1.0.
 
 <b>AUTHOR(S)</b>

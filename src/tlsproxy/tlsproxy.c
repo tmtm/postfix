@@ -123,8 +123,8 @@
 /* .PP
 /*	Available in Postfix version 3.2 and later:
 /* .IP "\fBtls_eecdh_auto_curves (see 'postconf -d' output)\fR"
-/*	The prioritized list of elliptic curves supported by the Postfix
-/*	SMTP client and server.
+/*	The prioritized list of elliptic curves, that should be enabled in the
+/*	Postfix SMTP client and server.
 /* .PP
 /*	Available in Postfix version 3.4 and later:
 /* .IP "\fBtls_server_sni_maps (empty)\fR"
@@ -426,6 +426,7 @@
 #define TLS_INTERNAL			/* XXX */
 #include <tls.h>
 #include <tls_proxy.h>
+#include <tlsrpt_wrapper.h>
 
  /*
   * Application-specific.
@@ -731,6 +732,20 @@ static int tlsp_eval_tls_error(TLSP_STATE *state, int err)
 	    state->flags |= TLSP_FLAG_NO_MORE_CIPHERTEXT_IO;
 	    return (TLSP_STAT_OK);
 	}
+
+	/*
+	 * Report a generic failure only if a more specific failure wasn't
+	 * already reported.
+	 */
+#ifdef USE_TLSRPT
+	if (state->is_server_role == 0
+	    && (state->flags & TLSP_FLAG_DO_HANDSHAKE)
+	    && state->client_start_props->tlsrpt)
+	    trw_report_failure(state->client_start_props->tlsrpt,
+			       TLSRPT_VALIDATION_FAILURE,
+			        /* additional_info= */ (char *) 0,
+			       "tls-handshake-failure");
+#endif
 	tlsp_state_free(state);
 	return (TLSP_STAT_ERR);
     }

@@ -172,6 +172,7 @@
 /*	RFC 6531 (Internationalized SMTP)
 /*	RFC 6533 (Internationalized Delivery Status Notifications)
 /*	RFC 7672 (SMTP security via opportunistic DANE TLS)
+/*	RFC 8689 (TLS-Required message header)
 /* DIAGNOSTICS
 /*	Problems and transactions are logged to \fBsyslogd\fR(8)
 /*	or \fBpostlogd\fR(8).
@@ -593,7 +594,8 @@
 /*	Available in Postfix version 3.0 and later:
 /* .IP "\fBsmtp_tls_wrappermode (no)\fR"
 /*	Request that the Postfix SMTP client connects using the
-/*	SUBMISSIONS/SMTPS protocol instead of using the STARTTLS command.
+/*	SUBMISSIONS (formerly called SMTPS) protocol instead of using the
+/*	STARTTLS command.
 /* .PP
 /*	Available in Postfix version 3.1 and later:
 /* .IP "\fBsmtp_tls_dane_insecure_mx_policy (dane)\fR"
@@ -603,8 +605,8 @@
 /* .PP
 /*	Available in Postfix version 3.2 and later:
 /* .IP "\fBtls_eecdh_auto_curves (see 'postconf -d' output)\fR"
-/*	The prioritized list of elliptic curves supported by the Postfix
-/*	SMTP client and server.
+/*	The prioritized list of elliptic curves, that should be enabled in the
+/*	Postfix SMTP client and server.
 /* .PP
 /*	Available in Postfix version 3.4 and later:
 /* .IP "\fBsmtp_tls_connection_reuse (no)\fR"
@@ -638,6 +640,20 @@
 /* .IP "\fBsmtp_tls_enable_rpk (no)\fR"
 /*	Request that remote SMTP servers send an RFC7250 raw public key
 /*	instead of an X.509 certificate.
+/* .PP
+/*	Available in Postfix version 3.10 and later:
+/* .IP "\fBsmtp_tlsrpt_enable (no)\fR"
+/*	Enable support for RFC 8460 TLSRPT notifications.
+/* .IP "\fBsmtp_tlsrpt_socket_name (empty)\fR"
+/*	The pathname of a UNIX-domain datagram socket that is managed
+/*	by a local TLSRPT reporting service.
+/* .IP "\fBsmtp_tlsrpt_skip_reused_handshakes (yes)\fR"
+/*	Do not report the TLSRPT status for TLS protocol handshakes
+/*	that reuse a previously-negotiated TLS session (there is no new
+/*	information to report).
+/* .IP "\fBtls_required_enable (yes)\fR"
+/*	Enable support for the "TLS-Required: no" message header, defined
+/*	in RFC 8689.
 /* OBSOLETE STARTTLS CONTROLS
 /* .ad
 /* .fi
@@ -820,7 +836,7 @@
 /*	request before it is terminated by a built-in watchdog timer.
 /* .IP "\fBdelay_logging_resolution_limit (2)\fR"
 /*	The maximal number of digits after the decimal point when logging
-/*	sub-second delay values.
+/*	delay values.
 /* .IP "\fBdisable_dns_lookups (no)\fR"
 /*	Disable DNS lookups in the Postfix SMTP and LMTP clients.
 /* .IP "\fBinet_interfaces (all)\fR"
@@ -1146,6 +1162,9 @@ int     var_smtp_min_data_rate;
 char   *var_use_srv_lookup;
 bool    var_ign_srv_lookup_err;
 bool    var_allow_srv_fallback;
+bool    var_smtp_tlsrpt_enable;
+char   *var_smtp_tlsrpt_sockname;
+bool    var_smtp_tlsrpt_skip_reused_hs;
 
  /* Special handling of 535 AUTH errors. */
 char   *var_smtp_sasl_auth_cache_name;
@@ -1399,7 +1418,23 @@ static void post_init(char *unused_name, char **argv)
 	var_disable_dns = (smtp_dns_support == SMTP_DNS_DISABLED);
     }
 
+#if !defined(USE_TLS) || !defined(USE_TLSRPT)
+    if (var_smtp_tlsrpt_enable)
+	msg_warn("TLSRPT is selected, but TLSRPT is not compiled in");
+#endif
 #ifdef USE_TLS
+#ifdef USE_TLSRPT
+    if (var_smtp_tlsrpt_enable) {
+	if (smtp_mode) {
+	    if (smtp_tlsrpt_post_jail(VAR_SMTP_TLSRPT_SOCKNAME,
+				      var_smtp_tlsrpt_sockname) < 0)
+		var_smtp_tlsrpt_enable = 0;
+	} else {
+	    msg_warn("TLSRPT support is not implemented for LMTP");
+	    var_smtp_tlsrpt_enable = 0;
+	}
+    }
+#endif						/* USE_TLSRPT */
     if (smtp_mode) {
 	smtp_tls_insecure_mx_policy =
 	    tls_level_lookup(var_smtp_tls_insecure_mx_policy);

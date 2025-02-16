@@ -66,6 +66,12 @@
 # .nf
 #	    hosts = 127.0.0.1
 # .fi
+#
+#	NOTE: if the \fBhosts\fR setting specifies one server, this client
+#	assumes that the target is a load balancer and will reconnect
+#	immediately after a single failure, instead of failing all
+#	requests temporarily. With older versions of this client,
+#	specify the same server twice.
 # .IP "\fBuser\fR"
 # .IP "\fBpassword\fR"
 #	The user name and password to log into the mysql server.
@@ -95,6 +101,12 @@
 # .IP "\fBretry_interval (default: 60)\fR"
 #	The number of seconds that a database connection will be
 #	skipped after an error.
+#
+#	NOTE: if the \fBhosts\fR setting specifies one server, this client
+#	assumes that the target is a load balancer and will reconnect
+#	immediately after a single failure, instead of failing all
+#	requests temporarily. With older versions of this client,
+#	specify the same server twice.
 #
 #	This feature is available in Postfix 3.9 and later.
 # .IP "\fBquery\fR"
@@ -261,6 +273,12 @@
 #	"not found".
 # .sp
 #	This parameter is available with Postfix 3.2 and later.
+# TLS-RELATED SETTINGS
+# .ad
+# .fi
+#	See https://dev.mysql.com/doc/c-api/en/mysql-options.html
+#	or https://mariadb.com/kb/en/mysql_optionsv/ for details of
+#	the underlying MYSQL_OPT_SSL_* features.
 # .IP "\fBtls_cert_file\fR"
 #	File containing client's X509 certificate.
 # .sp
@@ -270,7 +288,7 @@
 # .sp
 #	This parameter is available with Postfix 2.11 and later.
 # .IP "\fBtls_CAfile\fR"
-#	File containing certificates for all of the X509 Certification
+#	File containing X509 certificates for all of the Certification
 #	Authorities the client will recognize.  Takes precedence over
 #	\fBtls_CApath\fR.
 # .sp

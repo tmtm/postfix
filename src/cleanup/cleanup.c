@@ -28,7 +28,7 @@
 /* .IP \(bu
 /*	Eliminate duplicate envelope recipient addresses.
 /* .br
-/*	This is enabled with the \fBduplicate_filter_limit\fR 
+/*	This is enabled with the \fBduplicate_filter_limit\fR
 /*	parameter setting.
 /* .IP \(bu
 /*	Remove message headers: \fBBcc\fR, \fBContent-Length\fR,
@@ -70,6 +70,7 @@
 /*	RFC 3463 (Enhanced Status Codes)
 /*	RFC 3464 (Delivery status notifications)
 /*	RFC 5322 (Internet Message Format)
+/*	RFC 8689 (TLS-Required: message header)
 /* DIAGNOSTICS
 /*	Problems and transactions are logged to \fBsyslogd\fR(8)
 /*	or \fBpostlogd\fR(8).
@@ -109,13 +110,24 @@
 /*	Available in Postfix version 2.9 and later:
 /* .IP "\fBenable_long_queue_ids (no)\fR"
 /*	Enable long, non-repeating, queue IDs (queue file names).
+/* HEADER FORMATTING CONTROLS
+/* .ad
+/* .fi
 /* .PP
 /*	Available in Postfix version 3.0 and later:
 /* .IP "\fBmessage_drop_headers (bcc, content-length, resent-bcc, return-path)\fR"
 /*	Names of message headers that the \fBcleanup\fR(8) daemon will remove
 /*	after applying \fBheader_checks\fR(5) and before invoking Milter applications.
+/* .PP
+/*	Available in Postfix version 3.3 and later:
 /* .IP "\fBheader_from_format (standard)\fR"
 /*	The format of the Postfix-generated \fBFrom:\fR header.
+/* .PP
+/*	Available in Postfix version 3.10 and later:
+/* .IP "\fBfull_name_encoding_charset (utf-8)\fR"
+/*	The character set name (also called "charset") that Postfix
+/*	will output when it automatically generates an RFC 2047 encoded
+/*	full name.
 /* BUILT-IN CONTENT FILTERING CONTROLS
 /* .ad
 /* .fi
@@ -303,8 +315,10 @@
 /* .PP
 /*	Available in Postfix version 2.0 and later:
 /* .IP "\fBvirtual_alias_maps ($virtual_maps)\fR"
-/*	Optional lookup tables with aliases that apply to all recipients:
-/*	\fBlocal\fR(8), virtual, and remote; this is unlike alias_maps that apply
+/*	Optional lookup tables that are often searched with a full email
+/*	address (including domain) and that apply to all recipients: \fBlocal\fR(8),
+/*	virtual, and remote; this is unlike alias_maps that are only searched
+/*	with an email address localpart (no domain) and that apply
 /*	only to \fBlocal\fR(8) recipients.
 /* .PP
 /*	Available in Postfix version 2.2 and later:
@@ -377,6 +391,13 @@
 /*	Enable 'transitional' compatibility between IDNA2003 and IDNA2008,
 /*	when converting UTF-8 domain names to/from the ASCII form that is
 /*	used for DNS lookups.
+/* TLS SUPPORT
+/* .ad
+/* .fi
+/*	Available in Postfix version 3.10 and later:
+/* .IP "\fBtls_required_enable (yes)\fR"
+/*	Enable support for the "TLS-Required: no" message header, defined
+/*	in RFC 8689.
 /* MISCELLANEOUS CONTROLS
 /* .ad
 /* .fi
@@ -388,7 +409,7 @@
 /*	request before it is terminated by a built-in watchdog timer.
 /* .IP "\fBdelay_logging_resolution_limit (2)\fR"
 /*	The maximal number of digits after the decimal point when logging
-/*	sub-second delay values.
+/*	delay values.
 /* .IP "\fBdelay_warning_time (0h)\fR"
 /*	The time after which the sender receives a copy of the message
 /*	headers of mail that is still queued.
@@ -479,6 +500,9 @@
 /*	Google, Inc.
 /*	111 8th Avenue
 /*	New York, NY 10011, USA
+/*
+/*	Wietse Venema
+/*	porcupine.org
 /*--*/
 
 /* System library. */

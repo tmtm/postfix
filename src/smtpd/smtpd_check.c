@@ -1016,6 +1016,15 @@ void    log_whatsup(SMTPD_STATE *state, const char *whatsup,
 	vstring_sprintf_append(buf, " proto=%s", state->protocol);
     if (state->helo_name)
 	vstring_sprintf_append(buf, " helo=<%s>", state->helo_name);
+#ifdef USE_SASL_AUTH
+    if (state->sasl_method)
+	vstring_sprintf_append(buf, " sasl_method=%s", state->sasl_method);
+    if (state->sasl_username)
+	vstring_sprintf_append(buf, " sasl_username=%s", state->sasl_username);
+    /* This is safe because state->sasl_sender is xtext-encoded. */
+    if (state->sasl_sender)
+	vstring_sprintf_append(buf, " sasl_sender=%s", state->sasl_sender);
+#endif
     msg_info("%s", STR(buf));
     vstring_free(buf);
 }
@@ -3570,15 +3579,21 @@ static int rbl_reject_reply(SMTPD_STATE *state, const SMTPD_RBL_STATE *rbl,
     /*
      * Use the server-specific reply template or use the default one.
      */
+    rbl_exp.domain = mystrdup(rbl_domain);
+    (void) split_at(rbl_exp.domain, '=');
     if (*var_rbl_reply_maps) {
 	template = maps_find(rbl_reply_maps, rbl_domain, DICT_FLAG_NONE);
-	if (rbl_reply_maps->error)
+	if (template == 0 && rbl_reply_maps->error == 0
+	    && strcmp(rbl_domain, rbl_exp.domain) != 0)
+	    template = maps_find(rbl_reply_maps, rbl_exp.domain,
+				 DICT_FLAG_NONE);
+	if (template == 0 && rbl_reply_maps->error != 0) {
+	    myfree(rbl_exp.domain);
 	    reject_server_error(state);
+	}
     }
     why = vstring_alloc(100);
     rbl_exp.state = state;
-    rbl_exp.domain = mystrdup(rbl_domain);
-    (void) split_at(rbl_exp.domain, '=');
     rbl_exp.what = what;
     rbl_exp.class = reply_class;
     rbl_exp.txt = (rbl->txt == 0 ? "" : rbl->txt);

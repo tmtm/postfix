@@ -119,3 +119,50 @@ proto  proto aliases proto virtual proto ADDRESS_REWRITING_README html
  File tlsmgr tlsmgr c 
  restrictions Files dns dns h dns dns_lookup c dns dns_rr c 
  systems 6 bytes for LP64 File dns dns h 
+ xxfi_unknown return values File smtpd smtpd c 
+ or unimplemented commands File smtpd smtpd c 
+proto  proto mysql_table proto pgsql_table proto ldap_table 
+ File pickup pickup c 
+ a domain File postalias postalias c 
+ File spawn spawn c 
+ an unknown or unimplemented command File smtpd smtpd c 
+ inside more consistent Files proto master pipe pipe c 
+ unimplemented commands in the SMTP server File smtpd smtpd c 
+ cleanup cleanup h cleanup cleanup_extracted c 
+ File postcat postcat c 
+ Files src tls tls h src tls tls_dh c src tls tls_misc c 
+ proto TLSRPT_README html proto postconf proto smtp smtp c 
+ proto aliases cleanup cleanup c local local c smtpd smtpd c 
+ bounce bounce_one_service c cleanup cleanup c 
+ dns dns h dns dns_lookup c dns dns_rr_filter c dns dns_sec c 
+ local command c master master c master master h 
+ pipe pipe c postfix postfix c postscreen postscreen_dnsbl c 
+ qmgr qmgr_entry c qmqpd qmqpd_peer c smtp smtp h 
+ Piekert File tlsproxy tlsproxy c
+ dns dns h examples smtpd policy README SPF html index html 
+ postfix postfix c proto ADDRESS_CLASS_README html 
+proto  proto socketmap_table qmqpd qmqpd c tls tls_misc c 
+ proto socketmap_table qmqpd qmqpd c tls tls_misc c 
+ a dependency for html html File html Makefile in 
+ master dgram_server c master mail_server h postlogd postlogd c 
+ reload etc File spawn spawn c 
+ proto postconf proto cleanup cleanup c cleanup cleanup_init c 
+ logging to the standard error stream File postlog postlog c 
+ Files mantools postlink proto postconf proto cleanup cleanup c 
+ many errors I O timeout lost connection File smtpd smtpd c 
+ that is unknown or known but disabled File smtpd smtpd c 
+proto  proto socketmap_table 
+ Files bounce bounce c bounce bounce_notify_service c 
+ cleanup cleanup h cleanup cleanup_addr c cleanup cleanup_api c 
+ local forward c local local c local local h oqmgr qmgr h 
+ pickup pickup c qmgr qmgr h qmgr qmgr_active c 
+ qmgr qmgr_deliver c qmgr qmgr_message c qmqpd qmqpd c 
+ smtp smtp_proto c smtpd smtpd c verify verify c 
+ operations Files cleanup cleanup h cleanup cleanup_message c 
+ proto postconf proto pipe pipe c 
+ bounce bounce c bounce bounce_notify_util c cleanup cleanup c 
+ cleanup cleanup_message c smtp smtp c smtp smtp_connect c 
+ Documentation edited for clarity Files pipe pipe c 
+ global mail_params h smtpd smtpd c 
+ global mail_params h proto postconf proto smtp smtp c 
+ proto postconf proto proto TLS_README html 

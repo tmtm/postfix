@@ -3399,23 +3399,27 @@ extern char *var_tls_null_clist;
 #else
 #define DEF_TLS_EECDH_AUTO_1 ""
 #endif
+
 #if defined(SN_X448) && defined(NID_X448)
 #define DEF_TLS_EECDH_AUTO_2 SN_X448 " "
 #else
 #define DEF_TLS_EECDH_AUTO_2 ""
 #endif
+
 #if defined(SN_X9_62_prime256v1) && defined(NID_X9_62_prime256v1)
 #define DEF_TLS_EECDH_AUTO_3 SN_X9_62_prime256v1 " "
 #else
 #define DEF_TLS_EECDH_AUTO_3 ""
 #endif
-#if defined(SN_secp521r1) && defined(NID_secp521r1)
-#define DEF_TLS_EECDH_AUTO_4 SN_secp521r1 " "
+
+#if defined(SN_secp384r1) && defined(NID_secp384r1)
+#define DEF_TLS_EECDH_AUTO_4 SN_secp384r1 " "
 #else
 #define DEF_TLS_EECDH_AUTO_4 ""
 #endif
-#if defined(SN_secp384r1) && defined(NID_secp384r1)
-#define DEF_TLS_EECDH_AUTO_5 SN_secp384r1
+
+#if defined(SN_secp521r1) && defined(NID_secp521r1)
+#define DEF_TLS_EECDH_AUTO_5 SN_secp521r1 " "
 #else
 #define DEF_TLS_EECDH_AUTO_5 ""
 #endif
@@ -4373,6 +4377,13 @@ extern char *var_smtputf8_autoclass;
 extern int var_idna2003_compat;
 
  /*
+  * REQUIRETLS support (RFC 8689).
+  */
+#define VAR_TLSREQUIRED_ENABLE		"tls_required_enable"
+#define DEF_TLSREQUIRED_ENABLE		"yes"
+extern int var_tls_required_enable;
+
+ /*
   * Workaround for future incompatibility. Our implementation of RFC 2308
   * negative reply caching relies on the promise that res_query() and
   * res_search() invoke res_send(), which returns the server response in an
@@ -4455,6 +4466,49 @@ extern bool var_ign_srv_lookup_err;
 #define DEF_ALLOW_SRV_FALLBACK	0
 extern bool var_allow_srv_fallback;
 
+ /*
+  * TLSRPT notification support. The lmtp_ names must be defined because the
+  * build system enforces that every smtp_ parameter has an lmtp_ variant.
+  */
+#define VAR_SMTP_TLSRPT_ENABLE	"smtp_tlsrpt_enable"
+#define DEF_SMTP_TLSRPT_ENABLE	"no"
+#define VAR_LMTP_TLSRPT_ENABLE	"lmtp_tlsrpt_enable"
+#define DEF_LMTP_TLSRPT_ENABLE	DEF_SMTP_TLSRPT_ENABLE
+extern bool var_smtp_tlsrpt_enable;
+
+#define VAR_SMTP_TLSRPT_SOCKNAME "smtp_tlsrpt_socket_name"
+#define DEF_SMTP_TLSRPT_SOCKNAME ""
+#define VAR_LMTP_TLSRPT_SOCKNAME "lmtp_tlsrpt_socket_name"
+#define DEF_LMTP_TLSRPT_SOCKNAME DEF_SMTP_TLSRPT_SOCKNAME
+extern char *var_smtp_tlsrpt_sockname;
+
+#define VAR_SMTP_TLSRPT_SKIP_REUSED_HS	"smtp_tlsrpt_skip_reused_handshakes"
+#define DEF_SMTP_TLSRPT_SKIP_REUSED_HS	"yes"
+#define VAR_LMTP_TLSRPT_SKIP_REUSED_HS	"lmtp_tlsrpt_skip_reused_handshakes"
+#define DEF_LMTP_TLSRPT_SKIP_REUSED_HS	DEF_SMTP_TLSRPT_SKIP_REUSED_HS
+extern int var_smtp_tlsrpt_skip_reused_hs;
+
+ /*
+  * RFC 2047 encoding of full name info.
+  */
+#define VAR_FULL_NAME_ENCODING_CHARSET	"full_name_encoding_charset"
+#define DEF_FULL_NAME_ENCODING_CHARSET	"utf-8"
+extern char *var_full_name_encoding_charset;
+
+ /*
+  * Limit for the sockmap reply size
+  */
+#define VAR_SOCKMAP_MAX_REPLY  "socketmap_max_reply_size"
+#define DEF_SOCKMAP_MAX_REPLY  100000	/* reply size limit */
+extern int var_sockmap_max_reply;
+
+ /*
+  * Client privacy.
+  */
+#define VAR_SMTPD_HIDE_CLIENT_SESSION	"smtpd_hide_client_session"
+#define DEF_SMTPD_HIDE_CLIENT_SESSION	"no"
+extern int var_smtpd_hide_client_session;
+
 /* LICENSE
 /* .ad
 /* .fi
@@ -4469,6 +4523,9 @@ extern bool var_allow_srv_fallback;
 /*	Google, Inc.
 /*	111 8th Avenue
 /*	New York, NY 10011, USA
+/*
+/*	Wietse Venema
+/*	porcupine.org
 /*--*/
 
 #endif

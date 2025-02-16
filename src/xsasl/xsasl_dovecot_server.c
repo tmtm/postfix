@@ -124,7 +124,7 @@ static const NAME_MASK xsasl_dovecot_conf_sec_props[] = {
 
  /*
   * Security properties as specified in the Dovecot protocol. See
-  * http://wiki.dovecot.org/Authentication_Protocol.
+  * https://doc.dovecot.org/2.3/developer_manual/design/auth_protocol/
   */
 static const NAME_MASK xsasl_dovecot_serv_sec_props[] = {
     "plaintext", SEC_PROPS_NOPLAINTEXT,
@@ -660,7 +660,9 @@ int     xsasl_dovecot_server_first(XSASL_SERVER *xp, const char *sasl_method,
 
     for (cpp = server->mechanism_argv->argv; /* see below */ ; cpp++) {
 	if (*cpp == 0) {
-	    vstring_strcpy(reply, "Invalid authentication mechanism");
+	    vstring_sprintf(reply, "Invalid authentication mechanism: '%s'",
+			    sasl_method);
+	    printable(vstring_str(reply), '?');
 	    return XSASL_AUTH_FAIL;
 	}
 	if (strcasecmp(sasl_method, *cpp) == 0)

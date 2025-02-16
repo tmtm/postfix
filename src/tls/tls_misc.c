@@ -1051,7 +1051,15 @@ void    tls_get_signature_params(TLS_SESS_STATE *TLScontext)
     if (SSL_version(ssl) < TLS1_3_VERSION)
 	return;
 
-    if (tls_get_peer_dh_pubkey(ssl, &dh_pkey)) {
+    /*
+     * On the client side, a TLS 1.3 KEM has no server key, just ciphertext
+     * to decapsulate, but, as of OpenSSL 3.0, the client can still obtain
+     * the negotiated group name directly.
+     */
+    if (!kex_name)
+	kex_name = TLS_GROUP_NAME(ssl);
+
+    if (kex_name == NULL && tls_get_peer_dh_pubkey(ssl, &dh_pkey)) {
 	switch (nid = EVP_PKEY_id(dh_pkey)) {
 	default:
 	    kex_name = OBJ_nid2sn(EVP_PKEY_type(nid));
@@ -1060,6 +1068,7 @@ void    tls_get_signature_params(TLS_SESS_STATE *TLScontext)
 #if defined(EVP_PKEY_KEYMGMT)
 	case EVP_PKEY_KEYMGMT:
 	    kex_name = EVP_PKEY_get0_type_name(dh_pkey);
+	    TLScontext->kex_bits = 0;
 	    break;
 #endif
 
@@ -1260,10 +1269,10 @@ void    tls_log_summary(TLS_ROLE role, TLS_USAGE usage, TLS_SESS_STATE *ctx)
 			       ctx->srvr_sig_name);
 	if (ctx->srvr_sig_curve && *ctx->srvr_sig_curve)
 	    vstring_sprintf_append(msg, " (%s%s)", ctx->srvr_sig_curve,
-	                           ctx->stoc_rpk ? " raw public key" : "");
+				   ctx->stoc_rpk ? " raw public key" : "");
 	else if (ctx->srvr_sig_bits > 0)
 	    vstring_sprintf_append(msg, " (%d bit%s)", ctx->srvr_sig_bits,
-	                           ctx->stoc_rpk ? " raw public key" : "s");
+				   ctx->stoc_rpk ? " raw public key" : "s");
 	else if (ctx->stoc_rpk)
 	    vstring_sprintf_append(msg, " (raw public key)");
 	if (ctx->srvr_sig_dgst && *ctx->srvr_sig_dgst)
@@ -1275,10 +1284,10 @@ void    tls_log_summary(TLS_ROLE role, TLS_USAGE usage, TLS_SESS_STATE *ctx)
 			       ctx->clnt_sig_name);
 	if (ctx->clnt_sig_curve && *ctx->clnt_sig_curve)
 	    vstring_sprintf_append(msg, " (%s%s)", ctx->clnt_sig_curve,
-	                           ctx->ctos_rpk ? " raw public key" : "");
+				   ctx->ctos_rpk ? " raw public key" : "");
 	else if (ctx->clnt_sig_bits > 0)
 	    vstring_sprintf_append(msg, " (%d bit%s)", ctx->clnt_sig_bits,
-	                           ctx->ctos_rpk ? " raw public key" : "s");
+				   ctx->ctos_rpk ? " raw public key" : "s");
 	else if (ctx->ctos_rpk)
 	    vstring_sprintf_append(msg, " (raw public key)");
 	if (ctx->clnt_sig_dgst && *ctx->clnt_sig_dgst)
@@ -1338,7 +1347,7 @@ TLS_SESS_STATE *tls_alloc_sess_context(int log_mask, const char *namaddr)
      * explicit assignments to initialize pointers.
      * 
      * See the C language FAQ item 5.17, or if you have time to burn,
-     * http://www.google.com/search?q=zero+bit+null+pointer
+     * https://www.google.com/search?q=zero+bit+null+pointer
      * 
      * However, it's OK to use memset() to zero integer values.
      */
@@ -1371,6 +1380,8 @@ TLS_SESS_STATE *tls_alloc_sess_context(int log_mask, const char *namaddr)
     TLScontext->errordepth = -1;
     TLScontext->errorcode = X509_V_OK;
     TLScontext->errorcert = 0;
+    TLScontext->rpt_reported = 0;
+    TLScontext->ffail_type = 0;
 
     return (TLScontext);
 }
@@ -1421,6 +1432,8 @@ void    tls_free_context(TLS_SESS_STATE *TLScontext)
 	myfree((void *) TLScontext->srvr_sig_dgst);
     if (TLScontext->errorcert)
 	X509_free(TLScontext->errorcert);
+    if (TLScontext->ffail_type)
+	myfree(TLScontext->ffail_type);
 
     myfree((void *) TLScontext);
 }
@@ -1458,20 +1471,29 @@ void    tls_check_version(void)
 {
     TLS_VINFO hdr_info;
     TLS_VINFO lib_info;
+    int     warn_compat = 0;
 
     tls_version_split(OPENSSL_VERSION_NUMBER, &hdr_info);
     tls_version_split(OpenSSL_version_num(), &lib_info);
 
     /*
      * Warn if run-time library is different from compile-time library,
-     * allowing later run-time "micro" versions starting with 1.1.0.
+     * allowing later run-time "micro" versions starting with 1.1.0, and
+     * later minor numbers starting with 3.0.0.
      */
-    if (lib_info.major != hdr_info.major
-	|| lib_info.minor != hdr_info.minor
-	|| (lib_info.micro != hdr_info.micro
-	    && (lib_info.micro < hdr_info.micro
-		|| hdr_info.major == 0
-		|| (hdr_info.major == 1 && hdr_info.minor == 0))))
+    if (hdr_info.major >= 3) {
+	warn_compat = lib_info.major != hdr_info.major
+	    || lib_info.minor < hdr_info.minor;
+    } else if (hdr_info.major == 1 && hdr_info.minor != 0) {
+	warn_compat = lib_info.major != hdr_info.major
+	    || lib_info.minor != hdr_info.minor
+	    || lib_info.micro < hdr_info.micro;
+    } else {
+	warn_compat = lib_info.major != hdr_info.major
+	    || lib_info.minor != hdr_info.minor
+	    || lib_info.micro != hdr_info.micro;
+    }
+    if (warn_compat)
 	msg_warn("run-time library vs. compile-time header version mismatch: "
 	     "OpenSSL %d.%d.%d may not be compatible with OpenSSL %d.%d.%d",
 		 lib_info.major, lib_info.minor, lib_info.micro,
