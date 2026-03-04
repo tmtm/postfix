@@ -57,6 +57,7 @@
 /*	RFC 6531 (Internationalized SMTP)
 /*	RFC 6533 (Internationalized Delivery Status Notifications)
 /*	RFC 7505 ("Null MX" No Service Resource Record)
+/*	RFC 8689 (SMTP REQUIRETLS extension)
 /* DIAGNOSTICS
 /*	Problems and transactions are logged to \fBsyslogd\fR(8)
 /*	or \fBpostlogd\fR(8).
@@ -233,7 +234,7 @@
 /*	The mail filter protocol version and optional protocol extensions
 /*	for communication with a Milter application; prior to Postfix 2.6
 /*	the default protocol is 2.
-/* .IP "\fBmilter_default_action (tempfail)\fR"
+/* .IP "\fBmilter_default_action (Postfix >= 3.11: shutdown; Postfix < 3.11: tempfail)\fR"
 /*	The default action when a Milter (mail filter) response is
 /*	unavailable (for example, bad Postfix configuration or Milter
 /*	failure).
@@ -370,7 +371,7 @@
 /* .IP "\fBsmtpd_sasl_mechanism_filter (!external, static:rest)\fR"
 /*	If non-empty, a filter for the SASL mechanism names that the
 /*	Postfix SMTP server will announce in the EHLO response.
-/* STARTTLS SUPPORT CONTROLS
+/* TLS SUPPORT CONTROLS
 /* .ad
 /* .fi
 /*	Detailed information about STARTTLS configuration may be
@@ -544,7 +545,15 @@
 /*	Request that remote SMTP clients send an RFC7250 raw public key
 /*	instead of an X.509 certificate, when asking for or requiring client
 /*	authentication.
-/* OBSOLETE STARTTLS CONTROLS
+/* .PP
+/*	Available in Postfix version 3.11 and later:
+/* .IP "\fBrequiretls_enable (yes)\fR"
+/*	Enable support for the ESMTP verb "REQUIRETLS" in the "MAIL
+/*	FROM" command.
+/* .IP "\fBrequiretls_esmtp_header (yes)\fR"
+/*	Record the ESMTP REQUIRETLS request in a "Require-TLS-ESMTP:
+/*	yes" message header.
+/* OBSOLETE TLS CONTROLS
 /* .ad
 /* .fi
 /*	The following configuration parameters exist for compatibility
@@ -1179,6 +1188,12 @@
 /* .IP "\fBsmtpd_hide_client_session (no)\fR"
 /*	Do not include SMTP client session information in the Postfix
 /*	SMTP server's Received: message header.
+/* .PP
+/*	Available in Postfix version 3.11 and later:
+/* .IP "\fBsmtpd_reject_filter_maps (empty)\fR"
+/*	An optional filter that can replace a reject response from the
+/*	Postfix SMTP server itself, or from a program that replies through
+/*	the Postfix SMTP server.
 /* SEE ALSO
 /*	anvil(8), connection/rate limiting
 /*	cleanup(8), message canonicalization
@@ -1382,16 +1397,16 @@ int     var_map_reject_code;
 int     var_map_defer_code;
 char   *var_maps_rbl_domains;
 char   *var_rbl_reply_maps;
-int     var_helo_required;
+bool    var_helo_required;
 int     var_reject_code;
 int     var_defer_code;
 int     var_smtpd_err_sleep;
 int     var_non_fqdn_code;
 char   *var_bounce_rcpt;
 char   *var_error_rcpt;
-int     var_smtpd_delay_reject;
+bool    var_smtpd_delay_reject;
 char   *var_rest_classes;
-int     var_strict_rfc821_env;
+bool    var_strict_rfc821_env;
 bool    var_disable_vrfy_cmd;
 char   *var_canonical_maps;
 char   *var_send_canon_maps;
@@ -1436,7 +1451,7 @@ int     var_virt_alias_code;
 int     var_virt_mailbox_code;
 int     var_relay_rcpt_code;
 char   *var_verp_clients;
-int     var_show_unk_rcpt_table;
+bool    var_show_unk_rcpt_table;
 int     var_verify_poll_count;
 int     var_verify_poll_delay;
 char   *var_smtpd_proxy_filt;
@@ -1478,6 +1493,7 @@ bool    var_smtpd_tls_auth_only;
 char   *var_smtpd_cmd_filter;
 char   *var_smtpd_rej_footer;
 char   *var_smtpd_rej_ftr_maps;
+char   *var_smtpd_reject_filter_maps;
 char   *var_smtpd_acl_perm_log;
 char   *var_smtpd_dns_re_filter;
 
@@ -1510,7 +1526,7 @@ char   *var_smtpd_tls_eecdh;
 char   *var_smtpd_tls_eccert_file;
 char   *var_smtpd_tls_eckey_file;
 char   *var_smtpd_tls_chain_files;
-int     var_smtpd_tls_enable_rpk;
+bool    var_smtpd_tls_enable_rpk;
 
 #endif
 
@@ -1564,6 +1580,7 @@ int     var_smtpd_forbid_bare_lf_code;
 static int bare_lf_mask;
 static NAMADR_LIST *bare_lf_excl;
 bool    var_smtpd_hide_client_session;
+bool    var_reqtls_esmtp_hdr;
 
  /*
   * Silly little macros.
@@ -2105,6 +2122,11 @@ static int ehlo_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	EHLO_APPEND(state, "SMTPUTF8");
     if ((discard_mask & EHLO_MASK_CHUNKING) == 0)
 	EHLO_APPEND(state, "CHUNKING");
+#ifdef USE_TLS
+    if (var_reqtls_enable && (discard_mask & EHLO_MASK_REQTLS) == 0
+	&& state->tls_context != 0)
+	EHLO_APPEND(state, "REQUIRETLS");
+#endif
 
     /*
      * Send the reply.
@@ -2181,16 +2203,25 @@ static int mail_open_stream(SMTPD_STATE *state)
     /*
      * Connect to the before-queue filter when one is configured. The MAIL
      * FROM and RCPT TO commands are forwarded as received (including DSN
-     * attributes), with the exception that the before-filter smtpd process
-     * handles all authentication, encryption, access control and relay
-     * control, and that the before-filter smtpd process does not forward
-     * blocked commands. If the after-filter smtp server does not support
-     * some of Postfix's ESMTP features, then they must be turned off in the
-     * before-filter smtpd process with the smtpd_discard_ehlo_keywords
-     * feature.
+     * attributes), with the following exceptions:
+     * 
+     * - No forwarding of the REQUIRETLS VERB in MAIL FROM.
+     * 
+     * - The before-filter smtpd process handles all authentication, encryption,
+     * access control and relay control.
+     * 
+     * - The before-filter smtpd process does not forward blocked commands.
+     * 
+     * If the after-filter smtp server does not support some of Postfix's ESMTP
+     * features, then they must be turned off in the before-filter smtpd
+     * process with the smtpd_discard_ehlo_keywords feature.
      */
     if (state->proxy_mail) {
-	if (smtpd_proxy_create(state, smtpd_proxy_opts, var_smtpd_proxy_filt,
+	int     message_proxy_opts = smtpd_proxy_opts;
+
+	if ((state->flags & SMTPD_FLAG_REQTLS) && var_reqtls_esmtp_hdr)
+	    message_proxy_opts |= SMTPD_PROXY_FLAG_REQTLS_HDR;
+	if (smtpd_proxy_create(state, message_proxy_opts, var_smtpd_proxy_filt,
 			       var_smtpd_proxy_tmout, var_smtpd_proxy_ehlo,
 			       state->proxy_mail) != 0) {
 	    smtpd_chat_reply(state, "%s", STR(state->proxy->reply));
@@ -2219,7 +2250,8 @@ static int mail_open_stream(SMTPD_STATE *state)
 	    cleanup_flags |= CLEANUP_FLAG_SMTPUTF8;
 	else
 	    cleanup_flags |= smtputf8_autodetect(MAIL_SRC_MASK_SMTPD);
-	/* TODO(wietse) REQUIRETLS. */
+	if (state->flags & SMTPD_FLAG_REQTLS)
+	    cleanup_flags |= CLEANUP_FLAG_REQTLS;
 	state->dest = mail_stream_service(MAIL_CLASS_PUBLIC,
 					  var_cleanup_service);
 	if (state->dest == 0
@@ -2572,7 +2604,7 @@ static int mail_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
     int     rate;
     int     dsn_envid = 0;
 
-    state->flags &= ~SMTPD_FLAG_SMTPUTF8;
+    state->flags &= ~SMTPD_FLAGS_PER_MESSAGE;
     state->encoding = 0;
     state->dsn_ret = 0;
 
@@ -2679,6 +2711,13 @@ static int mail_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 		   && (state->ehlo_discard_mask & EHLO_MASK_SMTPUTF8) == 0
 		   && strcasecmp(arg, "SMTPUTF8") == 0) {	/* RFC 6531 */
 	     /* Already processed early. */ ;
+#ifdef USE_TLS
+	} else if (var_reqtls_enable
+		   && state->tls_context != 0
+		   && (state->ehlo_discard_mask & EHLO_MASK_REQTLS) == 0
+		   && strcasecmp(arg, "REQUIRETLS") == 0) {	/* RFC 8689 */
+	    state->flags |= SMTPD_FLAG_REQTLS;
+#endif
 #ifdef USE_SASL_AUTH
 	} else if (strncasecmp(arg, "AUTH=", 5) == 0) {
 	    if ((err = smtpd_sasl_mail_opt(state, arg + 5)) != 0) {
@@ -2855,8 +2894,19 @@ static int mail_cmd(SMTPD_STATE *state, int argc, SMTPD_TOKEN *argv)
 	state->verp_delims = mystrdup(verp_delims);
     if (dsn_envid)
 	state->dsn_envid = mystrdup(STR(state->dsn_buf));
-    if (USE_SMTPD_PROXY(state))
+    if (USE_SMTPD_PROXY(state)) {
+	if (state->flags & SMTPD_FLAG_REQTLS) {
+	    vstring_sprintf(state->buffer, "%s %s%s", argv[0].strval,
+			    argv[1].strval, argv[2].strval);
+	    for (narg = 3; narg < argc; narg++) {
+		arg = argv[narg].strval;
+		if (strcasecmp(arg, "REQUIRETLS") == 0)
+		    continue;
+		vstring_sprintf_append(state->buffer, " %s", arg);
+	    }
+	}
 	state->proxy_mail = mystrdup(STR(state->buffer));
+    }
     if (var_smtpd_delay_open == 0 && mail_open_stream(state) < 0) {
 	/* XXX Reset access map side effects. */
 	mail_reset(state);
@@ -6647,9 +6697,9 @@ static void pre_jail_init(char *unused_name, char **unused_argv)
 			      var_smtpd_dns_re_filter);
 
     /*
-     * Reject footer.
+     * Reject filter and footer.
      */
-    if (*var_smtpd_rej_ftr_maps)
+    if (*var_smtpd_rej_ftr_maps || *var_smtpd_reject_filter_maps)
 	smtpd_chat_pre_jail_init();
 }
 
@@ -6813,6 +6863,7 @@ int     main(int argc, char **argv)
 	VAR_RELAY_BEFORE_RCPT_CHECKS, DEF_RELAY_BEFORE_RCPT_CHECKS, &var_relay_before_rcpt_checks,
 	VAR_SMTPD_REQ_DEADLINE, DEF_SMTPD_REQ_DEADLINE, &var_smtpd_req_deadline,
 	VAR_SMTPD_HIDE_CLIENT_SESSION, DEF_SMTPD_HIDE_CLIENT_SESSION, &var_smtpd_hide_client_session,
+	VAR_REQTLS_ESMTP_HDR, DEF_REQTLS_ESMTP_HDR, &var_reqtls_esmtp_hdr,
 	0,
     };
     static const CONFIG_STR_TABLE str_table[] = {
@@ -6923,6 +6974,7 @@ int     main(int argc, char **argv)
 	VAR_SMTPD_POLICY_CONTEXT, DEF_SMTPD_POLICY_CONTEXT, &var_smtpd_policy_context, 0, 0,
 	VAR_SMTPD_DNS_RE_FILTER, DEF_SMTPD_DNS_RE_FILTER, &var_smtpd_dns_re_filter, 0, 0,
 	VAR_SMTPD_REJ_FTR_MAPS, DEF_SMTPD_REJ_FTR_MAPS, &var_smtpd_rej_ftr_maps, 0, 0,
+	VAR_SMTPD_REJECT_FILTER_MAPS, DEF_SMTPD_REJECT_FILTER_MAPS, &var_smtpd_reject_filter_maps, 0, 0,
 	VAR_HFROM_FORMAT, DEF_HFROM_FORMAT, &var_hfrom_format, 1, 0,
 	VAR_SMTPD_FORBID_BARE_LF_EXCL, DEF_SMTPD_FORBID_BARE_LF_EXCL, &var_smtpd_forbid_bare_lf_excl, 0, 0,
 	VAR_SMTPD_FORBID_BARE_LF, DEF_SMTPD_FORBID_BARE_LF, &var_smtpd_forbid_bare_lf, 1, 0,

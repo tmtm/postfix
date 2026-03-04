@@ -20,8 +20,8 @@
   * Patches change both the patchlevel and the release date. Snapshots have no
   * patchlevel; they change the release date only.
   */
-#define MAIL_RELEASE_DATE	"20260218"
-#define MAIL_VERSION_NUMBER	"3.10.8"
+#define MAIL_RELEASE_DATE	"20260305"
+#define MAIL_VERSION_NUMBER	"3.11.0"
 
 #ifdef SNAPSHOT
 #define MAIL_VERSION_DATE	"-" MAIL_RELEASE_DATE
@@ -104,6 +104,9 @@ extern void check_mail_version(const char *);
 /*	Google, Inc.
 /*	111 8th Avenue
 /*	New York, NY 10011, USA
+/*
+/*	Wietse Venema
+/*	porcupine.org
 /*--*/
 
 #endif

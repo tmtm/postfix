@@ -84,7 +84,9 @@ static unsigned long showq_message(VSTREAM *showq_stream)
     static VSTRING *queue_name = 0;
     static VSTRING *queue_id = 0;
     static VSTRING *id_status = 0;
+    static VSTRING *oaddr = 0;
     static VSTRING *addr = 0;
+    static VSTRING *log_class = 0;
     static VSTRING *why = 0;
     long    arrival_time;
     long    message_size;
@@ -102,7 +104,9 @@ static unsigned long showq_message(VSTREAM *showq_stream)
 	queue_name = vstring_alloc(100);
 	queue_id = vstring_alloc(100);
 	id_status = vstring_alloc(100);
+	oaddr = vstring_alloc(100);
 	addr = vstring_alloc(100);
+	log_class = vstring_alloc(100);
 	why = vstring_alloc(100);
     }
 
@@ -146,9 +150,11 @@ static unsigned long showq_message(VSTREAM *showq_stream)
     while ((showq_status = attr_scan_more(showq_stream)) > 0) {
 	if (attr_scan(showq_stream, ATTR_FLAG_MORE | ATTR_FLAG_STRICT
 		      | ATTR_FLAG_PRINTABLE,
+		      RECV_ATTR_STR(MAIL_ATTR_ORCPT, oaddr),
 		      RECV_ATTR_STR(MAIL_ATTR_RECIP, addr),
+		      RECV_ATTR_STR(MAIL_ATTR_LOG_CLASS, log_class),
 		      RECV_ATTR_STR(MAIL_ATTR_WHY, why),
-		      ATTR_TYPE_END) != 2)
+		      ATTR_TYPE_END) != 4)
 	    msg_fatal_status(EX_SOFTWARE, "malformed showq server response");
 
 	/*

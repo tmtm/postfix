@@ -210,6 +210,8 @@ extern char *mail_pathname(const char *, const char *);
 #define MAIL_ATTR_COMPAT_LEVEL	"compatibility_level"
 #define MAIL_ATTR_MAIL_VERSION	"mail_version"
 
+#define MAIL_ATTR_INST_FLAGS	"instance_flags"
+
  /*
   * Suffixes for sender_name, sender_domain etc.
   */
@@ -261,6 +263,8 @@ extern char *mail_pathname(const char *, const char *);
 #define MAIL_ATTR_ORG_LOCAL	"local"	/* local submission */
 
 #define MAIL_ATTR_MESSAGE_ID	"message_id"	/* Used for threaded bounce */
+
+#define MAIL_ATTR_LOG_CLASS	"log_class"	/* bounce/defer/trace */
 
  /*
   * XCLIENT/XFORWARD in SMTP.
@@ -314,6 +318,13 @@ extern char *mail_pathname(const char *, const char *);
   * SMTP reply footer support.
   */
 #define MAIL_ATTR_SERVER_NAME	"server_name"
+
+ /*
+  * Non-Berkeley-DB migration.
+  */
+#define MAIL_ATTR_PROTO_NBDB_REINDEX	"nbdb_reindex"	/* Re-index protocol */
+#define MAIL_ATTR_NBDB_TYPE		"nbdb_type"	/* maptype */
+#define MAIL_ATTR_NBDB_PATH		"nbdb_path"	/* mapname */
 
 /* LICENSE
 /* .ad

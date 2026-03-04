@@ -446,8 +446,10 @@ static int dict_db_sequence(DICT *dict, int function,
      */
     switch (function) {
     case DICT_SEQ_FUN_FIRST:
-	if (dict_db->cursor == 0)
-	    DICT_DB_CURSOR(db, &(dict_db->cursor));
+	if (dict_db->cursor == 0
+	    && (status = DICT_DB_CURSOR(db, &(dict_db->cursor))) != 0)
+	    msg_fatal("error [%d] initializing cursor for %s: %m",
+		      status, dict_db->dict.name);
 	db_function = DB_FIRST;
 	break;
     case DICT_SEQ_FUN_NEXT:
@@ -650,9 +652,9 @@ static DICT *dict_db_open(const char *class, const char *path, int open_flags,
 		       DB_VERSION_MAJOR, DB_VERSION_MINOR, DB_VERSION_PATCH,
 			       major_version, minor_version, patch_version));
     if (msg_verbose) {
-	msg_info("Compiled against Berkeley DB: %d.%d.%d\n",
+	msg_info("Compiled against Berkeley DB: %d.%d.%d",
 		 DB_VERSION_MAJOR, DB_VERSION_MINOR, DB_VERSION_PATCH);
-	msg_info("Run-time linked against Berkeley DB: %d.%d.%d\n",
+	msg_info("Run-time linked against Berkeley DB: %d.%d.%d",
 		 major_version, minor_version, patch_version);
     }
 #else
@@ -823,7 +825,7 @@ static DICT *dict_db_open(const char *class, const char *path, int open_flags,
     dict_db->val_buf = 0;
 
     myfree(db_path);
-    return (DICT_DEBUG (&dict_db->dict));
+    return (&dict_db->dict);
 }
 
 /* dict_hash_open - create association with data base */

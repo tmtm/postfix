@@ -268,16 +268,22 @@ static int new_client_session_cb(SSL *ssl, SSL_SESSION *session)
 	msg_panic("%s: null session cache type in new session callback",
 		  myname);
 
-    if (TLScontext->log_mask & TLS_LOG_CACHE)
-	/* serverid contains transport:addr:port information */
-	msg_info("save session %s to %s cache",
-		 TLScontext->serverid, TLScontext->cache_type);
-
-    /*
+    /*-
+     * Store only the first ticket for a given connection.
+     * - Even if the server offers multiple tickets, we have no mechanism to
+     *   store or use multiple concurrent tickets for the same nexthop.
+     *
      * Passivate and save the session object. Errors are non-fatal, since
      * caching is only an optimization.
      */
-    if ((session_data = tls_session_passivate(session)) != 0) {
+    if (TLScontext->ticketed == 0 &&
+	(session_data = tls_session_passivate(session)) != 0) {
+	TLScontext->ticketed = 1;
+	if (TLScontext->log_mask & TLS_LOG_CACHE)
+	    /* serverid contains transport:addr:port information */
+	    msg_info("save session %s to %s cache",
+		     TLScontext->serverid, TLScontext->cache_type);
+
 	tls_mgr_update(TLScontext->cache_type, TLScontext->serverid,
 		       STR(session_data), LEN(session_data));
 	vstring_free(session_data);
@@ -359,9 +365,10 @@ static void verify_x509(TLS_SESS_STATE *TLScontext, X509 *peercert,
 	}
     } else if (TLS_MUST_MATCH(TLScontext->level) &&
 	       x509_err == X509_V_ERR_HOSTNAME_MISMATCH) {
+
 	/*
-	 * If the only error is a hostname mismatch, the certificate must have
-	 * been trusted.
+	 * If the only error is a hostname mismatch, the certificate must
+	 * have been trusted.
 	 */
 	TLScontext->peer_status |= TLS_CERT_FLAG_TRUSTED;
     }
@@ -510,7 +517,7 @@ static void add_namechecks(TLS_SESS_STATE *TLScontext,
 #endif
 
 	if (!match_subdomain) {
-	    if (SSL_add1_host(ssl, name))
+	    if (TLS_ADD1_HOST(ssl, name))
 		++namechecks_count;
 	    else
 		msg_warn("%s: error loading match name: \"%s\"",
@@ -518,7 +525,7 @@ static void add_namechecks(TLS_SESS_STATE *TLScontext,
 	} else {
 	    char   *dot_name = concatenate(".", name, (char *) 0);
 
-	    if (SSL_add1_host(ssl, dot_name))
+	    if (TLS_ADD1_HOST(ssl, dot_name))
 		++namechecks_count;
 	    else
 		msg_warn("%s: error loading match name: \"%s\"",

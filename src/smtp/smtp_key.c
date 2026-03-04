@@ -69,6 +69,8 @@
 /*	The requested TLS security level.
 /* .IP SMTP_KEY_FLAG_REQ_SMTPUTF8
 /*	Whether SMTPUTF8 support is required.
+/* .IP SMTP_KEY_FLAG_REQTLS_LEVEL
+/*	The REQUIRETLS enforcement level.
 /* .RE
 /* DIAGNOSTICS
 /*	Panic: undefined flag or zero flags. Fatal: out of memory.
@@ -113,11 +115,6 @@
   * Application-specific.
   */
 #include <smtp.h>
-
- /* Duplicated to minimze patch footprint. */
-#define DELIVERY_REQUIRES_SMTPUTF8(request) \
-	(((request)->sendopts & SMTPUTF8_FLAG_REQUESTED) \
-	&& ((request)->sendopts & SMTPUTF8_FLAG_DERIVED))
 
  /*
   * We use a configurable field terminator and optional place holder for data
@@ -215,6 +212,18 @@ char   *smtp_key_prefix(VSTRING *buffer, const char *delim_na,
     if (flags & SMTP_KEY_FLAG_TLS_LEVEL)
 #ifdef USE_TLS
 	smtp_key_append_uint(buffer, state->tls->level, delim_na);
+#else
+	smtp_key_append_na(buffer, delim_na);
+#endif
+
+    /*
+     * REQUIRETLS enforcement level, if applicable. TODO(tlsproxy) should the
+     * lookup engine also try the requested TLS level and 'stronger', in case
+     * a server hosts multiple domains with different TLS requirements?
+     */
+    if (flags & SMTP_KEY_FLAG_REQTLS_LEVEL)
+#ifdef USE_TLS
+	smtp_key_append_uint(buffer, state->reqtls_level, delim_na);
 #else
 	smtp_key_append_na(buffer, delim_na);
 #endif

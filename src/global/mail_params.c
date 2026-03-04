@@ -54,6 +54,7 @@
 /*	int	var_ipc_idle_limit;
 /*	int	var_ipc_ttl_limit;
 /*	char	*var_db_type;
+/*	char	*var_cache_db_type;
 /*	char	*var_hash_queue_names;
 /*	int	var_hash_queue_depth;
 /*	int	var_trigger_timeout;
@@ -128,6 +129,7 @@
 /*	int	var_smtputf8_enable;
 /*	int	var_strict_smtputf8;
 /*	char	*var_smtputf8_autoclass;
+/*	int	var_reqtls_enable;
 /*	int	var_tls_required_enable;
 /*	int     var_idna2003_compat;
 /*	char	*var_compatibility_level;
@@ -167,6 +169,11 @@
 /*	bool	var_relay_before_rcpt_checks;
 /*	bool	var_respectful_logging;
 /*	char	*var_known_tcp_ports;
+/*
+/*	char	*var_nbdb_level;
+/*	char	*var_nbdb_service;
+/*	char	*var_nbdb_cust_map;
+/*	bool	var_nbdb_log_redirect;
 /* DESCRIPTION
 /*	This module (actually the associated include file) defines
 /*	the names and defaults of all mail configuration parameters.
@@ -198,6 +205,9 @@
 /*	Google, Inc.
 /*	111 8th Avenue
 /*	New York, NY 10011, USA
+/*
+/*	Wietse Venema
+/*	porcupine.org
 /*--*/
 
 /* System library. */
@@ -230,6 +240,7 @@
 #include <iostuff.h>
 #include <midna_domain.h>
 #include <logwriter.h>
+#include <mac_midna.h>
 
 /* Global library. */
 
@@ -240,6 +251,7 @@
 #include <verp_sender.h>
 #include <own_inet_addr.h>
 #include <mail_params.h>
+#include <nbdb_util.h>
 #include <compat_level.h>
 #include <config_known_tcp_ports.h>
 
@@ -254,7 +266,7 @@ char   *var_relayhost;
 char   *var_transit_origin;
 char   *var_transit_dest;
 char   *var_mail_name;
-int     var_helpful_warnings;
+bool    var_helpful_warnings;
 char   *var_syslog_name;
 char   *var_mail_owner;
 uid_t   var_owner_uid;
@@ -294,6 +306,7 @@ char   *var_mail_version;
 int     var_ipc_idle_limit;
 int     var_ipc_ttl_limit;
 char   *var_db_type;
+char   *var_cache_db_type;
 char   *var_hash_queue_names;
 int     var_hash_queue_depth;
 int     var_trigger_timeout;
@@ -303,10 +316,10 @@ int     var_fork_delay;
 int     var_flock_tries;
 int     var_flock_delay;
 int     var_flock_stale;
-int     var_disable_dns;
-int     var_soft_bounce;
+bool    var_disable_dns;
+bool    var_soft_bounce;
 time_t  var_starttime;
-int     var_ownreq_special;
+bool    var_ownreq_special;
 int     var_daemon_timeout;
 char   *var_syslog_facility;
 char   *var_relay_domains;
@@ -345,18 +358,18 @@ int     var_mime_maxdepth;
 int     var_mime_bound_len;
 int     var_header_limit;
 int     var_token_limit;
-int     var_disable_mime_input;
-int     var_disable_mime_oconv;
-int     var_strict_8bitmime;
-int     var_strict_7bit_hdrs;
-int     var_strict_8bit_body;
-int     var_strict_encoding;
-int     var_verify_neg_cache;
-int     var_oldlog_compat;
+bool    var_disable_mime_input;
+bool    var_disable_mime_oconv;
+bool    var_strict_8bitmime;
+bool    var_strict_7bit_hdrs;
+bool    var_strict_8bit_body;
+bool    var_strict_encoding;
+bool    var_verify_neg_cache;
+bool    var_oldlog_compat;
 int     var_delay_max_res;
 int     var_sockmap_max_reply;
 char   *var_int_filt_classes;
-int     var_cyrus_sasl_authzid;
+bool    var_cyrus_sasl_authzid;
 
 char   *var_multi_conf_dirs;
 char   *var_multi_wrapper;
@@ -367,11 +380,12 @@ bool    var_long_queue_ids;
 bool    var_daemon_open_fatal;
 bool    var_dns_ncache_ttl_fix;
 char   *var_dsn_filter;
-int     var_smtputf8_enable;
-int     var_strict_smtputf8;
+bool    var_smtputf8_enable;
+bool    var_strict_smtputf8;
 char   *var_smtputf8_autoclass;
-int     var_tls_required_enable;
-int     var_idna2003_compat;
+bool    var_reqtls_enable;
+bool    var_tls_required_enable;
+bool    var_idna2003_compat;
 char   *var_compatibility_level;
 char   *var_drop_hdrs;
 char   *var_info_log_addr_form;
@@ -388,7 +402,19 @@ char   *var_dnssec_probe;
 bool    var_respectful_logging;
 char   *var_known_tcp_ports;
 
+char   *var_nbdb_level;
+char   *var_nbdb_service;
+char   *var_nbdb_cust_map;
+bool    var_nbdb_log_redirect;
+
 const char null_format_string[1] = "";
+
+ /*
+  * Compatibility level 3.11.
+  */
+int     warn_compat_break_smtp_tlsrpt_skip_reused_hs;
+int     warn_compat_break_smtp_tls_level;
+int     warn_compat_break_tlsp_clnt_level;
 
  /*
   * Compatibility level 3.6.
@@ -472,6 +498,7 @@ static const char *check_mydomainname(void)
 	/* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
 	return (DEF_MYDOMAIN);
     /* DO NOT CALL GETHOSTBYNAME OR GETNAMEINFO HERE - EDIT MAIN.CF */
+    /* TODO(wietse) handle Unicode variants for 'dot'. */
     return (dot + 1);
 }
 
@@ -660,7 +687,33 @@ static void check_legacy_defaults(void)
      * Each incompatible change has its own flag variable, instead of bit in a
      * shared variable. We don't want to rip up code when we need more flag
      * bits.
+     * 
+     * Note: the purpose of these mail_conf_lookup() calls is to detect if a
+     * parameter value is not specified. The calls must happen before
+     * parameter default settings are enforced with mail_conf_update().
+     * 
+     * The preferred flow is: 1) in mail_params.h, specify a configuration
+     * parameter default value that depends on the compatibility level; 2)
+     * below, set a flag to indicate that the parameter will be set to the
+     * legacy default value; 3) in the program-specific code, log a message
+     * when the legacy default value is actually used, and optionally clear
+     * the flag to avoid spamming the log.
      */
+
+    /*
+     * Look for specific parameters whose default changed when the
+     * compatibility level changed to 3.11.
+     */
+    if (compat_level < compat_level_from_string(COMPAT_LEVEL_3_11, msg_panic)) {
+#ifdef USE_TLS
+	if (mail_conf_lookup(VAR_SMTP_TLSRPT_SKIP_REUSED_HS) == 0)
+	    warn_compat_break_smtp_tlsrpt_skip_reused_hs = 1;
+	if (mail_conf_lookup(VAR_SMTP_TLS_LEVEL) == 0)
+	    warn_compat_break_smtp_tls_level = 1;
+	if (mail_conf_lookup(VAR_TLSP_CLNT_LEVEL) == 0)
+	    warn_compat_break_tlsp_clnt_level = 1;
+#endif
+    }
 
     /*
      * Look for specific parameters whose default changed when the
@@ -757,7 +810,9 @@ void    mail_params_init()
 	VAR_SMTPUTF8_ENABLE, DEF_SMTPUTF8_ENABLE, &var_smtputf8_enable,
 	VAR_IDNA2003_COMPAT, DEF_IDNA2003_COMPAT, &var_idna2003_compat,
 	VAR_RESPECTFUL_LOGGING, DEF_RESPECTFUL_LOGGING, &var_respectful_logging,
+	VAR_REQTLS_ENABLE, DEF_REQTLS_ENABLE, &var_reqtls_enable,
 	VAR_TLSREQUIRED_ENABLE, DEF_TLSREQUIRED_ENABLE, &var_tls_required_enable,
+	VAR_NBDB_LOG_REDIRECT, DEF_NBDB_LOG_REDIRECT, &var_nbdb_log_redirect,
 	0,
     };
     static const CONFIG_STR_FN_TABLE function_str_defaults[] = {
@@ -787,6 +842,7 @@ void    mail_params_init()
 	VAR_ALIAS_DB_MAP, DEF_ALIAS_DB_MAP, &var_alias_db_map, 0, 0,
 	VAR_MAIL_RELEASE, DEF_MAIL_RELEASE, &var_mail_release, 1, 0,
 	VAR_DB_TYPE, DEF_DB_TYPE, &var_db_type, 1, 0,
+	VAR_CACHE_DB_TYPE, DEF_CACHE_DB_TYPE, &var_cache_db_type, 1, 0,
 	VAR_HASH_QUEUE_NAMES, DEF_HASH_QUEUE_NAMES, &var_hash_queue_names, 1, 0,
 	VAR_RCPT_DELIM, DEF_RCPT_DELIM, &var_rcpt_delim, 0, 0,
 	VAR_RELAY_DOMAINS, DEF_RELAY_DOMAINS, &var_relay_domains, 0, 0,
@@ -819,6 +875,9 @@ void    mail_params_init()
 	VAR_SMTPUTF8_AUTOCLASS, DEF_SMTPUTF8_AUTOCLASS, &var_smtputf8_autoclass, 1, 0,
 	VAR_DROP_HDRS, DEF_DROP_HDRS, &var_drop_hdrs, 0, 0,
 	VAR_INFO_LOG_ADDR_FORM, DEF_INFO_LOG_ADDR_FORM, &var_info_log_addr_form, 1, 0,
+	VAR_NBDB_LEVEL, DEF_NBDB_LEVEL, &var_nbdb_level, 1, 0,
+	VAR_NBDB_SERVICE, DEF_NBDB_SERVICE, &var_nbdb_service, 0, 0,
+	VAR_NBDB_CUST_MAP, DEF_NBDB_CUST_MAP, &var_nbdb_cust_map, 0, 0,
 	0,
     };
     static const CONFIG_STR_FN_TABLE function_str_defaults_2[] = {
@@ -886,6 +945,11 @@ void    mail_params_init()
 	0,
     };
     const char *cp;
+
+    /*
+     * Register named functions.
+     */
+    mac_midna_register();
 
     /*
      * Extract compatibility level first, so that we can determine what
@@ -1053,4 +1117,9 @@ void    mail_params_init()
 	msg_fatal("file %s/%s: parameters %s and %s: %s",
 		  var_config_dir, MAIN_CONF_FILE,
 		  VAR_VERP_DELIMS, VAR_VERP_FILTER, cp);
+
+    /*
+     * Non-Berkeley-DB migration support.
+     */
+    nbdb_util_init(var_nbdb_level);
 }

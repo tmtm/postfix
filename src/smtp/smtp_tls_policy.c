@@ -38,7 +38,7 @@
 /*	When var_smtp_tls_enf_sts_mx_pat is not null, and a policy plugin
 /*	specifies a policy_type "sts" plus one or more mx_host_pattern
 /*	instances, transform the policy as follows: allow only MX hosts
-/*	that an  match mx_host_pattern instance, and match a server
+/*	that match an mx_host_pattern instance, and match a server
 /*	certificate against the server hostname.
 /*
 /*	smtp_tls_policy_dummy() initializes a trivial, non-cached,
@@ -191,12 +191,12 @@ int     smtp_tls_authorize_mx_hostname(SMTP_TLS_POLICY *tls, const char *name)
 	    if (match_sts_mx_host_pattern(*pattp, aname)) {
 		if (msg_verbose)
 		    msg_info("MX name '%s' matches STS MX pattern for '%s'",
-		    aname, tls->ext_policy_domain ? tls->ext_policy_domain : "");
+			     aname, tls->ext_policy_domain ? tls->ext_policy_domain : "");
 		return (1);
 	    }
 	}
 	msg_warn("MX name '%s' does not match STS MX pattern for '%s'",
-		 aname, tls->ext_policy_domain ? tls->ext_policy_domain : "");
+	       aname, tls->ext_policy_domain ? tls->ext_policy_domain : "");
 	return (0);
     }
     /* No applicable policy name patterns. */

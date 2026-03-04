@@ -250,6 +250,12 @@ void    smtp_tlsrpt_create_wrapper(SMTP_STATE *state, const char *domain)
 	if (msg_verbose)
 	    msg_info("%s: domain %s has policy %.100s",
 		     smtp_tlsrpt_support, domain, rr->data);
+	if (warn_compat_break_smtp_tlsrpt_skip_reused_hs) {
+	    msg_info("using using backwards-compatible default setting "
+		     VAR_SMTP_TLSRPT_SKIP_REUSED_HS "=yes");
+	    var_smtp_tlsrpt_skip_reused_hs = 1;
+	    warn_compat_break_smtp_tlsrpt_skip_reused_hs = 0;
+	}
 	state->tlsrpt = trw_create(
 			    /* rpt_socket_name= */ var_smtp_tlsrpt_sockname,
 				    /* rpt_policy_domain= */ adomain,
@@ -374,7 +380,7 @@ void    smtp_tlsrpt_set_tcp_connection(SMTP_STATE *state)
 	client_addr.buf[0] = 0;
     } else if ((aierr = sane_sockaddr_to_hostaddr(
 					  (struct sockaddr *) &addr_storage,
-					     addr_storage_len, &client_addr,
+					    &addr_storage_len, &client_addr,
 						  (MAI_SERVPORT_STR *) 0,
 						  SOCK_STREAM)) != 0) {
 	msg_warn("%s: cannot convert IP address to string (%s)"

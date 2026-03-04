@@ -54,6 +54,7 @@ extern VSTRING *unescape(VSTRING *, const char *);
 extern VSTRING *escape(VSTRING *, const char *, ssize_t);
 extern int alldig(const char *);
 extern int allalnum(const char *);
+extern int allalnumus(const char *);
 extern int allprint(const char *);
 extern int allspace(const char *);
 extern int allascii_len(const char *, ssize_t);
@@ -67,6 +68,7 @@ extern int strcasecmp_utf8x(int, const char *, const char *);
 extern int strncasecmp_utf8x(int, const char *, const char *, ssize_t);
 extern char *quote_for_json(VSTRING *, const char *, ssize_t);
 extern char *quote_for_json_append(VSTRING *, const char *, ssize_t);
+extern char *quote_for_json_var(VSTRING *,...);
 extern const char *mystrerror(int);
 extern char *normalize_ws(char *);
 
@@ -115,6 +117,9 @@ extern char *normalize_ws(char *);
 /*	Google, Inc.
 /*	111 8th Avenue
 /*	New York, NY 10011, USA
+/*
+/*	Wietse Venema
+/*	porcupine.org
 /*--*/
 
 #endif
